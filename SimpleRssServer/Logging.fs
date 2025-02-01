@@ -7,6 +7,6 @@ let private loggerFactory =
         builder.AddSimpleConsole(fun c -> c.TimestampFormat <- "[yyyy-MM-dd HH:mm:ss.fff] ")
         |> ignore
 
-        builder.SetMinimumLevel(LogLevel.Debug) |> ignore)
+        builder.SetMinimumLevel(LogLevel.Information) |> ignore)
 
 let logger: ILogger = loggerFactory.CreateLogger("SimpleRssReader")

@@ -77,7 +77,7 @@ let fetchWithCache client (cacheLocation: string) (url: string) =
 
         if not fileExists || fileIsOld then
             if fileIsOld then
-                logger.LogInformation($"Cached file {cachePath} is older than 1 hour. Fetching {url}")
+                logger.LogDebug($"Cached file {cachePath} is older than 1 hour. Fetching {url}")
             else
                 logger.LogInformation($"Did not find cached file {cachePath}. Fetching {url}")
 
@@ -92,7 +92,7 @@ let fetchWithCache client (cacheLocation: string) (url: string) =
             match page with
             | Success "No changes" ->
                 try
-                    logger.LogInformation($"Reading from cached file {cachePath}, because feed didn't change")
+                    logger.LogDebug($"Reading from cached file {cachePath}, because feed didn't change")
                     let! content = File.ReadAllTextAsync(cachePath) |> Async.AwaitTask
                     File.SetLastWriteTime(cachePath, DateTime.Now)
                     return Success content
@@ -103,7 +103,7 @@ let fetchWithCache client (cacheLocation: string) (url: string) =
                 return page
             | Failure _ -> return page
         else
-            logger.LogInformation($"Found cached file {cachePath} and it is up to date")
+            logger.LogDebug($"Found cached file {cachePath} and it is up to date")
             let! content = File.ReadAllTextAsync(cachePath) |> Async.AwaitTask
             return Success content
     }
@@ -115,7 +115,7 @@ let fetchAllRssFeeds client (cacheLocation: string) (urls: string list) =
     |> Async.RunSynchronously
 
 let updateRequestLog (filename: string) (retention: TimeSpan) (urls: string list) =
-    logger.LogInformation($"Updating request log {filename} with retention {retention.ToString()}")
+    logger.LogDebug($"Updating request log {filename} with retention {retention.ToString()}")
     let currentDate = DateTime.Now
 
     let currentDateString =
