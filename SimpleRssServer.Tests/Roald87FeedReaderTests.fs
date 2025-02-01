@@ -62,3 +62,14 @@ let ``test Roald87.FeedReader with nature content`` () =
         """<p>Nature, Published online: 20 August 2024; <a href="https://www.nature.com/articles/s41586-024-07956-2">doi:10.1038/s41586-024-07956-2</a></p>Author Correction: Anti-TIGIT antibody improves PD-L1 blockade through myeloid and T<sub>reg</sub> cells""",
         feed.Items[0].Content
     )
+
+[<Fact>]
+let ``test Roald87.FeedReader with wikenigma content`` () =
+    // https://wikenigma.org.uk/feed.php
+    let feed = FeedReader.ReadFromFile("data/wikenigma.xml")
+
+    Assert.Equal(10, feed.Items.Count)
+
+    Assert.Equal("'Penguin' etymology - external edit", feed.Items[0].Title)
+    // 2024-03-01T13:26:09+00:00
+    Assert.Equal(DateTime(2024, 3, 1, 13, 26, 9) |> Nullable, feed.Items[0].PublishingDate)
