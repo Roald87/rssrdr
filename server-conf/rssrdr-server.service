@@ -1,0 +1,15 @@
+[Unit]
+Description=HTTP server for rssrd
+After=network.target
+
+[Service]
+ExecStart=/bin/bash -c "/var/www/rss/SimpleRssServer http://localhost:8001/ 2> >(/usr/bin/ts '[%%Y-%%m-%%d %%H:%%M:%%S]' >&2) | /usr/bin/ts '[%%Y-%%m-%%d %%H:%%M:%%S]'"
+WorkingDirectory=/var/www/rssrdr
+User=rss
+Group=1000
+Restart=always
+StandardOutput=append:/var/log/rssrdr-server/rssrdr.log
+StandardError=append:/var/log/rssrdr-server/rssrr.err
+
+[Install]
+WantedBy=multi-user.target

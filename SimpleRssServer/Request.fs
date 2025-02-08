@@ -42,7 +42,7 @@ let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset op
         try
             let request = new HttpRequestMessage(HttpMethod.Get, url)
             let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
-            request.Headers.UserAgent.ParseAdd($"motherfucking-rss-reader/{version}")
+            request.Headers.UserAgent.ParseAdd($"rssrdr/{version}")
 
             match lastModified with
             | Some date -> request.Headers.IfModifiedSince <- date
@@ -180,7 +180,7 @@ let homepage query rssItems =
         $"""
     <body>
         <div class="header">
-            <h1>Motherfucking RSS Reader</h1>
+            <h1><a href="/" style="text-decoration: none; color: black;">rssrdr</a></h1>
             <a id="config-link" href="config.html/%s{query}">Configure</a>
         </div>
     """
@@ -199,7 +199,7 @@ let configPage query =
         """
     <body>
         <div class="header">
-            <h1>Configure RSS Reader</h1>
+            <h1>Configure</h1>
         </div>
     """
 
@@ -213,7 +213,7 @@ let configPage query =
     let textArea =
         $"""
         <form id='feed-form'>
-            <label for='feeds'>Enter feed URLs (one per line):</label><br>
+            <label for='feeds'>Enter one feed URL per line:</label><br>
             <textarea id='feeds' rows='10' cols='30'>{urlFields}</textarea><br>
             <button type='button' onclick='submitFeeds()'>Submit</button>
         </form>
