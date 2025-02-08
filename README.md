@@ -2,7 +2,7 @@
 
 _Pure RSS reading without the bloat. Device-agnostic, registration-free, and radically simple._
 
-![screenshot of the RSS reader with three feeds from seth's blog and spectrum.ieee.com](image.png)
+![screenshot of the RSS reader with three feeds from seth's blog and spectrum.ieee.com](website.png)
 
 The simplest RSS feed aggregator on the web.
 
