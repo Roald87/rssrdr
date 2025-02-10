@@ -181,7 +181,7 @@ let homepage query rssItems =
     <body>
         <div class="header">
             <h1><a href="/" style="text-decoration: none; color: black;">rssrdr</a></h1>
-            <a id="config-link" href="config.html/%s{query}">Configure</a>
+            <a id="config-link" href="config.html/%s{query}">config</a>
         </div>
     """
 
@@ -199,7 +199,7 @@ let configPage query =
         """
     <body>
         <div class="header">
-            <h1>Configure</h1>
+            <h1><a href="/" style="text-decoration: none; color: black;">rssrdr</a>/config</h1>
         </div>
     """
 
