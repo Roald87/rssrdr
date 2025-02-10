@@ -66,6 +66,7 @@ To deploy, assuming the repo is cloned in `~/rssrdr/` and the setup above is don
 
 Certificates are created using https://certbot.eff.org/. Follow the instructions there to generate a certificate.
 
+- Certificat is created with: `certbot --nginx -d rssrdr.com`
 - Certificate is saved at: `/etc/letsencrypt/live/rssrdr.com/fullchain.pem`
 - Key is saved at: `/etc/letsencrypt/live/rssrdr.com/privkey.pem`
 
