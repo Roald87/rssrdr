@@ -2,4 +2,4 @@
 User-agent: *
 Disallow: /
 Allow: /$
-Sitemap: https://motherfuckingrssreader.com/sitemap.xml
+Sitemap: https://rssrdr.com/sitemap.xml
