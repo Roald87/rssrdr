@@ -101,3 +101,9 @@ rssrdr-server
 - logs: `/var/log/rssrdr-server/`
 - source code: `~/rssrdr`
 - binaries: `/var/www/rssrdr`
+
+## Attribution
+
+Inspired by [motherfuckingwebsite.com](http://motherfuckingwebsite.com/) and [bettermotherfuckingwebsite.com](http://bettermotherfuckingwebsite.com/).
+
+This RSS reader was created by me, with a little help from [aider](https://github.com/paul-gauthier/aider/), ChatGPT and the people of the interwebs.
