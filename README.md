@@ -1,10 +1,8 @@
 # rssrdr
 
-_Pure RSS reading without the bloat. Device-agnostic, registration-free, and radically simple._
+_The simplest RSS reader on the planet._
 
 ![screenshot of the RSS reader with three feeds from seth's blog and spectrum.ieee.com](website.png)
-
-The simplest RSS feed aggregator on the web.
 
 ## Feed inspiration
 
