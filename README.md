@@ -1,10 +1,8 @@
 # rssrdr
 
-_Pure RSS reading without the bloat. Device-agnostic, registration-free, and radically simple._
+_The simplest RSS reader on the planet._
 
 ![screenshot of the RSS reader with three feeds from seth's blog and spectrum.ieee.com](website.png)
-
-The simplest RSS feed aggregator on the web.
 
 ## Feed inspiration
 
@@ -101,3 +99,9 @@ rssrdr-server
 - logs: `/var/log/rssrdr-server/`
 - source code: `~/rssrdr`
 - binaries: `/var/www/rssrdr`
+
+## Attribution
+
+Inspired by [motherfuckingwebsite.com](http://motherfuckingwebsite.com/) and [bettermotherfuckingwebsite.com](http://bettermotherfuckingwebsite.com/).
+
+This RSS reader was created by me, with a little help from [aider](https://github.com/paul-gauthier/aider/), ChatGPT and the people of the interwebs.
