@@ -361,3 +361,30 @@ let ``Test Html encoding of special characters`` () =
         |> convertArticleToHtml
 
     Assert.Equal(expected, actual)
+
+type DelayedResponseHandler(delay: TimeSpan) =
+    inherit HttpMessageHandler()
+
+    override _.SendAsync(request, cancellationToken) =
+        async {
+            do! Async.Sleep(int delay.TotalMilliseconds)
+            let response = new HttpResponseMessage(HttpStatusCode.OK)
+            response.Content <- new StringContent("Delayed response")
+            return response
+        }
+        |> Async.StartAsTask
+
+[<Fact>]
+let ``GetAsync returns timeout error when request takes too long`` () =
+    // Arrange
+    let delay = TimeSpan.FromSeconds(6.0) // Longer than the 5 second timeout
+    let handler = new DelayedResponseHandler(delay)
+    let client = new HttpClient(handler)
+
+    // Act
+    let result = getAsync client "http://example.com" None |> Async.RunSynchronously
+
+    // Assert
+    match result with
+    | Success _ -> Assert.True(false, "Expected timeout failure but got success")
+    | Failure error -> Assert.Contains("timed out after 5 seconds", error)
