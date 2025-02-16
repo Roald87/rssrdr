@@ -152,7 +152,7 @@ let ``Test getAsync with successful response`` () =
     let client = new HttpClient(handler)
 
     let result =
-        getAsync client "http://example.com" (Some DateTimeOffset.Now)
+        getAsync client "http://example.com" (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match result with
@@ -164,7 +164,7 @@ let ``Test getAsync with unsuccessful response on real page`` () =
     let client = new HttpClient()
 
     let response =
-        getAsync client "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now)
+        getAsync client "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match response with
@@ -197,7 +197,8 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
     let client = mockHttpClient (createDynamicResponse lastModifiedDate)
 
     // Case 1: When If-Modified-Since is equal to lastModifiedDate
-    let result1 = getAsync client url (Some lastModifiedDate) |> Async.RunSynchronously
+    let result1 =
+        getAsync client url (Some lastModifiedDate) 5 |> Async.RunSynchronously
 
     match result1 with
     | Success content -> Assert.Equal("No changes", content)
@@ -205,14 +206,14 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
 
     // Case 2: When If-Modified-Since is before lastModifiedDate
     let earlierDate = lastModifiedDate.AddDays(-1.0)
-    let result2 = getAsync client url (Some earlierDate) |> Async.RunSynchronously
+    let result2 = getAsync client url (Some earlierDate) 5 |> Async.RunSynchronously
 
     match result2 with
     | Success content -> Assert.Equal("Content has changed since the last modification date", content)
     | Failure error -> failwithf "Expected success, but got failure: %s" error
 
     // Case 3: When If-Modified-Since is not provided
-    let result3 = getAsync client url None |> Async.RunSynchronously
+    let result3 = getAsync client url None 5 |> Async.RunSynchronously
 
     match result3 with
     | Success content -> Assert.Equal("Content has changed since the last modification date", content)
@@ -361,3 +362,29 @@ let ``Test Html encoding of special characters`` () =
         |> convertArticleToHtml
 
     Assert.Equal(expected, actual)
+
+type DelayedResponseHandler(delay: TimeSpan) =
+    inherit HttpMessageHandler()
+
+    override _.SendAsync(request, cancellationToken) =
+        async {
+            do! Async.Sleep(int delay.TotalMilliseconds)
+            let response = new HttpResponseMessage(HttpStatusCode.OK)
+            response.Content <- new StringContent("Delayed response")
+            return response
+        }
+        |> Async.StartAsTask
+
+[<Fact>]
+let ``GetAsync returns timeout error when request takes too long`` () =
+    let timeout = 1.0
+    let delay = TimeSpan.FromSeconds(timeout + 0.2) // Longer than the 5 second timeout
+    let handler = new DelayedResponseHandler(delay)
+    let client = new HttpClient(handler)
+
+    let result =
+        getAsync client "http://example.com" None timeout |> Async.RunSynchronously
+
+    match result with
+    | Success _ -> Assert.True(false, "Expected timeout failure but got success")
+    | Failure error -> Assert.Contains($"timed out after {timeout} seconds", error)

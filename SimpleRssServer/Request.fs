@@ -37,9 +37,11 @@ let getRssUrls (context: string) : string list option =
             None
 
 // Fetch the contents of a web page
-let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset option) =
+let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset option) (timeoutSeconds: float) =
     async {
         try
+            use cts = new Threading.CancellationTokenSource(TimeSpan.FromSeconds timeoutSeconds)
+
             let request = new HttpRequestMessage(HttpMethod.Get, url)
             let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
             request.Headers.UserAgent.ParseAdd($"rssrdr/{version}")
@@ -48,7 +50,7 @@ let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset op
             | Some date -> request.Headers.IfModifiedSince <- date
             | None -> ()
 
-            let! response = client.SendAsync(request) |> Async.AwaitTask
+            let! response = client.SendAsync(request, cts.Token) |> Async.AwaitTask
 
             if response.IsSuccessStatusCode then
                 let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
@@ -57,8 +59,10 @@ let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset op
                 return Success "No changes"
             else
                 return Failure $"Failed to get {url}. Error: {response.StatusCode}."
-        with ex ->
-            return Failure $"Failed to get {url}. {ex.GetType().Name}: {ex.Message}"
+        with
+        | :? Threading.Tasks.TaskCanceledException ->
+            return Failure $"Request to {url} timed out after {timeoutSeconds} seconds"
+        | ex -> return Failure $"Failed to get {url}. {ex.GetType().Name}: {ex.Message}"
     }
 
 let fetchWithCache client (cacheLocation: string) (url: string) =
@@ -87,7 +91,7 @@ let fetchWithCache client (cacheLocation: string) (url: string) =
                 else
                     None
 
-            let! page = getAsync client url lastModified
+            let! page = getAsync client url lastModified 5.0
 
             match page with
             | Success "No changes" ->
