@@ -50,7 +50,11 @@ let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset op
             | Some date -> request.Headers.IfModifiedSince <- date
             | None -> ()
 
+            let startTime = DateTimeOffset.Now
             let! response = client.SendAsync(request, cts.Token) |> Async.AwaitTask
+            let endTime = DateTimeOffset.Now
+            let duration = endTime - startTime
+            logger.LogDebug($"Request to {url} took {duration.TotalMilliseconds} ms")
 
             if response.IsSuccessStatusCode then
                 let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
