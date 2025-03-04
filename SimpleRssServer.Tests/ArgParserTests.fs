@@ -12,6 +12,13 @@ let ``parse should return Help for --help argument`` () =
     Assert.Equal(expected, result)
 
 [<Fact>]
+let ``parse should correctly parse --hostname and --loglevel arguments`` () =
+    let input = "--hostname http://0.0.0.0:12345 --loglevel debug"
+    let expected = Args { Hostname = Some "http://0.0.0.0:12345"; Loglevel = Some LogLevel.Debug }
+    let result = parse input
+    Assert.Equal(expected, result)
+
+[<Fact>]
 let ``parse should fail with error message for invalid --loglevel`` () =
     let input = "--loglevel doesnt_exist"
     let ex = Assert.Throws<System.Exception>(fun () -> parse input |> ignore)
