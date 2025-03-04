@@ -12,4 +12,7 @@ let parse (args: string) : ParsedArgs =
     match parts with
     | [| "--hostname"; hostname |] -> { Hostname = Some hostname; Loglevel = None }
     | [| "--loglevel"; "debug" |] -> { Hostname = None; Loglevel = Some LogLevel.Debug }
+    | [| "--loglevel"; "info" |] -> { Hostname = None; Loglevel = Some LogLevel.Information }
+    | [| "--loglevel"; "warning" |] -> { Hostname = None; Loglevel = Some LogLevel.Warning }
+    | [| "--loglevel"; "error" |] -> { Hostname = None; Loglevel = Some LogLevel.Error }
     | _ -> { Hostname = None; Loglevel = None }
