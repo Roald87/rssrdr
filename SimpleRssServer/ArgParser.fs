@@ -15,4 +15,5 @@ let parse (args: string) : ParsedArgs =
     | [| "--loglevel"; "info" |] -> { Hostname = None; Loglevel = Some LogLevel.Information }
     | [| "--loglevel"; "warning" |] -> { Hostname = None; Loglevel = Some LogLevel.Warning }
     | [| "--loglevel"; "error" |] -> { Hostname = None; Loglevel = Some LogLevel.Error }
+    | [| "--loglevel"; invalid |] -> failwith $"Loglevel {invalid} does not exist"
     | _ -> { Hostname = None; Loglevel = None }
