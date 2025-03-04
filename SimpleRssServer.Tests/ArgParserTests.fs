@@ -2,6 +2,7 @@ module ArgParserTests
 
 open Xunit
 open ArgParser
+open Microsoft.Extensions.Logging
 
 [<Fact>]
 let ``parse should return ParsedArgs with the given string`` () =
