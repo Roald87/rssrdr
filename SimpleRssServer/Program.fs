@@ -42,7 +42,17 @@ let startServer cacheDir (prefixes: string list) =
 
 [<EntryPoint>]
 let main argv =
-    let cacheDir = "rss-cache"
+    let parsedArgs = ArgParser.parse (String.concat " " argv)
+
+    match parsedArgs with
+    | Help ->
+        printfn "Usage: SimpleRssServer [--hostname <url>] [--loglevel <level>]"
+        printfn "Options:"
+        printfn "  --hostname <url>   Specify the hostname and port (e.g., http://+:5000/)"
+        printfn "  --loglevel <level> Set the logging level (debug, info, warning, error)"
+        0
+    | Args args ->
+        let cacheDir = "rss-cache"
 
     if not (Directory.Exists(cacheDir)) then
         Directory.CreateDirectory(cacheDir) |> ignore
@@ -53,5 +63,12 @@ let main argv =
         else
             [ "http://+:5000/" ]
 
-    startServer cacheDir prefixes |> Async.RunSynchronously
-    0
+        if not (Directory.Exists(cacheDir)) then
+            Directory.CreateDirectory(cacheDir) |> ignore
+
+        let prefixes =
+            match args.Hostname with
+            | Some hostname -> [hostname]
+            | None -> [ "http://+:5000/" ]
+
+        startServer cacheDir prefixes |> Async.RunSynchronously
