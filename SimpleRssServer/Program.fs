@@ -62,5 +62,8 @@ let main argv =
             | Some hostname -> [hostname]
             | None -> [ "http://+:5000/" ]
 
+        let logLevel = args.Loglevel |> Option.defaultValue LogLevel.Information
+        let logger = createLogger logLevel
+
         startServer cacheDir prefixes |> Async.RunSynchronously
         0
