@@ -11,6 +11,13 @@ let ``parse should return ParsedArgs with the given string`` () =
     Assert.Equal(expected, result)
 
 [<Fact>]
+let ``parse should correctly parse --loglevel argument`` () =
+    let input = "--loglevel debug"
+    let expected = { Hostname = None; Loglevel = Some LogLevel.Debug }
+    let result = parse input
+    Assert.Equal(expected, result)
+
+[<Fact>]
 let ``parse should correctly parse --hostname argument`` () =
     let input = "--hostname http://+:1234"
     let expected = { Hostname = Some "http://+:1234"; Loglevel = None }
