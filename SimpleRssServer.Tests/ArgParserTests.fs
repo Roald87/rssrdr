@@ -24,13 +24,13 @@ let ``parse should fail with error message for invalid --loglevel`` () =
 [<InlineData("debug", LogLevel.Debug)>]
 let ``parse should correctly parse --loglevel arguments`` (loglevel: string, expectedLogLevel: LogLevel) =
     let input = $"--loglevel {loglevel}"
-    let expected = { Hostname = None; Loglevel = Some expectedLogLevel }
+    let expected = Args { Hostname = None; Loglevel = Some expectedLogLevel }
     let result = parse input
     Assert.Equal(expected, result)
 
 [<Fact>]
 let ``parse should correctly parse --hostname argument`` () =
     let input = "--hostname http://+:1234"
-    let expected = { Hostname = Some "http://+:1234"; Loglevel = None }
+    let expected = Args { Hostname = Some "http://+:1234"; Loglevel = None }
     let result = parse input
     Assert.Equal(expected, result)
