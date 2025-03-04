@@ -54,15 +54,6 @@ let main argv =
     | Args args ->
         let cacheDir = "rss-cache"
 
-    if not (Directory.Exists(cacheDir)) then
-        Directory.CreateDirectory(cacheDir) |> ignore
-
-    let prefixes =
-        if argv.Length > 0 then
-            argv |> Array.toList
-        else
-            [ "http://+:5000/" ]
-
         if not (Directory.Exists(cacheDir)) then
             Directory.CreateDirectory(cacheDir) |> ignore
 
@@ -72,3 +63,4 @@ let main argv =
             | None -> [ "http://+:5000/" ]
 
         startServer cacheDir prefixes |> Async.RunSynchronously
+        0
