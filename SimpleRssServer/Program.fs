@@ -51,7 +51,7 @@ let main argv =
         printfn "  --hostname <url>   Specify the hostname and port (e.g., http://+:5000/)"
         printfn "  --loglevel <level> Set the logging level (debug, info, warning, error)"
         0
-    | Args args ->
+    | ArgParser.Args args ->
         let cacheDir = "rss-cache"
 
         if not (Directory.Exists(cacheDir)) then
