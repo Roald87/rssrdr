@@ -13,12 +13,15 @@ type ParsedArgs =
 
 let parse (args: string) : ParsedArgs =
     let parts = args.Split(' ')
-    match parts with
-    | [| "--help" |] -> Help
-    | [| "--hostname"; hostname |] -> Args { Hostname = Some hostname; Loglevel = None }
-    | [| "--loglevel"; "debug" |] -> Args { Hostname = None; Loglevel = Some LogLevel.Debug }
-    | [| "--loglevel"; "info" |] -> Args { Hostname = None; Loglevel = Some LogLevel.Information }
-    | [| "--loglevel"; "warning" |] -> Args { Hostname = None; Loglevel = Some LogLevel.Warning }
-    | [| "--loglevel"; "error" |] -> Args { Hostname = None; Loglevel = Some LogLevel.Error }
-    | [| "--loglevel"; invalid |] -> failwith $"Loglevel {invalid} does not exist"
-    | _ -> Args { Hostname = None; Loglevel = None }
+    let rec parseArgs parts acc =
+        match parts with
+        | [] -> acc
+        | "--help" :: _ -> Help
+        | "--hostname" :: hostname :: rest -> parseArgs rest { acc with Hostname = Some hostname }
+        | "--loglevel" :: "debug" :: rest -> parseArgs rest { acc with Loglevel = Some LogLevel.Debug }
+        | "--loglevel" :: "info" :: rest -> parseArgs rest { acc with Loglevel = Some LogLevel.Information }
+        | "--loglevel" :: "warning" :: rest -> parseArgs rest { acc with Loglevel = Some LogLevel.Warning }
+        | "--loglevel" :: "error" :: rest -> parseArgs rest { acc with Loglevel = Some LogLevel.Error }
+        | "--loglevel" :: invalid :: _ -> failwith $"Loglevel {invalid} does not exist"
+        | _ -> acc
+    parseArgs (List.ofArray parts) { Hostname = None; Loglevel = None } |> Args
