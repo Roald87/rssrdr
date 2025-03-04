@@ -23,5 +23,5 @@ let parse (args: string) : ParsedArgs =
         | "--loglevel" :: "warning" :: rest -> parseArgs rest { acc with Loglevel = Some LogLevel.Warning }
         | "--loglevel" :: "error" :: rest -> parseArgs rest { acc with Loglevel = Some LogLevel.Error }
         | "--loglevel" :: invalid :: _ -> failwith $"Loglevel {invalid} does not exist"
-        | _ -> acc
+        | _ -> Args acc
     parseArgs (List.ofArray parts) { Hostname = None; Loglevel = None }
