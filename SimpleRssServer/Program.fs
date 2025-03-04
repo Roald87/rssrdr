@@ -54,8 +54,8 @@ let main argv =
     | ArgParser.Args args ->
         let cacheDir = "rss-cache"
 
-        if not (Directory.Exists(cacheDir)) then
-            Directory.CreateDirectory(cacheDir) |> ignore
+        if not (Directory.Exists cacheDir) then
+            Directory.CreateDirectory cacheDir |> ignore
 
         let prefixes =
             match args.Hostname with
