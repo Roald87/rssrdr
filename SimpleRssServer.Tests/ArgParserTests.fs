@@ -5,9 +5,9 @@ open ArgParser
 open Microsoft.Extensions.Logging
 
 [<Fact>]
-let ``parse should return ParsedArgs with the given string`` () =
-    let input = "test"
-    let expected = { Hostname = None; Loglevel = None }
+let ``parse should return Help for --help argument`` () =
+    let input = "--help"
+    let expected = Help
     let result = parse input
     Assert.Equal(expected, result)
 
