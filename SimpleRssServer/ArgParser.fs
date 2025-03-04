@@ -1,5 +1,5 @@
 module ArgParser
 
-type ParsedArgs = { Argument: string }
+type ParsedArgs = { Hostname: string option }
 
-let parse (args: string) : ParsedArgs = { Argument = args }
+let parse (args: string) : ParsedArgs = { Hostname = Some args }
