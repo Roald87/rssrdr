@@ -2,8 +2,13 @@ module ArgParser
 
 open Microsoft.Extensions.Logging
 
-type ParsedArgs =
-    | Args of Hostname: string option * Loglevel: LogLevel option
+type Args = {
+    Hostname: string option
+    Loglevel: LogLevel option
+}
+
+type ParsedArgs = 
+    | Args of Args
     | Help
 
 let parse (args: string) : ParsedArgs =
