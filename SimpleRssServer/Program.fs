@@ -45,7 +45,7 @@ let main argv =
     let parsedArgs = ArgParser.parse (String.concat " " argv)
 
     match parsedArgs with
-    | Help ->
+    | ArgParser.Help ->
         printfn "Usage: SimpleRssServer [--hostname <url>] [--loglevel <level>]"
         printfn "Options:"
         printfn "  --hostname <url>   Specify the hostname and port (e.g., http://+:5000/)"
