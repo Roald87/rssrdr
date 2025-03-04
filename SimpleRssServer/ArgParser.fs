@@ -15,10 +15,10 @@ let parse (args: string) : ParsedArgs =
     let parts = args.Split(' ')
     match parts with
     | [| "--help" |] -> Help
-    | [| "--hostname"; hostname |] -> Args(Some hostname, None)
-    | [| "--loglevel"; "debug" |] -> Args(None, Some LogLevel.Debug)
-    | [| "--loglevel"; "info" |] -> Args(None, Some LogLevel.Information)
-    | [| "--loglevel"; "warning" |] -> Args(None, Some LogLevel.Warning)
-    | [| "--loglevel"; "error" |] -> Args(None, Some LogLevel.Error)
+    | [| "--hostname"; hostname |] -> Args { Hostname = Some hostname; Loglevel = None }
+    | [| "--loglevel"; "debug" |] -> Args { Hostname = None; Loglevel = Some LogLevel.Debug }
+    | [| "--loglevel"; "info" |] -> Args { Hostname = None; Loglevel = Some LogLevel.Information }
+    | [| "--loglevel"; "warning" |] -> Args { Hostname = None; Loglevel = Some LogLevel.Warning }
+    | [| "--loglevel"; "error" |] -> Args { Hostname = None; Loglevel = Some LogLevel.Error }
     | [| "--loglevel"; invalid |] -> failwith $"Loglevel {invalid} does not exist"
     | _ -> Args(None, None)
