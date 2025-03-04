@@ -11,6 +11,7 @@
     <Compile Include="Helper.fs" />
     <Compile Include="RssParser.fs" />
     <Compile Include="Request.fs" />
+    <Compile Include="ArgParser.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

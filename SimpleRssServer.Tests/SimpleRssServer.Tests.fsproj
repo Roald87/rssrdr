@@ -7,6 +7,7 @@
     <Compile Include="Roald87FeedReaderTests.fs" />
     <Compile Include="RssParserTests.fs" />
     <Compile Include="RequestTests.fs" />
+    <Compile Include="ArgParserTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Roald87.FeedReader" Version="2.1.0" />
