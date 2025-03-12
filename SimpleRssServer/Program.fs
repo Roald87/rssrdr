@@ -40,16 +40,21 @@ let startServer cacheDir (prefixes: string list) =
     Async.Start(updateRssFeedsPeriodically httpClient cacheDir oneHour)
     loop ()
 
+let helpMessage =
+    """
+Usage: SimpleRssServer [--hostname <url>] [--loglevel <level>]
+Options:
+  --hostname <url>   Specify the hostname and port (e.g., http://+:5000/)
+  --loglevel <level> Set the logging level (debug, info, warning, error)
+"""
+
 [<EntryPoint>]
 let main argv =
     let parsedArgs = ArgParser.parse (String.concat " " argv)
 
     match parsedArgs with
     | ArgParser.Help ->
-        printfn "Usage: SimpleRssServer [--hostname <url>] [--loglevel <level>]"
-        printfn "Options:"
-        printfn "  --hostname <url>   Specify the hostname and port (e.g., http://+:5000/)"
-        printfn "  --loglevel <level> Set the logging level (debug, info, warning, error)"
+        printfn "%s" helpMessage
         0
     | ArgParser.Args args ->
         let cacheDir = "rss-cache"
