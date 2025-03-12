@@ -22,7 +22,7 @@ type Filetype =
     | Txt of string
 
 let convertUrlToValidFilename (url: string) : string =
-    let replaceInvalidFilenameChars = RegularExpressions.Regex("[.?=:/]+")
+    let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
     replaceInvalidFilenameChars.Replace(url, "_")
 
 let getRssUrls (context: string) : string list option =
@@ -44,7 +44,7 @@ let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset op
 
             let request = new HttpRequestMessage(HttpMethod.Get, url)
             let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
-            request.Headers.UserAgent.ParseAdd($"rssrdr/{version}")
+            request.Headers.UserAgent.ParseAdd $"rssrdr/{version}"
 
             match lastModified with
             | Some date -> request.Headers.IfModifiedSince <- date
@@ -54,7 +54,7 @@ let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset op
             let! response = client.SendAsync(request, cts.Token) |> Async.AwaitTask
             let endTime = DateTimeOffset.Now
             let duration = endTime - startTime
-            logger.LogDebug($"Request to {url} took {duration.TotalMilliseconds} ms")
+            logger.LogDebug $"Request to {url} took {duration.TotalMilliseconds} ms"
 
             if response.IsSuccessStatusCode then
                 let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
@@ -74,24 +74,24 @@ let fetchWithCache client (cacheLocation: string) (url: string) =
         let cacheFilename = convertUrlToValidFilename url
         let cachePath = Path.Combine(cacheLocation, cacheFilename)
 
-        let fileExists = File.Exists(cachePath)
+        let fileExists = File.Exists cachePath
 
         let fileIsOld =
             if fileExists then
-                let lastWriteTime = File.GetLastWriteTime(cachePath) |> DateTimeOffset
+                let lastWriteTime = File.GetLastWriteTime cachePath |> DateTimeOffset
                 (DateTimeOffset.Now - lastWriteTime).TotalHours > 1.0
             else
                 false
 
         if not fileExists || fileIsOld then
             if fileIsOld then
-                logger.LogDebug($"Cached file {cachePath} is older than 1 hour. Fetching {url}")
+                logger.LogDebug $"Cached file {cachePath} is older than 1 hour. Fetching {url}"
             else
-                logger.LogInformation($"Did not find cached file {cachePath}. Fetching {url}")
+                logger.LogInformation $"Did not find cached file {cachePath}. Fetching {url}"
 
             let lastModified =
                 if fileExists then
-                    File.GetLastWriteTime(cachePath) |> DateTimeOffset |> Some
+                    File.GetLastWriteTime cachePath |> DateTimeOffset |> Some
                 else
                     None
 
@@ -100,8 +100,8 @@ let fetchWithCache client (cacheLocation: string) (url: string) =
             match page with
             | Success "No changes" ->
                 try
-                    logger.LogDebug($"Reading from cached file {cachePath}, because feed didn't change")
-                    let! content = File.ReadAllTextAsync(cachePath) |> Async.AwaitTask
+                    logger.LogDebug $"Reading from cached file {cachePath}, because feed didn't change"
+                    let! content = File.ReadAllTextAsync cachePath |> Async.AwaitTask
                     File.SetLastWriteTime(cachePath, DateTime.Now)
                     return Success content
                 with ex ->
@@ -111,8 +111,8 @@ let fetchWithCache client (cacheLocation: string) (url: string) =
                 return page
             | Failure _ -> return page
         else
-            logger.LogDebug($"Found cached file {cachePath} and it is up to date")
-            let! content = File.ReadAllTextAsync(cachePath) |> Async.AwaitTask
+            logger.LogDebug $"Found cached file {cachePath} and it is up to date"
+            let! content = File.ReadAllTextAsync cachePath |> Async.AwaitTask
             return Success content
     }
 
@@ -123,7 +123,7 @@ let fetchAllRssFeeds client (cacheLocation: string) (urls: string list) =
     |> Async.RunSynchronously
 
 let updateRequestLog (filename: string) (retention: TimeSpan) (urls: string list) =
-    logger.LogDebug($"Updating request log {filename} with retention {retention.ToString()}")
+    logger.LogDebug $"Updating request log {filename} with retention {retention.ToString()}"
     let currentDate = DateTime.Now
 
     let currentDateString =
@@ -132,8 +132,8 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (urls: string list
     let logEntries = urls |> List.map (fun url -> $"{currentDateString} {url}")
 
     let existingEntries =
-        if File.Exists(filename) then
-            File.ReadAllLines(filename)
+        if File.Exists filename then
+            File.ReadAllLines filename
             |> Array.toList
             |> List.filter (fun line ->
                 let datePart = line.Split(' ').[0]
@@ -141,7 +141,7 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (urls: string list
                 let entryDate =
                     DateTime.ParseExact(datePart, "yyyy-MM-dd", CultureInfo.InvariantCulture)
 
-                (currentDate - entryDate) <= retention)
+                currentDate - entryDate <= retention)
         else
             []
 
@@ -149,8 +149,8 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (urls: string list
     File.WriteAllLines(filename, updatedEntries)
 
 let requestUrls logPath =
-    if File.Exists(logPath) then
-        File.ReadAllLines(logPath)
+    if File.Exists logPath then
+        File.ReadAllLines logPath
         |> Array.map (fun line -> line.Split(' ').[1])
         |> Array.distinct
         |> Array.toList
@@ -243,10 +243,7 @@ let configPage query =
 
 // https://stackoverflow.com/a/3722671/6329629
 let (|Prefix|_|) (p: string) (s: string) =
-    if s.StartsWith(p) then
-        Some(s.Substring(p.Length))
-    else
-        None
+    if s.StartsWith(p) then Some(s.Substring p.Length) else None
 
 let assembleRssFeeds client cacheLocation query =
     let rssFeeds = getRssUrls query
@@ -255,7 +252,7 @@ let assembleRssFeeds client cacheLocation query =
         match rssFeeds with
         | Some urls ->
             let filteredUrls =
-                urls |> List.filter (fun url -> not (String.IsNullOrWhiteSpace(url)))
+                urls |> List.filter (fun url -> not (String.IsNullOrWhiteSpace url))
 
             fetchAllRssFeeds client cacheLocation filteredUrls
         | None -> [||]
@@ -277,11 +274,11 @@ let minifyContent (filetype: Filetype) : string =
 
         if result.Warnings.Count > 0 then
             let warnings = formatErrors result.Warnings
-            logger.LogError($"Something went wrong with minifiying the HTML.\nWarnings:\n{warnings}")
+            logger.LogError $"Something went wrong with minifiying the HTML.\nWarnings:\n{warnings}"
 
         if result.Errors.Count > 0 then
             let errors = formatErrors result.Errors
-            logger.LogError($"Something went wrong with minifiying the HTML.\nErrors: {errors}")
+            logger.LogError $"Something went wrong with minifiying the HTML.\nErrors: {errors}"
 
         // In case something went wrong the minified content is empty
         if result.MinifiedContent.Length = 0 then
@@ -294,11 +291,11 @@ let minifyContent (filetype: Filetype) : string =
 
         if result.Warnings.Count > 0 then
             let warnings = formatErrors result.Warnings
-            logger.LogError($"Something went wrong with minifiying the XML.\nWarnings:\n{warnings}")
+            logger.LogError $"Something went wrong with minifiying the XML.\nWarnings:\n{warnings}"
 
         if result.Errors.Count > 0 then
             let errors = formatErrors result.Errors
-            logger.LogError($"Something went wrong with minifiying the XML.\nErrors: {errors}")
+            logger.LogError $"Something went wrong with minifiying the XML.\nErrors: {errors}"
 
         // In case something went wrong the minified content is empty
         if result.MinifiedContent.Length = 0 then
@@ -311,7 +308,7 @@ let requestLogRetention = TimeSpan.FromDays(7)
 
 let handleRequest client (cacheLocation: string) (context: HttpListenerContext) =
     async {
-        logger.LogInformation($"Received request {context.Request.Url}")
+        logger.LogInformation $"Received request {context.Request.Url}"
 
         let responseString =
             match context.Request.RawUrl with

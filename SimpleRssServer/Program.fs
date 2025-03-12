@@ -13,7 +13,7 @@ let updateRssFeedsPeriodically client cacheDir (period: Milisecond) =
             let urls = requestUrls requestLogPath
 
             if urls.Length > 0 then
-                logger.LogDebug($"Periodically updating {urls.Length} RSS feeds.")
+                logger.LogDebug $"Periodically updating {urls.Length} RSS feeds."
                 fetchAllRssFeeds client cacheDir urls |> ignore
 
             let (Milisecond t) = period

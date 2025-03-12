@@ -26,7 +26,7 @@ let ``Test requestUrls returns two URLs from request-log.txt`` () =
 [<Fact>]
 let ``Test updateRequestLog removes entries older than retention period`` () =
     let filename = "test_log_retention.txt"
-    let retention = TimeSpan.FromDays(7.0)
+    let retention = TimeSpan.FromDays 7.0
 
     let oldDate =
         DateTime.Now.AddDays(-8.0).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
@@ -41,36 +41,36 @@ let ``Test updateRequestLog removes entries older than retention period`` () =
 
     updateRequestLog filename retention [ "NewEntry" ]
 
-    let fileContent = File.ReadAllLines(filename)
+    let fileContent = File.ReadAllLines filename
 
     Assert.DoesNotContain(oldEntry, fileContent)
     Assert.Contains(recentEntry, fileContent[0])
     Assert.Contains("NewEntry", fileContent[1])
 
-    if File.Exists(filename) then
-        File.Delete(filename)
+    if File.Exists filename then
+        File.Delete filename
 
 [<Fact>]
 let ``Test updateRequestLog creates file and appends strings with datetime`` () =
     let filename = "test_log.txt"
     let logEntries = [ "Entry1"; "Entry2"; "Entry3" ]
-    let retention = TimeSpan(1)
+    let retention = TimeSpan 1
 
-    if File.Exists(filename) then
-        File.Delete(filename)
+    if File.Exists filename then
+        File.Delete filename
 
     updateRequestLog filename retention logEntries
-    Assert.True(File.Exists(filename), "Expected log file to be created")
+    Assert.True(File.Exists filename, "Expected log file to be created")
 
-    let fileContent = File.ReadAllText(filename)
+    let fileContent = File.ReadAllText filename
 
     let currentDate = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
     logEntries
     |> List.iter (fun entry -> Assert.Contains($"{currentDate} {entry}", fileContent))
 
-    if File.Exists(filename) then
-        File.Delete(filename)
+    if File.Exists filename then
+        File.Delete filename
 
 [<Fact>]
 let ``Minify Xml removes new lines`` () =
@@ -185,8 +185,8 @@ let createDynamicResponse (lastModifiedDate: DateTimeOffset) =
             new HttpResponseMessage(HttpStatusCode.NotModified) |> Task.FromResult
         else
             let response = new HttpResponseMessage(HttpStatusCode.OK)
-            response.Content <- new StringContent("Content has changed since the last modification date")
-            response.Content.Headers.LastModified <- Nullable(lastModifiedDate)
+            response.Content <- new StringContent "Content has changed since the last modification date"
+            response.Content.Headers.LastModified <- Nullable lastModifiedDate
             response |> Task.FromResult)
 
 [<Fact>]
@@ -235,20 +235,20 @@ let ``Test fetchWithCache with no cache`` () =
 
     // Ensure the file does not exist before the test
     if File.Exists(filePath) then
-        File.Delete(filePath)
+        File.Delete filePath
 
     let result = fetchWithCache client currentDir url |> Async.RunSynchronously
 
     match result with
     | Success _ ->
-        Assert.True(File.Exists(filePath), "Expected file to be created")
-        let fileContent = File.ReadAllText(filePath)
+        Assert.True(File.Exists filePath, "Expected file to be created")
+        let fileContent = File.ReadAllText filePath
         Assert.Equal(expectedContent, fileContent)
     | Failure error -> Assert.True(false, error)
 
     // Clean up
-    if File.Exists(filePath) then
-        File.Delete(filePath)
+    if File.Exists filePath then
+        File.Delete filePath
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
@@ -267,7 +267,7 @@ let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
 
     // Write the expected content to the file and set its last write time to less than 1 hour ago
     File.WriteAllText(filePath, expectedContent)
-    File.SetLastWriteTime(filePath, DateTime.Now.AddMinutes(-30.0))
+    File.SetLastWriteTime(filePath, DateTime.Now.AddMinutes -30.0)
 
     let result = fetchWithCache client currentDir url |> Async.RunSynchronously
 
@@ -276,8 +276,8 @@ let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
     | Failure error -> Assert.True(false, error)
 
     // Clean up
-    if File.Exists(filePath) then
-        File.Delete(filePath)
+    if File.Exists filePath then
+        File.Delete filePath
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
@@ -303,12 +303,12 @@ let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
     match result with
     | Success content ->
         Assert.Equal(newContent, content)
-        let fileContent = File.ReadAllText(filePath)
+        let fileContent = File.ReadAllText filePath
         Assert.Equal(newContent, fileContent)
     | Failure error -> Assert.True(false, error)
 
-    if File.Exists(filePath) then
-        File.Delete(filePath)
+    if File.Exists filePath then
+        File.Delete filePath
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache more than 1 hour old and 304 response`` () =
@@ -325,7 +325,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old and 304 respo
 
     // Write the cached content to the file and set its last write time to more than 1 hour ago
     File.WriteAllText(filePath, cachedContent)
-    let oldWriteTime = DateTime.Now.AddHours(-2.0)
+    let oldWriteTime = DateTime.Now.AddHours -2.0
     File.SetLastWriteTime(filePath, oldWriteTime)
 
     let result = fetchWithCache client currentDir url |> Async.RunSynchronously
@@ -333,13 +333,13 @@ let ``Test fetchWithCache with existing cache more than 1 hour old and 304 respo
     match result with
     | Success content ->
         Assert.Equal(cachedContent, content)
-        let newWriteTime = File.GetLastWriteTime(filePath)
+        let newWriteTime = File.GetLastWriteTime filePath
         Assert.True(newWriteTime > oldWriteTime, "Expected file write time to be updated")
     | Failure error -> Assert.True(false, error)
 
     // Clean up
-    if File.Exists(filePath) then
-        File.Delete(filePath)
+    if File.Exists filePath then
+        File.Delete filePath
 
 [<Fact>]
 let ``Test Html encoding of special characters`` () =
