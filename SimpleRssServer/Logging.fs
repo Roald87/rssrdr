@@ -10,7 +10,7 @@ let createLoggerFactory (logLevel: LogLevel) =
         builder.SetMinimumLevel(logLevel) |> ignore)
 
 let mutable logger: ILogger =
-    (createLoggerFactory LogLevel.Error).CreateLogger "SimpleRssReader"
+    (createLoggerFactory LogLevel.Information).CreateLogger "SimpleRssReader"
 
 let initializeLogger verbosity =
     logger <- (createLoggerFactory verbosity).CreateLogger "SimpleRssReader"

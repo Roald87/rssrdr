@@ -61,7 +61,7 @@ let main argv =
             args.Hostname |> Option.defaultValue "http://+:5000/" |> (fun x -> [ x ])
 
         let logLevel = args.Loglevel |> Option.defaultValue LogLevel.Information
-        createLoggerFactory logLevel |> ignore
+        initializeLogger logLevel |> ignore
 
         startServer cacheDir hostname |> Async.RunSynchronously
         0
