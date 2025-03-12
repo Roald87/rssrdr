@@ -18,9 +18,9 @@ let stripHtml (input: string) : string =
     if String.IsNullOrWhiteSpace(input) then
         ""
     else
-        let regex = Text.RegularExpressions.Regex("<.*?>")
+        let regex = Text.RegularExpressions.Regex "<.*?>"
         let noHtml = regex.Replace(input, "")
-        let removeMutliSpaces = Text.RegularExpressions.Regex("\s+")
+        let removeMutliSpaces = Text.RegularExpressions.Regex "\s+"
 
         noHtml.Replace("\n", " ").Replace("\r", "").Trim()
         |> fun s -> removeMutliSpaces.Replace(s, " ")
@@ -30,7 +30,7 @@ let ARTICLE_DESCRIPTION_LENGTH = 255
 let createErrorFeed errorMessage =
     let feedItem = new FeedItem()
     feedItem.Title <- "Error"
-    feedItem.PublishingDate <- Nullable(DateTime.Now)
+    feedItem.PublishingDate <- Nullable DateTime.Now
     feedItem.Description <- errorMessage
     feedItem.Link <- ""
 
@@ -44,7 +44,7 @@ let parseRss (feedContent: Result<string, string>) : Article list =
         match feedContent with
         | Success content ->
             try
-                FeedReader.ReadFromString(content)
+                FeedReader.ReadFromString content
             with ex ->
                 createErrorFeed $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
         | Failure error -> createErrorFeed error
@@ -53,13 +53,13 @@ let parseRss (feedContent: Result<string, string>) : Article list =
     |> Seq.map (fun entry ->
         let postDate =
             if entry.PublishingDate.HasValue then
-                Some(entry.PublishingDate.Value)
+                Some entry.PublishingDate.Value
             else if feed.Type = FeedType.Atom then
                 let atomEntry = entry.SpecificItem :?> Feeds.AtomFeedItem
 
                 match atomEntry.UpdatedDate.HasValue with
                 | false -> None
-                | true -> Some(atomEntry.UpdatedDate.Value)
+                | true -> Some atomEntry.UpdatedDate.Value
             else
                 None
 
@@ -68,7 +68,7 @@ let parseRss (feedContent: Result<string, string>) : Article list =
 
         let baseUrl =
             try
-                let uri = Uri(link)
+                let uri = Uri link
                 uri.Host.Replace("www.", "")
             with ex ->
                 ""
@@ -99,7 +99,7 @@ let parseRss (feedContent: Result<string, string>) : Article list =
 
 let parseRssFromFile fileName =
     try
-        let content = File.ReadAllText(fileName) |> Success
+        let content = File.ReadAllText fileName |> Success
         parseRss content
     with ex ->
         [ { PostDate = Some DateTime.Now

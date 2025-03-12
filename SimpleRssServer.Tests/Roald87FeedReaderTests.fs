@@ -7,7 +7,7 @@ open Xunit
 
 [<Fact>]
 let ``test Roald87.FeedReader with roaldinch`` () =
-    let feed = FeedReader.ReadFromFile("data/roaldinch.xml")
+    let feed = FeedReader.ReadFromFile "data/roaldinch.xml"
 
     Assert.Equal(10, feed.Items.Count)
     Assert.Equal("Groepsreserveringen", feed.Items[0].Title)
@@ -21,7 +21,7 @@ let ``test Roald87.FeedReader with roaldinch`` () =
 
 [<Fact>]
 let ``test Roald87.FeedReader with zoesklot`` () =
-    let feed = FeedReader.ReadFromFile("data/zoesklot.xml")
+    let feed = FeedReader.ReadFromFile "data/zoesklot.xml"
 
     Assert.Equal(5, feed.Items.Count)
     Assert.Equal("Duitse shag", feed.Items[0].Title)
@@ -37,7 +37,7 @@ let ``test Roald87.FeedReader with zoesklot`` () =
 [<Fact>]
 let ``test Roald87.FeedReader with spectrum`` () =
     // https://spectrum.ieee.org/feeds/feed.rss
-    let feed = FeedReader.ReadFromFile("data/spectrum.rss")
+    let feed = FeedReader.ReadFromFile "data/spectrum.rss"
 
     Assert.Equal(30, feed.Items.Count)
     Assert.Equal("Quantum Cryptography Has Everyone Scrambling", feed.Items[0].Title)
@@ -45,7 +45,7 @@ let ``test Roald87.FeedReader with spectrum`` () =
 [<Fact>]
 let ``test Roald87.FeedReader with quanta`` () =
     // https://www.quantamagazine.org/feed/
-    let feed = FeedReader.ReadFromFile("data/quanta.xml")
+    let feed = FeedReader.ReadFromFile "data/quanta.xml"
 
     Assert.Equal(5, feed.Items.Count)
     Assert.Equal("Physicists Pinpoint the Quantum Origin of the Greenhouse Effect", feed.Items[0].Title)
@@ -54,7 +54,7 @@ let ``test Roald87.FeedReader with quanta`` () =
 [<Fact>]
 let ``test Roald87.FeedReader with nature content`` () =
     // http://feeds.nature.com/nature/rss/current
-    let feed = FeedReader.ReadFromFile("data/nature.rss")
+    let feed = FeedReader.ReadFromFile "data/nature.rss"
 
     Assert.Equal(75, feed.Items.Count)
 
@@ -66,7 +66,7 @@ let ``test Roald87.FeedReader with nature content`` () =
 [<Fact>]
 let ``test Roald87.FeedReader with wikenigma content`` () =
     // https://wikenigma.org.uk/feed.php
-    let feed = FeedReader.ReadFromFile("data/wikenigma.xml")
+    let feed = FeedReader.ReadFromFile "data/wikenigma.xml"
 
     Assert.Equal(10, feed.Items.Count)
 

@@ -15,13 +15,13 @@ let ``Test parseRss with non-valid RSS feed`` () =
     let result = parseRss (Success invalidContent)
 
     let expected =
-        { PostDate = Some(DateTime.Now)
+        { PostDate = Some DateTime.Now
           Title = "Error"
           Url = ""
           BaseUrl = ""
           Text = "Invalid RSS feed format. FeedTypeNotSupportedException: unknown feed type html" }
 
-    Assert.Single(result) |> ignore
+    Assert.Single result |> ignore
     let actual = List.head result
     Assert.Equal(expected.Title, actual.Title)
     Assert.Equal(expected.Text, actual.Text)
@@ -176,13 +176,13 @@ let ``Test parseRss with Failure feedContent`` () =
     let result = parseRss (Failure errorMessage)
 
     let expected =
-        { PostDate = Some(DateTime.Now)
+        { PostDate = Some DateTime.Now
           Title = "Error"
           Url = ""
           BaseUrl = ""
           Text = errorMessage }
 
-    Assert.Single(result) |> ignore
+    Assert.Single result |> ignore
     let actual = List.head result
     Assert.Equal(expected.Title, actual.Title)
     Assert.Equal(expected.Text, actual.Text)
@@ -196,7 +196,7 @@ let ``Test parsing date if only update date is available`` () =
 
     let expectedFirst = Some(DateTime(2024, 8, 18, 23, 16, 27))
     let actualFirst = result |> List.head
-    Assert.True(actualFirst.PostDate.IsSome)
+    Assert.True actualFirst.PostDate.IsSome
     Assert.True((expectedFirst.Value - actualFirst.PostDate.Value).TotalSeconds < 1.0)
 
     let expectedLast = Some(DateTime(2023, 2, 24, 8, 45, 28))
