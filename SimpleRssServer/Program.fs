@@ -57,13 +57,11 @@ let main argv =
         if not (Directory.Exists cacheDir) then
             Directory.CreateDirectory cacheDir |> ignore
 
-        let prefixes =
-            match args.Hostname with
-            | Some hostname -> [hostname]
-            | None -> [ "http://+:5000/" ]
+        let hostname =
+            args.Hostname |> Option.defaultValue "http://+:5000/" |> (fun x -> [ x ])
 
         let logLevel = args.Loglevel |> Option.defaultValue LogLevel.Information
-        let logger = createLogger logLevel
+        createLoggerFactory logLevel |> ignore
 
-        startServer cacheDir prefixes |> Async.RunSynchronously
+        startServer cacheDir hostname |> Async.RunSynchronously
         0
