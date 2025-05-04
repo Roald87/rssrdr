@@ -23,8 +23,8 @@ Starting the server. You can watch it at 127.0.0.1:5000
 
 ### Initial setup on Linux server
 
-1. Install the .NET 9.0 runtime.
-    - `sudo apt-get install -y dotnet-runtime-9.0`
+1. Install the .NET 9.0 SDK.
+    - `sudo apt-get update && sudo apt-get install dotnet-sdk-9.0`
 
 1. Copy the service configuration for the webserver from `./server-config/`, assuming you're in this top folder of this repo.
     - `sudo cp -i ./server-conf/rssrdr-server.service /etc/systemd/system/rssrdr-server.service`
