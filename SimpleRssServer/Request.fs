@@ -10,16 +10,11 @@ open System.Text
 open System.Web
 
 open RssParser
-open WebMarkupMin.Core
 
 open SimpleRssServer.Helper
 open SimpleRssServer.Logging
 open System.Globalization
 
-type Filetype =
-    | Xml of string
-    | Html of string
-    | Txt of string
 
 let convertUrlToValidFilename (url: string) : string =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
@@ -259,50 +254,6 @@ let assembleRssFeeds client cacheLocation query =
 
     homepage query items
 
-let formatErrors error =
-    error
-    |> Seq.map (fun (err: MinificationErrorInfo) ->
-        $"{err.Category} at l{err.LineNumber}:c{err.ColumnNumber}: {err.Message}.\n{err.SourceFragment}")
-    |> String.concat "\n"
-
-let minifyContent (filetype: Filetype) : string =
-    match filetype with
-    | Txt t -> t
-    | Html h ->
-        let htmlMinifier = new HtmlMinifier()
-        let result = htmlMinifier.Minify(h, generateStatistics = false)
-
-        if result.Warnings.Count > 0 then
-            let warnings = formatErrors result.Warnings
-            logger.LogError $"Something went wrong with minifiying the HTML.\nWarnings:\n{warnings}"
-
-        if result.Errors.Count > 0 then
-            let errors = formatErrors result.Errors
-            logger.LogError $"Something went wrong with minifiying the HTML.\nErrors: {errors}"
-
-        // In case something went wrong the minified content is empty
-        if result.MinifiedContent.Length = 0 then
-            h
-        else
-            result.MinifiedContent
-    | Xml x ->
-        let minifier = new XmlMinifier()
-        let result = minifier.Minify(x, generateStatistics = false)
-
-        if result.Warnings.Count > 0 then
-            let warnings = formatErrors result.Warnings
-            logger.LogError $"Something went wrong with minifiying the XML.\nWarnings:\n{warnings}"
-
-        if result.Errors.Count > 0 then
-            let errors = formatErrors result.Errors
-            logger.LogError $"Something went wrong with minifiying the XML.\nErrors: {errors}"
-
-        // In case something went wrong the minified content is empty
-        if result.MinifiedContent.Length = 0 then
-            x
-        else
-            result.MinifiedContent
-
 let requestLogPath = "rss-cache/request-log.txt"
 let requestLogRetention = TimeSpan.FromDays(7)
 
@@ -312,7 +263,7 @@ let handleRequest client (cacheLocation: string) (context: HttpListenerContext) 
 
         let responseString =
             match context.Request.RawUrl with
-            | Prefix "/config.html" _ -> configPage context.Request.Url.Query |> Html
+            | Prefix "/config.html" _ -> configPage context.Request.Url.Query
             | Prefix "/?rss=" _ ->
                 let rssUrls = getRssUrls context.Request.Url.Query
 
@@ -320,12 +271,12 @@ let handleRequest client (cacheLocation: string) (context: HttpListenerContext) 
                 | Some urls -> updateRequestLog requestLogPath requestLogRetention urls
                 | None -> ()
 
-                assembleRssFeeds client cacheLocation context.Request.Url.Query |> Html
-            | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt")) |> Txt
-            | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml")) |> Xml
-            | _ -> landingPage |> Html
+                assembleRssFeeds client cacheLocation context.Request.Url.Query 
+            | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
+            | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
+            | _ -> landingPage
 
-        let buffer = responseString |> minifyContent |> Encoding.UTF8.GetBytes
+        let buffer = responseString |> Encoding.UTF8.GetBytes
         context.Response.ContentLength64 <- int64 buffer.Length
         context.Response.ContentType <- "text/html"
 

@@ -73,49 +73,6 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
         File.Delete filename
 
 [<Fact>]
-let ``Minify Xml removes new lines`` () =
-    let content = "<root>\n\t<child>Value</child>\n</root>" |> Xml
-
-    let actual = minifyContent content
-    let expectedContent = "<root><child>Value</child></root>"
-
-    Assert.Equal(expectedContent, actual)
-
-[<Fact>]
-let ``Minify Txt returns the same content`` () =
-    let content = "This is\nplain text content." |> Txt
-
-    let actual = minifyContent content
-    let expectedContent = "This is\nplain text content."
-
-    Assert.Equal(expectedContent, actual)
-
-[<Fact>]
-let ``Minify Html removes new lines`` () =
-    let content = "<html>\n\t<body>\n\t\t<p>Hello World</p>\n\t</body>\n</html>" |> Html
-
-    let actual = minifyContent content
-    // Minifier also removes optional end tags
-    let expectedContent = "<html><body><p>Hello World"
-
-    Assert.Equal(expectedContent, actual)
-
-[<Fact>]
-let ``If minifying html fails, return original content`` () =
-    let content = "<p>1 << n vs</p>"
-    let actual = minifyContent (Html content)
-
-    Assert.Equal(content, actual)
-
-
-[<Fact>]
-let ``If minifying xml fails, return original content`` () =
-    let content = "<xml>test</p>"
-    let actual = minifyContent (Xml content)
-
-    Assert.Equal(content, actual)
-
-[<Fact>]
 let ``Test getRequestInfo`` () =
     let result = getRssUrls "?rss=https://abs.com/test"
 
