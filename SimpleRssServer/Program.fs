@@ -63,7 +63,7 @@ let main argv =
             Directory.CreateDirectory cacheDir |> ignore
 
         let hostname =
-            args.Hostname |> Option.defaultValue "http://+:5000/" |> (fun x -> [ x ])
+            args.Hostname |> Option.defaultValue "http://+:5000/" |> fun x -> [ x ]
 
         let logLevel = args.Loglevel |> Option.defaultValue LogLevel.Information
         initializeLogger logLevel |> ignore
