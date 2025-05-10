@@ -20,10 +20,10 @@ let stripHtml (input: string) : string =
     else
         let regex = Text.RegularExpressions.Regex "<.*?>"
         let noHtml = regex.Replace(input, "")
-        let removeMutliSpaces = Text.RegularExpressions.Regex "\s+"
+        let removeRepeatingSpaces = Text.RegularExpressions.Regex "\s+"
 
         noHtml.Replace("\n", " ").Replace("\r", "").Trim()
-        |> fun s -> removeMutliSpaces.Replace(s, " ")
+        |> fun s -> removeRepeatingSpaces.Replace(s, " ")
 
 let ARTICLE_DESCRIPTION_LENGTH = 255
 
@@ -70,7 +70,7 @@ let parseRss (feedContent: Result<string, string>) : Article list =
             try
                 let uri = Uri link
                 uri.Host.Replace("www.", "")
-            with ex ->
+            with _ ->
                 ""
 
         let text =
