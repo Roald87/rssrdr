@@ -36,7 +36,7 @@ let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset op
     async {
         try
             use cts = new Threading.CancellationTokenSource(TimeSpan.FromSeconds timeoutSeconds)
-
+            
             let request = new HttpRequestMessage(HttpMethod.Get, url)
             let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
             request.Headers.UserAgent.ParseAdd $"rssrdr/{version}"
@@ -64,6 +64,7 @@ let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset op
         | ex -> return Failure $"Failed to get {url}. {ex.GetType().Name}: {ex.Message}"
     }
 
+// TODO not so clear what's the difference between this and getAsync
 let fetchWithCache client (cacheLocation: string) (url: string) =
     async {
         let cacheFilename = convertUrlToValidFilename url
@@ -167,6 +168,7 @@ let convertArticleToHtml article =
     </div>
     """
 
+// TODO: is this cached? Same for landingPage
 let header = File.ReadAllText(Path.Combine("site", "header.html"))
 
 let landingPage =
@@ -179,6 +181,7 @@ let footer =
     """
 
 let homepage query rssItems =
+    // TODO repeats part of landing-page.html
     let body =
         $"""
     <body>
@@ -267,6 +270,7 @@ let handleRequest client (cacheLocation: string) (context: HttpListenerContext) 
                 | Some urls -> updateRequestLog requestLogPath requestLogRetention urls
                 | None -> ()
 
+                // TODO: assembleRssFeeds again extracts the rss urls from the query
                 assembleRssFeeds client cacheLocation context.Request.Url.Query 
             | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
             | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
