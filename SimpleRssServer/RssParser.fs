@@ -15,7 +15,7 @@ type Article =
       Text: string }
 
 let stripHtml (input: string) : string =
-    if String.IsNullOrWhiteSpace(input) then
+    if String.IsNullOrWhiteSpace input then
         ""
     else
         let regex = Text.RegularExpressions.Regex "<.*?>"
