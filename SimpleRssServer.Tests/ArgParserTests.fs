@@ -18,7 +18,7 @@ let ``parse should correctly parse --hostname and --loglevel arguments`` () =
     let expected =
         Args
             { Hostname = Some "http://0.0.0.0:12345"
-              Loglevel = Some LogLevel.Debug }
+              LogLevel = Some LogLevel.Debug }
 
     let result = parse input
     Assert.Equal(expected, result)
@@ -40,7 +40,7 @@ let ``parse should correctly parse --loglevel arguments`` (loglevel: string, exp
     let expected =
         Args
             { Hostname = None
-              Loglevel = Some expectedLogLevel }
+              LogLevel = Some expectedLogLevel }
 
     let result = parse input
     Assert.Equal(expected, result)
@@ -52,7 +52,7 @@ let ``parse should correctly parse --hostname argument`` () =
     let expected =
         Args
             { Hostname = Some "http://+:1234"
-              Loglevel = None }
+              LogLevel = None }
 
     let result = parse input
     Assert.Equal(expected, result)
