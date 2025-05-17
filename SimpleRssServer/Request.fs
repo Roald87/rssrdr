@@ -32,11 +32,11 @@ let getRssUrls (context: string) : string list option =
             None
 
 // Fetch the contents of a web page
-let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset option) (timeoutSeconds: float) =
+let fetchUrlAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset option) (timeoutSeconds: float) =
     async {
         try
             use cts = new Threading.CancellationTokenSource(TimeSpan.FromSeconds timeoutSeconds)
-            
+
             let request = new HttpRequestMessage(HttpMethod.Get, url)
             let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
             request.Headers.UserAgent.ParseAdd $"rssrdr/{version}"
@@ -64,8 +64,7 @@ let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset op
         | ex -> return Failure $"Failed to get {url}. {ex.GetType().Name}: {ex.Message}"
     }
 
-// TODO not so clear what's the difference between this and getAsync
-let fetchWithCache client (cacheLocation: string) (url: string) =
+let fetchUrlWithCacheAsync client (cacheLocation: string) (url: string) =
     async {
         let cacheFilename = convertUrlToValidFilename url
         let cachePath = Path.Combine(cacheLocation, cacheFilename)
@@ -91,7 +90,7 @@ let fetchWithCache client (cacheLocation: string) (url: string) =
                 else
                     None
 
-            let! page = getAsync client url lastModified 5.0
+            let! page = fetchUrlAsync client url lastModified 5.0
 
             match page with
             | Success "No changes" ->
@@ -114,7 +113,7 @@ let fetchWithCache client (cacheLocation: string) (url: string) =
 
 let fetchAllRssFeeds client (cacheLocation: string) (urls: string list) =
     urls
-    |> List.map (fetchWithCache client cacheLocation)
+    |> List.map (fetchUrlWithCacheAsync client cacheLocation)
     |> Async.Parallel
     |> Async.RunSynchronously
 
@@ -271,7 +270,7 @@ let handleRequest client (cacheLocation: string) (context: HttpListenerContext) 
                 | None -> ()
 
                 // TODO: assembleRssFeeds again extracts the rss urls from the query
-                assembleRssFeeds client cacheLocation context.Request.Url.Query 
+                assembleRssFeeds client cacheLocation context.Request.Url.Query
             | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
             | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
             | _ -> landingPage
