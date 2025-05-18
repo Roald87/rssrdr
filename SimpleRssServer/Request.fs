@@ -244,13 +244,15 @@ let assembleRssFeeds client cacheLocation rssUrls =
         |> Option.map (List.filter notEmpty >> fetchAllRssFeeds client cacheLocation)
         |> Option.defaultValue [||]
 
-    let query =
+    let rssQuery =
         rssUrls
         |> Option.defaultValue []
         |> List.filter notEmpty
         |> String.concat "&rss="
 
-    homepage $"?rss={query}" items
+    let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
+
+    homepage query items
 
 let requestLogPath = "rss-cache/request-log.txt"
 let requestLogRetention = TimeSpan.FromDays 7
