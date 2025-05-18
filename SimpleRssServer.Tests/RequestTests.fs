@@ -21,7 +21,7 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     let rssUrls = []
 
     // Act
-    let result = assembleRssFeeds client cacheLocation (Some rssUrls)
+    let result = assembleRssFeeds client cacheLocation rssUrls
 
     // Assert
     Assert.Contains($"<a id=\"config-link\" href=\"config.html/\">config</a>", result)
@@ -34,7 +34,7 @@ let ``Test assembleRssFeeds includes config link with query`` () =
     let rssUrls = [ "https://example.com/feed"; "rss=https://example.com/feed2" ]
 
     // Act
-    let result = assembleRssFeeds client cacheLocation (Some rssUrls)
+    let result = assembleRssFeeds client cacheLocation rssUrls
 
     // Assert
     let expectedQuery = $"?rss={rssUrls[0]}&rss={rssUrls[1]}"
@@ -103,19 +103,19 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
 let ``Test getRequestInfo`` () =
     let result = getRssUrls "?rss=https://abs.com/test"
 
-    Assert.Equal(Some [ "https://abs.com/test" ], result)
+    Assert.Equal<string list>([ "https://abs.com/test" ], result)
 
 [<Fact>]
 let ``Test getRequestInfo with two URLs`` () =
     let result = getRssUrls "?rss=https://abs.com/test1&rss=https://abs.com/test2"
 
-    Assert.Equal(Some [ "https://abs.com/test1"; "https://abs.com/test2" ], result)
+    Assert.Equal<string list>([ "https://abs.com/test1"; "https://abs.com/test2" ], result)
 
 [<Fact>]
 let ``Test getRequestInfo with empty string`` () =
     let result = getRssUrls ""
 
-    Assert.Equal(None, result)
+    Assert.Equal<string list>([], result)
 
 [<Fact>]
 let ``Test convertUrlToFilename`` () =

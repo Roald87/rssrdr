@@ -20,16 +20,16 @@ let convertUrlToValidFilename (url: string) : string =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
     replaceInvalidFilenameChars.Replace(url, "_")
 
-let getRssUrls (context: string) : string list option =
+let getRssUrls (context: string) : string list =
     context
     |> HttpUtility.ParseQueryString
     |> fun query ->
         let rssValues = query.GetValues "rss"
 
         if rssValues <> null && rssValues.Length > 0 then
-            Some(rssValues |> List.ofArray)
+            rssValues |> List.ofArray
         else
-            None
+            []
 
 // Fetch the contents of a web page
 let fetchUrlAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset option) (timeoutSeconds: float) =
@@ -206,12 +206,7 @@ let configPage query =
         </div>
     """
 
-    let rssFeeds = getRssUrls query
-
-    let urlFields =
-        match rssFeeds with
-        | Some urls -> urls |> String.concat "\n"
-        | None -> ""
+    let urlFields = getRssUrls query |> String.concat "\n"
 
     let textArea =
         $"""
@@ -239,16 +234,9 @@ let configPage query =
 let notEmpty (s: string) = not (String.IsNullOrWhiteSpace s)
 
 let assembleRssFeeds client cacheLocation rssUrls =
-    let items =
-        rssUrls
-        |> Option.map (List.filter notEmpty >> fetchAllRssFeeds client cacheLocation)
-        |> Option.defaultValue [||]
+    let items = rssUrls |> List.filter notEmpty |> fetchAllRssFeeds client cacheLocation
 
-    let rssQuery =
-        rssUrls
-        |> Option.defaultValue []
-        |> List.filter notEmpty
-        |> String.concat "&rss="
+    let rssQuery = rssUrls |> List.filter notEmpty |> String.concat "&rss="
 
     let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
 
@@ -267,9 +255,7 @@ let handleRequest client (cacheLocation: string) (context: HttpListenerContext) 
             | Prefix "/?rss=" _ ->
                 let rssUrls = getRssUrls context.Request.Url.Query
 
-                match rssUrls with
-                | Some urls -> updateRequestLog requestLogPath requestLogRetention urls
-                | None -> ()
+                updateRequestLog requestLogPath requestLogRetention rssUrls
 
                 assembleRssFeeds client cacheLocation rssUrls
             | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
