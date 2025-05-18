@@ -184,7 +184,7 @@ let homepage query rssItems =
     <body>
         <div class="header">
             <h1><a href="/" style="text-decoration: none; color: black;">rssrdr</a></h1>
-            <a id="config-link" href="config.html/%s{query}">config</a>
+            <a id="config-link" href="config.html/%s{query}">config/</a>
         </div>
     """
 

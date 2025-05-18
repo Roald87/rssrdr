@@ -24,7 +24,7 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     let result = assembleRssFeeds client cacheLocation rssUrls
 
     // Assert
-    Assert.Contains($"<a id=\"config-link\" href=\"config.html/\">config</a>", result)
+    Assert.Contains($"<a id=\"config-link\" href=\"config.html/\">config/</a>", result)
 
 [<Fact>]
 let ``Test assembleRssFeeds includes config link with query`` () =
@@ -38,7 +38,7 @@ let ``Test assembleRssFeeds includes config link with query`` () =
 
     // Assert
     let expectedQuery = $"?rss={rssUrls[0]}&rss={rssUrls[1]}"
-    Assert.Contains($"<a id=\"config-link\" href=\"config.html/%s{expectedQuery}\">config</a>", result)
+    Assert.Contains($"<a id=\"config-link\" href=\"config.html/%s{expectedQuery}\">config/</a>", result)
 
 [<Fact>]
 let ``Test requestUrls returns two URLs from request-log.txt`` () =
