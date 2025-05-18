@@ -24,7 +24,6 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     let result = assembleRssFeeds client cacheLocation (Some rssUrls)
 
     // Assert
-    let expectedQuery = ""
     Assert.Contains($"<a id=\"config-link\" href=\"config.html/\">config</a>", result)
 
 [<Fact>]
