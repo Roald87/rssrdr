@@ -20,19 +20,19 @@ let convertUrlToValidFilename (url: string) : string =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
     replaceInvalidFilenameChars.Replace(url, "_")
 
-let getRssUrls (context: string) : string list option =
+let getRssUrls (context: string) : string list =
     context
     |> HttpUtility.ParseQueryString
     |> fun query ->
-        let rssValues = query.GetValues("rss")
+        let rssValues = query.GetValues "rss"
 
         if rssValues <> null && rssValues.Length > 0 then
-            Some(rssValues |> List.ofArray)
+            rssValues |> List.ofArray
         else
-            None
+            []
 
 // Fetch the contents of a web page
-let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset option) (timeoutSeconds: float) =
+let fetchUrlAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset option) (timeoutSeconds: float) =
     async {
         try
             use cts = new Threading.CancellationTokenSource(TimeSpan.FromSeconds timeoutSeconds)
@@ -64,7 +64,7 @@ let getAsync (client: HttpClient) (url: string) (lastModified: DateTimeOffset op
         | ex -> return Failure $"Failed to get {url}. {ex.GetType().Name}: {ex.Message}"
     }
 
-let fetchWithCache client (cacheLocation: string) (url: string) =
+let fetchUrlWithCacheAsync client (cacheLocation: string) (url: string) =
     async {
         let cacheFilename = convertUrlToValidFilename url
         let cachePath = Path.Combine(cacheLocation, cacheFilename)
@@ -90,7 +90,7 @@ let fetchWithCache client (cacheLocation: string) (url: string) =
                 else
                     None
 
-            let! page = getAsync client url lastModified 5.0
+            let! page = fetchUrlAsync client url lastModified 5.0
 
             match page with
             | Success "No changes" ->
@@ -113,7 +113,7 @@ let fetchWithCache client (cacheLocation: string) (url: string) =
 
 let fetchAllRssFeeds client (cacheLocation: string) (urls: string list) =
     urls
-    |> List.map (fetchWithCache client cacheLocation)
+    |> List.map (fetchUrlWithCacheAsync client cacheLocation)
     |> Async.Parallel
     |> Async.RunSynchronously
 
@@ -184,7 +184,7 @@ let homepage query rssItems =
     <body>
         <div class="header">
             <h1><a href="/" style="text-decoration: none; color: black;">rssrdr</a></h1>
-            <a id="config-link" href="config.html/%s{query}">config</a>
+            <a id="config-link" href="config.html/%s{query}">config/</a>
         </div>
     """
 
@@ -206,12 +206,7 @@ let configPage query =
         </div>
     """
 
-    let rssFeeds = getRssUrls query
-
-    let urlFields =
-        match rssFeeds with
-        | Some urls -> urls |> String.concat "\n"
-        | None -> ""
+    let urlFields = getRssUrls query |> String.concat "\n"
 
     let textArea =
         $"""
@@ -236,26 +231,19 @@ let configPage query =
 
     header + body + textArea + filterFeeds + footer
 
-// https://stackoverflow.com/a/3722671/6329629
-let (|Prefix|_|) (p: string) (s: string) =
-    if s.StartsWith(p) then Some(s.Substring p.Length) else None
+let notEmpty (s: string) = not (String.IsNullOrWhiteSpace s)
 
-let assembleRssFeeds client cacheLocation query =
-    let rssFeeds = getRssUrls query
+let assembleRssFeeds client cacheLocation rssUrls =
+    let items = rssUrls |> List.filter notEmpty |> fetchAllRssFeeds client cacheLocation
 
-    let items =
-        match rssFeeds with
-        | Some urls ->
-            let filteredUrls =
-                urls |> List.filter (fun url -> not (String.IsNullOrWhiteSpace url))
+    let rssQuery = rssUrls |> List.filter notEmpty |> String.concat "&rss="
 
-            fetchAllRssFeeds client cacheLocation filteredUrls
-        | None -> [||]
+    let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
 
     homepage query items
 
 let requestLogPath = "rss-cache/request-log.txt"
-let requestLogRetention = TimeSpan.FromDays(7)
+let requestLogRetention = TimeSpan.FromDays 7
 
 let handleRequest client (cacheLocation: string) (context: HttpListenerContext) =
     async {
@@ -267,11 +255,9 @@ let handleRequest client (cacheLocation: string) (context: HttpListenerContext) 
             | Prefix "/?rss=" _ ->
                 let rssUrls = getRssUrls context.Request.Url.Query
 
-                match rssUrls with
-                | Some urls -> updateRequestLog requestLogPath requestLogRetention urls
-                | None -> ()
+                updateRequestLog requestLogPath requestLogRetention rssUrls
 
-                assembleRssFeeds client cacheLocation context.Request.Url.Query 
+                assembleRssFeeds client cacheLocation rssUrls
             | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
             | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
             | _ -> landingPage

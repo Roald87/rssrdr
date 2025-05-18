@@ -4,7 +4,7 @@ open Microsoft.Extensions.Logging
 
 type Args =
     { Hostname: string option
-      Loglevel: LogLevel option }
+      LogLevel: LogLevel option }
 
 type ParsedArgs =
     | Args of Args
@@ -22,23 +22,23 @@ let parse (args: string) : ParsedArgs =
             parseArgs
                 rest
                 { acc with
-                    Loglevel = Some LogLevel.Debug }
+                    LogLevel = Some LogLevel.Debug }
         | "--loglevel" :: "info" :: rest ->
             parseArgs
                 rest
                 { acc with
-                    Loglevel = Some LogLevel.Information }
+                    LogLevel = Some LogLevel.Information }
         | "--loglevel" :: "warning" :: rest ->
             parseArgs
                 rest
                 { acc with
-                    Loglevel = Some LogLevel.Warning }
+                    LogLevel = Some LogLevel.Warning }
         | "--loglevel" :: "error" :: rest ->
             parseArgs
                 rest
                 { acc with
-                    Loglevel = Some LogLevel.Error }
-        | "--loglevel" :: invalid :: _ -> failwith $"Loglevel {invalid} does not exist"
+                    LogLevel = Some LogLevel.Error }
+        | "--loglevel" :: invalid :: _ -> failwith $"Log level {invalid} does not exist"
         | _ -> Args acc
 
-    parseArgs (List.ofArray parts) { Hostname = None; Loglevel = None }
+    parseArgs (List.ofArray parts) { Hostname = None; LogLevel = None }

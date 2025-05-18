@@ -14,6 +14,33 @@ open SimpleRssServer.Request
 open SimpleRssServer.RssParser
 
 [<Fact>]
+let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
+    // Arrange
+    let client = new HttpClient()
+    let cacheLocation = "test_cache"
+    let rssUrls = []
+
+    // Act
+    let result = assembleRssFeeds client cacheLocation rssUrls
+
+    // Assert
+    Assert.Contains($"<a id=\"config-link\" href=\"config.html/\">config/</a>", result)
+
+[<Fact>]
+let ``Test assembleRssFeeds includes config link with query`` () =
+    // Arrange
+    let client = new HttpClient()
+    let cacheLocation = "test_cache"
+    let rssUrls = [ "https://example.com/feed"; "rss=https://example.com/feed2" ]
+
+    // Act
+    let result = assembleRssFeeds client cacheLocation rssUrls
+
+    // Assert
+    let expectedQuery = $"?rss={rssUrls[0]}&rss={rssUrls[1]}"
+    Assert.Contains($"<a id=\"config-link\" href=\"config.html/%s{expectedQuery}\">config/</a>", result)
+
+[<Fact>]
 let ``Test requestUrls returns two URLs from request-log.txt`` () =
     let logFilePath = "data/request-log.txt"
 
@@ -76,19 +103,19 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
 let ``Test getRequestInfo`` () =
     let result = getRssUrls "?rss=https://abs.com/test"
 
-    Assert.Equal(Some [ "https://abs.com/test" ], result)
+    Assert.Equal<string list>([ "https://abs.com/test" ], result)
 
 [<Fact>]
 let ``Test getRequestInfo with two URLs`` () =
     let result = getRssUrls "?rss=https://abs.com/test1&rss=https://abs.com/test2"
 
-    Assert.Equal(Some [ "https://abs.com/test1"; "https://abs.com/test2" ], result)
+    Assert.Equal<string list>([ "https://abs.com/test1"; "https://abs.com/test2" ], result)
 
 [<Fact>]
 let ``Test getRequestInfo with empty string`` () =
     let result = getRssUrls ""
 
-    Assert.Equal(None, result)
+    Assert.Equal<string list>([], result)
 
 [<Fact>]
 let ``Test convertUrlToFilename`` () =
@@ -109,7 +136,7 @@ let ``Test getAsync with successful response`` () =
     let client = new HttpClient(handler)
 
     let result =
-        getAsync client "http://example.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client "http://example.com" (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match result with
@@ -121,7 +148,7 @@ let ``Test getAsync with unsuccessful response on real page`` () =
     let client = new HttpClient()
 
     let response =
-        getAsync client "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match response with
@@ -155,7 +182,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
 
     // Case 1: When If-Modified-Since is equal to lastModifiedDate
     let result1 =
-        getAsync client url (Some lastModifiedDate) 5 |> Async.RunSynchronously
+        fetchUrlAsync client url (Some lastModifiedDate) 5 |> Async.RunSynchronously
 
     match result1 with
     | Success content -> Assert.Equal("No changes", content)
@@ -163,14 +190,16 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
 
     // Case 2: When If-Modified-Since is before lastModifiedDate
     let earlierDate = lastModifiedDate.AddDays(-1.0)
-    let result2 = getAsync client url (Some earlierDate) 5 |> Async.RunSynchronously
+
+    let result2 =
+        fetchUrlAsync client url (Some earlierDate) 5 |> Async.RunSynchronously
 
     match result2 with
     | Success content -> Assert.Equal("Content has changed since the last modification date", content)
     | Failure error -> failwithf "Expected success, but got failure: %s" error
 
     // Case 3: When If-Modified-Since is not provided
-    let result3 = getAsync client url None 5 |> Async.RunSynchronously
+    let result3 = fetchUrlAsync client url None 5 |> Async.RunSynchronously
 
     match result3 with
     | Success content -> Assert.Equal("Content has changed since the last modification date", content)
@@ -194,7 +223,7 @@ let ``Test fetchWithCache with no cache`` () =
     if File.Exists(filePath) then
         File.Delete filePath
 
-    let result = fetchWithCache client currentDir url |> Async.RunSynchronously
+    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
     | Success _ ->
@@ -226,7 +255,7 @@ let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
     File.WriteAllText(filePath, expectedContent)
     File.SetLastWriteTime(filePath, DateTime.Now.AddMinutes -30.0)
 
-    let result = fetchWithCache client currentDir url |> Async.RunSynchronously
+    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
     | Success content -> Assert.Equal(expectedContent, content)
@@ -255,7 +284,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
     File.WriteAllText(filePath, cachedContent)
     File.SetLastWriteTime(filePath, DateTime.Now.AddHours(-2.0))
 
-    let result = fetchWithCache client currentDir url |> Async.RunSynchronously
+    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
     | Success content ->
@@ -285,7 +314,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old and 304 respo
     let oldWriteTime = DateTime.Now.AddHours -2.0
     File.SetLastWriteTime(filePath, oldWriteTime)
 
-    let result = fetchWithCache client currentDir url |> Async.RunSynchronously
+    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
     | Success content ->
@@ -340,7 +369,7 @@ let ``GetAsync returns timeout error when request takes too long`` () =
     let client = new HttpClient(handler)
 
     let result =
-        getAsync client "http://example.com" None timeout |> Async.RunSynchronously
+        fetchUrlAsync client "http://example.com" None timeout |> Async.RunSynchronously
 
     match result with
     | Success _ -> Assert.True(false, "Expected timeout failure but got success")
