@@ -8,7 +8,6 @@ open System.Globalization
 open System.Threading.Tasks
 
 open Xunit
-open Moq
 
 open SimpleRssServer.Helper
 open SimpleRssServer.Request
@@ -34,12 +33,6 @@ let ``Test assembleRssFeeds includes config link with query`` () =
     let client = new HttpClient()
     let cacheLocation = "test_cache"
     let rssUrls = [ "https://example.com/feed"; "rss=https://example.com/feed2" ]
-
-    // Mock fetchAllRssFeeds to return an empty array
-    let mockFetchAllRssFeeds = Mock<Func<HttpClient, string, string list, string[]>>()
-
-    mockFetchAllRssFeeds.Setup(fun f -> f.Invoke(client, cacheLocation, It.IsAny<string list>())).Returns [||]
-    |> ignore
 
     // Act
     let result = assembleRssFeeds client cacheLocation (Some rssUrls)
