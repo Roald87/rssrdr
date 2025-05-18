@@ -10,6 +10,7 @@
     <Compile Include="ArgParserTests.fs" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="Roald87.FeedReader" Version="2.1.0" />
     <PackageReference Include="xunit" Version="2.4.1" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3" />

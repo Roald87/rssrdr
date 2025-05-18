@@ -8,10 +8,31 @@ open System.Globalization
 open System.Threading.Tasks
 
 open Xunit
+open Moq
 
 open SimpleRssServer.Helper
 open SimpleRssServer.Request
 open SimpleRssServer.RssParser
+
+[<Fact>]
+let ``Test assembleRssFeeds includes config link with query`` () =
+    // Arrange
+    let client = new HttpClient()
+    let cacheLocation = "test_cache"
+    let rssUrls = [ "https://example.com/feed"; "rss=https://example.com/feed2" ]
+
+    // Mock fetchAllRssFeeds to return an empty array
+    let mockFetchAllRssFeeds = Mock<Func<HttpClient, string, string list, string[]>>()
+
+    mockFetchAllRssFeeds.Setup(fun f -> f.Invoke(client, cacheLocation, It.IsAny<string list>())).Returns [||]
+    |> ignore
+
+    // Act
+    let result = assembleRssFeeds client cacheLocation (Some rssUrls)
+
+    // Assert
+    let expectedQuery = $"?rss={rssUrls[0]}&rss={rssUrls[1]}"
+    Assert.Contains($"<a id=\"config-link\" href=\"config.html/%s{expectedQuery}\">config</a>", result)
 
 [<Fact>]
 let ``Test requestUrls returns two URLs from request-log.txt`` () =
