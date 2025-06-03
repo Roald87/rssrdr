@@ -6,12 +6,16 @@ open System.Net
 open System.Net.Http
 open System.Globalization
 open System.Threading.Tasks
+open Microsoft.Extensions.Logging.Abstractions
 
 open Xunit
 
 open SimpleRssServer.Helper
 open SimpleRssServer.Request
 open SimpleRssServer.RssParser
+open SimpleRssServer.RequestLog
+open SimpleRssServer.HttpClient
+open SimpleRssServer.HtmlRenderer
 
 [<Fact>]
 let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
@@ -134,9 +138,10 @@ let ``Test getAsync with successful response`` () =
 
     let handler = new MockHttpResponseHandler(responseMessage)
     let client = new HttpClient(handler)
+    let logger = NullLogger.Instance
 
     let result =
-        fetchUrlAsync client "http://example.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client logger "http://example.com" (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match result with
@@ -146,9 +151,10 @@ let ``Test getAsync with successful response`` () =
 [<Fact>]
 let ``Test getAsync with unsuccessful response on real page`` () =
     let client = new HttpClient()
+    let logger = NullLogger.Instance
 
     let response =
-        fetchUrlAsync client "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client logger "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match response with
@@ -179,10 +185,12 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
     let url = "http://example.com"
     let lastModifiedDate = DateTimeOffset(DateTime(2023, 1, 1))
     let client = mockHttpClient (createDynamicResponse lastModifiedDate)
+    let logger = NullLogger.Instance
 
     // Case 1: When If-Modified-Since is equal to lastModifiedDate
     let result1 =
-        fetchUrlAsync client url (Some lastModifiedDate) 5 |> Async.RunSynchronously
+        fetchUrlAsync client logger url (Some lastModifiedDate) 5
+        |> Async.RunSynchronously
 
     match result1 with
     | Success content -> Assert.Equal("No changes", content)
@@ -192,14 +200,14 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
     let earlierDate = lastModifiedDate.AddDays(-1.0)
 
     let result2 =
-        fetchUrlAsync client url (Some earlierDate) 5 |> Async.RunSynchronously
+        fetchUrlAsync client logger url (Some earlierDate) 5 |> Async.RunSynchronously
 
     match result2 with
     | Success content -> Assert.Equal("Content has changed since the last modification date", content)
     | Failure error -> failwithf "Expected success, but got failure: %s" error
 
     // Case 3: When If-Modified-Since is not provided
-    let result3 = fetchUrlAsync client url None 5 |> Async.RunSynchronously
+    let result3 = fetchUrlAsync client logger url None 5 |> Async.RunSynchronously
 
     match result3 with
     | Success content -> Assert.Equal("Content has changed since the last modification date", content)
@@ -367,9 +375,11 @@ let ``GetAsync returns timeout error when request takes too long`` () =
     let delay = TimeSpan.FromSeconds(timeout + 0.2) // Longer than the 5 second timeout
     let handler = new DelayedResponseHandler(delay)
     let client = new HttpClient(handler)
+    let logger = NullLogger.Instance
 
     let result =
-        fetchUrlAsync client "http://example.com" None timeout |> Async.RunSynchronously
+        fetchUrlAsync client logger "http://example.com" None timeout
+        |> Async.RunSynchronously
 
     match result with
     | Success _ -> Assert.True(false, "Expected timeout failure but got success")
