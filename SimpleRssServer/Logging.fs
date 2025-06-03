@@ -7,7 +7,7 @@ let createLoggerFactory (logLevel: LogLevel) =
         builder.AddSimpleConsole(fun c -> c.TimestampFormat <- "[yyyy-MM-dd HH:mm:ss.fff] ")
         |> ignore
 
-        builder.SetMinimumLevel(logLevel) |> ignore)
+        builder.SetMinimumLevel logLevel |> ignore)
 
 let mutable logger: ILogger =
     (createLoggerFactory LogLevel.Information).CreateLogger "SimpleRssReader"
