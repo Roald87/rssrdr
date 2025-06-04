@@ -4,27 +4,29 @@ open System.Net
 
 open SimpleRssServer.Logging
 open SimpleRssServer.Request
+open SimpleRssServer.RequestLog
+open SimpleRssServer.Config
 
 type Millisecond = Millisecond of int
 
 let updateRssFeedsPeriodically client cacheDir (period: Millisecond) =
     async {
         while true do
-            let urls = requestUrls requestLogPath
+            let urls = requestUrls RequestLogPath
 
             if urls.Length > 0 then
                 logger.LogDebug $"Periodically updating {urls.Length} RSS feeds."
                 fetchAllRssFeeds client cacheDir urls |> ignore
 
             let (Millisecond t) = period
-            do! Async.Sleep(t)
+            do! Async.Sleep t
     }
 
-let startServer cacheDir (prefixes: string list) =
+let startServer cacheDir (hosts: string list) =
     let listener = new HttpListener()
-    prefixes |> List.iter listener.Prefixes.Add
+    hosts |> List.iter listener.Prefixes.Add
     listener.Start()
-    let addresses = prefixes |> String.concat ", "
+    let addresses = hosts |> String.concat ", "
     logger.LogInformation("Listening at {Addresses}", addresses)
 
     let httpClient = new Http.HttpClient()
@@ -63,9 +65,9 @@ let main argv =
             Directory.CreateDirectory cacheDir |> ignore
 
         let hostname =
-            args.Hostname |> Option.defaultValue "http://+:5000/" |> fun x -> [ x ]
+            args.Hostname |> Option.defaultValue "http://+:5000/" |> (fun x -> [ x ])
 
-        let logLevel = args.Loglevel |> Option.defaultValue LogLevel.Information
+        let logLevel = args.LogLevel |> Option.defaultValue LogLevel.Information
         initializeLogger logLevel |> ignore
 
         startServer cacheDir hostname |> Async.RunSynchronously

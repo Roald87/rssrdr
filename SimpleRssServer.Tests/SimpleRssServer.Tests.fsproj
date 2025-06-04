@@ -4,10 +4,15 @@
     <TargetFramework>net9.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="TestHelpers.fs" />
     <Compile Include="Roald87FeedReaderTests.fs" />
     <Compile Include="RssParserTests.fs" />
     <Compile Include="RequestTests.fs" />
     <Compile Include="ArgParserTests.fs" />
+    <Compile Include="HttpClientTests.fs" />
+    <Compile Include="CacheTests.fs" />
+    <Compile Include="HtmlRendererTests.fs" />
+    <Compile Include="RequestLogTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Roald87.FeedReader" Version="2.1.0" />

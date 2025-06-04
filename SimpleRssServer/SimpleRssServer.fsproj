@@ -7,9 +7,14 @@
     <TargetFramework>net9.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Logging.fs" />
+    <Compile Include="Config.fs" />
     <Compile Include="Helper.fs" />
+    <Compile Include="HttpClient.fs" />
+    <Compile Include="Cache.fs" />
     <Compile Include="RssParser.fs" />
+    <Compile Include="HtmlRenderer.fs" />
+    <Compile Include="RequestLog.fs" />
+    <Compile Include="Logging.fs" />
     <Compile Include="Request.fs" />
     <Compile Include="ArgParser.fs" />
     <Compile Include="Program.fs" />

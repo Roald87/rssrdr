@@ -6,12 +6,44 @@ open System.Net
 open System.Net.Http
 open System.Globalization
 open System.Threading.Tasks
+open Microsoft.Extensions.Logging.Abstractions
 
 open Xunit
 
 open SimpleRssServer.Helper
 open SimpleRssServer.Request
 open SimpleRssServer.RssParser
+open SimpleRssServer.RequestLog
+open SimpleRssServer.HttpClient
+open SimpleRssServer.HtmlRenderer
+open TestHelpers
+
+[<Fact>]
+let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
+    // Arrange
+    let client = new HttpClient()
+    let cacheLocation = "test_cache"
+    let rssUrls = []
+
+    // Act
+    let result = assembleRssFeeds client cacheLocation rssUrls
+
+    // Assert
+    Assert.Contains($"<a id=\"config-link\" href=\"config.html/\">config/</a>", result)
+
+[<Fact>]
+let ``Test assembleRssFeeds includes config link with query`` () =
+    // Arrange
+    let client = new HttpClient()
+    let cacheLocation = "test_cache"
+    let rssUrls = [ "https://example.com/feed"; "rss=https://example.com/feed2" ]
+
+    // Act
+    let result = assembleRssFeeds client cacheLocation rssUrls
+
+    // Assert
+    let expectedQuery = $"?rss={rssUrls[0]}&rss={rssUrls[1]}"
+    Assert.Contains($"<a id=\"config-link\" href=\"config.html/%s{expectedQuery}\">config/</a>", result)
 
 [<Fact>]
 let ``Test requestUrls returns two URLs from request-log.txt`` () =
@@ -47,8 +79,7 @@ let ``Test updateRequestLog removes entries older than retention period`` () =
     Assert.Contains(recentEntry, fileContent[0])
     Assert.Contains("NewEntry", fileContent[1])
 
-    if File.Exists filename then
-        File.Delete filename
+    deleteFile filename
 
 [<Fact>]
 let ``Test updateRequestLog creates file and appends strings with datetime`` () =
@@ -69,26 +100,25 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     logEntries
     |> List.iter (fun entry -> Assert.Contains($"{currentDate} {entry}", fileContent))
 
-    if File.Exists filename then
-        File.Delete filename
+    deleteFile filename
 
 [<Fact>]
 let ``Test getRequestInfo`` () =
     let result = getRssUrls "?rss=https://abs.com/test"
 
-    Assert.Equal(Some [ "https://abs.com/test" ], result)
+    Assert.Equal<string list>([ "https://abs.com/test" ], result)
 
 [<Fact>]
 let ``Test getRequestInfo with two URLs`` () =
     let result = getRssUrls "?rss=https://abs.com/test1&rss=https://abs.com/test2"
 
-    Assert.Equal(Some [ "https://abs.com/test1"; "https://abs.com/test2" ], result)
+    Assert.Equal<string list>([ "https://abs.com/test1"; "https://abs.com/test2" ], result)
 
 [<Fact>]
 let ``Test getRequestInfo with empty string`` () =
     let result = getRssUrls ""
 
-    Assert.Equal(None, result)
+    Assert.Equal<string list>([], result)
 
 [<Fact>]
 let ``Test convertUrlToFilename`` () =
@@ -107,9 +137,10 @@ let ``Test getAsync with successful response`` () =
 
     let handler = new MockHttpResponseHandler(responseMessage)
     let client = new HttpClient(handler)
+    let logger = NullLogger.Instance
 
     let result =
-        getAsync client "http://example.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client logger "http://example.com" (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match result with
@@ -119,9 +150,10 @@ let ``Test getAsync with successful response`` () =
 [<Fact>]
 let ``Test getAsync with unsuccessful response on real page`` () =
     let client = new HttpClient()
+    let logger = NullLogger.Instance
 
     let response =
-        getAsync client "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client logger "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match response with
@@ -152,25 +184,29 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
     let url = "http://example.com"
     let lastModifiedDate = DateTimeOffset(DateTime(2023, 1, 1))
     let client = mockHttpClient (createDynamicResponse lastModifiedDate)
+    let logger = NullLogger.Instance
 
     // Case 1: When If-Modified-Since is equal to lastModifiedDate
     let result1 =
-        getAsync client url (Some lastModifiedDate) 5 |> Async.RunSynchronously
+        fetchUrlAsync client logger url (Some lastModifiedDate) 5
+        |> Async.RunSynchronously
 
     match result1 with
     | Success content -> Assert.Equal("No changes", content)
     | Failure error -> failwithf "Expected success, but got failure: %s" error
 
     // Case 2: When If-Modified-Since is before lastModifiedDate
-    let earlierDate = lastModifiedDate.AddDays(-1.0)
-    let result2 = getAsync client url (Some earlierDate) 5 |> Async.RunSynchronously
+    let earlierDate = lastModifiedDate.AddDays -1.0
+
+    let result2 =
+        fetchUrlAsync client logger url (Some earlierDate) 5 |> Async.RunSynchronously
 
     match result2 with
     | Success content -> Assert.Equal("Content has changed since the last modification date", content)
     | Failure error -> failwithf "Expected success, but got failure: %s" error
 
     // Case 3: When If-Modified-Since is not provided
-    let result3 = getAsync client url None 5 |> Async.RunSynchronously
+    let result3 = fetchUrlAsync client logger url None 5 |> Async.RunSynchronously
 
     match result3 with
     | Success content -> Assert.Equal("Content has changed since the last modification date", content)
@@ -191,10 +227,9 @@ let ``Test fetchWithCache with no cache`` () =
     let filePath = Path.Combine(currentDir, filename)
 
     // Ensure the file does not exist before the test
-    if File.Exists(filePath) then
-        File.Delete filePath
+    deleteFile filePath
 
-    let result = fetchWithCache client currentDir url |> Async.RunSynchronously
+    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
     | Success _ ->
@@ -203,9 +238,7 @@ let ``Test fetchWithCache with no cache`` () =
         Assert.Equal(expectedContent, fileContent)
     | Failure error -> Assert.True(false, error)
 
-    // Clean up
-    if File.Exists filePath then
-        File.Delete filePath
+    deleteFile filePath
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
@@ -226,15 +259,13 @@ let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
     File.WriteAllText(filePath, expectedContent)
     File.SetLastWriteTime(filePath, DateTime.Now.AddMinutes -30.0)
 
-    let result = fetchWithCache client currentDir url |> Async.RunSynchronously
+    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
     | Success content -> Assert.Equal(expectedContent, content)
     | Failure error -> Assert.True(false, error)
 
-    // Clean up
-    if File.Exists filePath then
-        File.Delete filePath
+    deleteFile filePath
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
@@ -253,9 +284,9 @@ let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
 
     // Write the cached content to the file and set its last write time to more than 1 hour ago
     File.WriteAllText(filePath, cachedContent)
-    File.SetLastWriteTime(filePath, DateTime.Now.AddHours(-2.0))
+    File.SetLastWriteTime(filePath, DateTime.Now.AddHours -2.0)
 
-    let result = fetchWithCache client currentDir url |> Async.RunSynchronously
+    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
     | Success content ->
@@ -264,8 +295,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
         Assert.Equal(newContent, fileContent)
     | Failure error -> Assert.True(false, error)
 
-    if File.Exists filePath then
-        File.Delete filePath
+    deleteFile filePath
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache more than 1 hour old and 304 response`` () =
@@ -285,7 +315,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old and 304 respo
     let oldWriteTime = DateTime.Now.AddHours -2.0
     File.SetLastWriteTime(filePath, oldWriteTime)
 
-    let result = fetchWithCache client currentDir url |> Async.RunSynchronously
+    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
     | Success content ->
@@ -294,9 +324,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old and 304 respo
         Assert.True(newWriteTime > oldWriteTime, "Expected file write time to be updated")
     | Failure error -> Assert.True(false, error)
 
-    // Clean up
-    if File.Exists filePath then
-        File.Delete filePath
+    deleteFile filePath
 
 [<Fact>]
 let ``Test Html encoding of special characters`` () =
@@ -338,9 +366,11 @@ let ``GetAsync returns timeout error when request takes too long`` () =
     let delay = TimeSpan.FromSeconds(timeout + 0.2) // Longer than the 5 second timeout
     let handler = new DelayedResponseHandler(delay)
     let client = new HttpClient(handler)
+    let logger = NullLogger.Instance
 
     let result =
-        getAsync client "http://example.com" None timeout |> Async.RunSynchronously
+        fetchUrlAsync client logger "http://example.com" None timeout
+        |> Async.RunSynchronously
 
     match result with
     | Success _ -> Assert.True(false, "Expected timeout failure but got success")
