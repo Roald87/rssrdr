@@ -6,6 +6,7 @@ open System.Globalization
 open Xunit
 
 open SimpleRssServer.RequestLog
+open TestHelpers
 
 [<Fact>]
 let ``Test updateRequestLog removes old entries`` () =
@@ -31,5 +32,4 @@ let ``Test updateRequestLog removes old entries`` () =
     Assert.Contains(recentEntry, fileContent[0])
     Assert.Contains("NewEntry", fileContent[1])
 
-    if File.Exists filename then
-        File.Delete filename
+    deleteFile filename
