@@ -4,6 +4,7 @@ open System
 open System.IO
 open Xunit
 open SimpleRssServer.Cache
+open TestHelpers
 
 [<Fact>]
 let ``Test isCacheOld returns true for old cache`` () =
@@ -15,8 +16,7 @@ let ``Test isCacheOld returns true for old cache`` () =
 
     Assert.True(result, "Expected cache to be old")
 
-    if File.Exists filePath then
-        File.Delete filePath
+    deleteFile filePath
 
 [<Fact>]
 let ``Test isCacheOld returns false for recent cache`` () =
@@ -28,5 +28,4 @@ let ``Test isCacheOld returns false for recent cache`` () =
 
     Assert.False(result, "Expected cache to be recent")
 
-    if File.Exists filePath then
-        File.Delete filePath
+    deleteFile filePath

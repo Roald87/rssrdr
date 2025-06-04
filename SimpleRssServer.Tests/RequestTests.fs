@@ -16,6 +16,7 @@ open SimpleRssServer.RssParser
 open SimpleRssServer.RequestLog
 open SimpleRssServer.HttpClient
 open SimpleRssServer.HtmlRenderer
+open TestHelpers
 
 [<Fact>]
 let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
@@ -78,8 +79,7 @@ let ``Test updateRequestLog removes entries older than retention period`` () =
     Assert.Contains(recentEntry, fileContent[0])
     Assert.Contains("NewEntry", fileContent[1])
 
-    if File.Exists filename then
-        File.Delete filename
+    deleteFile filename
 
 [<Fact>]
 let ``Test updateRequestLog creates file and appends strings with datetime`` () =
@@ -100,8 +100,7 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     logEntries
     |> List.iter (fun entry -> Assert.Contains($"{currentDate} {entry}", fileContent))
 
-    if File.Exists filename then
-        File.Delete filename
+    deleteFile filename
 
 [<Fact>]
 let ``Test getRequestInfo`` () =
@@ -228,8 +227,7 @@ let ``Test fetchWithCache with no cache`` () =
     let filePath = Path.Combine(currentDir, filename)
 
     // Ensure the file does not exist before the test
-    if File.Exists(filePath) then
-        File.Delete filePath
+    deleteFile filePath
 
     let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
@@ -240,9 +238,7 @@ let ``Test fetchWithCache with no cache`` () =
         Assert.Equal(expectedContent, fileContent)
     | Failure error -> Assert.True(false, error)
 
-    // Clean up
-    if File.Exists filePath then
-        File.Delete filePath
+    deleteFile filePath
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
@@ -269,9 +265,7 @@ let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
     | Success content -> Assert.Equal(expectedContent, content)
     | Failure error -> Assert.True(false, error)
 
-    // Clean up
-    if File.Exists filePath then
-        File.Delete filePath
+    deleteFile filePath
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
@@ -301,8 +295,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
         Assert.Equal(newContent, fileContent)
     | Failure error -> Assert.True(false, error)
 
-    if File.Exists filePath then
-        File.Delete filePath
+    deleteFile filePath
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache more than 1 hour old and 304 response`` () =
@@ -331,9 +324,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old and 304 respo
         Assert.True(newWriteTime > oldWriteTime, "Expected file write time to be updated")
     | Failure error -> Assert.True(false, error)
 
-    // Clean up
-    if File.Exists filePath then
-        File.Delete filePath
+    deleteFile filePath
 
 [<Fact>]
 let ``Test Html encoding of special characters`` () =
