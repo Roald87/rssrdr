@@ -23,7 +23,7 @@ let ``Test fetchUrlAsync with successful response`` () =
 
     let handler = new MockHttpResponseHandler(responseMessage)
     let client = new HttpClient(handler)
-    let logger = NullLogger.Instance // Use NullLogger
+    let logger = NullLogger.Instance
 
     let result =
         fetchUrlAsync client logger "http://example.com" (Some DateTimeOffset.Now) 5.0
@@ -36,7 +36,7 @@ let ``Test fetchUrlAsync with successful response`` () =
 [<Fact>]
 let ``Test fetchUrlAsync with unsuccessful response`` () =
     let client = new HttpClient()
-    let logger = NullLogger.Instance // Use NullLogger
+    let logger = NullLogger.Instance
 
     let response =
         fetchUrlAsync client logger "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now) 5.0

@@ -197,7 +197,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
     | Failure error -> failwithf "Expected success, but got failure: %s" error
 
     // Case 2: When If-Modified-Since is before lastModifiedDate
-    let earlierDate = lastModifiedDate.AddDays(-1.0)
+    let earlierDate = lastModifiedDate.AddDays -1.0
 
     let result2 =
         fetchUrlAsync client logger url (Some earlierDate) 5 |> Async.RunSynchronously
@@ -290,7 +290,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
 
     // Write the cached content to the file and set its last write time to more than 1 hour ago
     File.WriteAllText(filePath, cachedContent)
-    File.SetLastWriteTime(filePath, DateTime.Now.AddHours(-2.0))
+    File.SetLastWriteTime(filePath, DateTime.Now.AddHours -2.0)
 
     let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
