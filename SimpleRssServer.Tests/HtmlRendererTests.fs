@@ -1,12 +1,12 @@
 module SimpleRssServer.Tests.HtmlRendererTests
 
 open System
+open System.Linq
+open System.Xml.Linq
 open Xunit
+
 open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.RssParser
-open System.Text.RegularExpressions
-open System.Xml.Linq
-open System.Linq
 
 [<Fact>]
 let ``Test convertArticleToHtml encodes special characters`` () =
@@ -31,32 +31,11 @@ let ``Test convertArticleToHtml encodes special characters`` () =
     Assert.Equal(expected, actual)
 
 [<Fact>]
-let ``Test landing page displays correct version number`` () =
+let ``Test landing page displays correct version number using XML parser`` () =
     let fsprojContent =
         System.IO.File.ReadAllText "../../../../SimpleRssServer/SimpleRssServer.fsproj"
 
-    // Use a regex to extract the version number
-    let versionRegex = Regex "<Version>(.*?)</Version>"
-    let versionMatch = versionRegex.Match fsprojContent
+    let xmlDoc = XDocument.Parse fsprojContent
+    let version = xmlDoc.Descendants(XName.Get "Version").FirstOrDefault().Value
 
-    if versionMatch.Success then
-        let version = versionMatch.Groups.[1].Value
-        Assert.Contains($"v{version}", landingPage)
-    else
-        failwith "Version number not found in SimpleRssServer.fsproj"
-
-[<Fact>]
-let ``Test landing page displays correct version number using XML parser`` () =
-    // Read the content of the SimpleRssServer.fsproj file
-    let fsprojPath = "../../../../SimpleRssServer/SimpleRssServer.fsproj"
-    let fsprojContent = System.IO.File.ReadAllText(fsprojPath)
-
-    // Parse the XML content
-    let xmlDoc = XDocument.Parse(fsprojContent)
-    let versionElement = xmlDoc.Descendants(XName.Get("Version")).FirstOrDefault()
-
-    if not (isNull versionElement) then
-        let version = versionElement.Value
-        Assert.Contains($"v{version}", landingPage)
-    else
-        failwith "Version number not found in SimpleRssServer.fsproj"
+    Assert.Contains($"v{version}", landingPage)
