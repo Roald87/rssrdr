@@ -21,8 +21,13 @@ let convertArticleToHtml (article: Article) =
 
 let header = File.ReadAllText(Path.Combine("site", "header.html"))
 
+let versionNumber =
+    let version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version
+    $"{version.Major}.{version.Minor}.{version.Build}"
+
 let landingPage =
     header + File.ReadAllText(Path.Combine("site", "landing-page.html"))
+    |> fun html -> html.Replace("{{version}}", versionNumber)
 
 let footer =
     """
