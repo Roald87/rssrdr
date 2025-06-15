@@ -5,6 +5,8 @@ open Xunit
 open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.RssParser
 open System.Text.RegularExpressions
+open System.Xml.Linq
+open System.Linq
 
 [<Fact>]
 let ``Test convertArticleToHtml encodes special characters`` () =
@@ -39,6 +41,22 @@ let ``Test landing page displays correct version number`` () =
 
     if versionMatch.Success then
         let version = versionMatch.Groups.[1].Value
+        Assert.Contains($"v{version}", landingPage)
+    else
+        failwith "Version number not found in SimpleRssServer.fsproj"
+
+[<Fact>]
+let ``Test landing page displays correct version number using XML parser`` () =
+    // Read the content of the SimpleRssServer.fsproj file
+    let fsprojPath = "../../../../SimpleRssServer/SimpleRssServer.fsproj"
+    let fsprojContent = System.IO.File.ReadAllText(fsprojPath)
+
+    // Parse the XML content
+    let xmlDoc = XDocument.Parse(fsprojContent)
+    let versionElement = xmlDoc.Descendants(XName.Get("Version")).FirstOrDefault()
+
+    if not (isNull versionElement) then
+        let version = versionElement.Value
         Assert.Contains($"v{version}", landingPage)
     else
         failwith "Version number not found in SimpleRssServer.fsproj"
