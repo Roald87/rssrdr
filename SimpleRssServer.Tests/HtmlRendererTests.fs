@@ -1,7 +1,10 @@
 module SimpleRssServer.Tests.HtmlRendererTests
 
 open System
+open System.Linq
+open System.Xml.Linq
 open Xunit
+
 open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.RssParser
 
@@ -26,3 +29,13 @@ let ``Test convertArticleToHtml encodes special characters`` () =
         |> convertArticleToHtml
 
     Assert.Equal(expected, actual)
+
+[<Fact>]
+let ``Test landing page displays correct version number using XML parser`` () =
+    let fsprojContent =
+        System.IO.File.ReadAllText "../../../../SimpleRssServer/SimpleRssServer.fsproj"
+
+    let xmlDoc = XDocument.Parse fsprojContent
+    let version = xmlDoc.Descendants(XName.Get "Version").FirstOrDefault().Value
+
+    Assert.Contains($"v{version}", landingPage)
