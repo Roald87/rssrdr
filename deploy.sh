@@ -13,4 +13,5 @@ sudo systemctl stop rssrdr-server.service
 find /var/www/rssrdr/* -not -name 'rss-cache' -not -path '/var/www/rssrdr/rss-cache/*' -exec rm -rf {} +
 cp -r SimpleRssServer/bin/Release/$dotnet_version/publish/* /var/www/rssrdr/
 sudo systemctl start rssrdr-server.service
+git push
 git push origin "$new_version"
