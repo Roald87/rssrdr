@@ -40,20 +40,20 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
         let cacheFilename = convertUrlToValidFilename uri
         let cachePath = Path.Combine(cacheLocation, cacheFilename)
 
-        let fileExists = File.Exists cachePath
+        let noCache = File.Exists cachePath |> not
         let fileIsOld = isCacheOld cachePath 1.0
 
-        if not fileExists || fileIsOld then
+        if noCache || fileIsOld then
             if fileIsOld then
                 logger.LogDebug $"Cached file {cachePath} is older than 1 hour. Fetching {uri}"
             else
                 logger.LogInformation $"Did not find cached file {cachePath}. Fetching {uri}"
 
             let lastModified =
-                if fileExists then
-                    File.GetLastWriteTime cachePath |> DateTimeOffset |> Some
-                else
+                if noCache then
                     None
+                else
+                    File.GetLastWriteTime cachePath |> DateTimeOffset |> Some
 
             let! page = fetchUrlAsync client logger uri lastModified RequestTimeout
 
@@ -73,7 +73,7 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
         else
             logger.LogDebug $"Found cached file {cachePath} and it is up to date"
             let! content = readCache cachePath
-            return Error content.Value
+            return Ok content.Value
     }
 
 let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri array) =

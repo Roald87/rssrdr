@@ -137,7 +137,10 @@ let ``Test getRssUrls with empty string`` () =
 let ``Test getRssUrls with invalid URL`` () =
     let result = getRssUrls "?rss=invalid-url"
 
-    Assert.Equal<Result<Uri, string>[]>([| Error "Invalid URI: invalid-url (message)" |], result)
+    Assert.Equal<Result<Uri, string>[]>(
+        [| Error "Invalid URI: invalid-url (Invalid URI: The format of the URI could not be determined.)" |],
+        result
+    )
 
 [<Fact>]
 let ``Test convertUrlToFilename`` () =
@@ -261,7 +264,7 @@ let ``Test fetchWithCache with no cache`` () =
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
-    let url = Uri "http://example.com/test"
+    let url = Uri "http://example.com/testabc123"
     let expectedContent = "Cached response content"
 
     // Create a mock handler that throws an exception if called
@@ -282,13 +285,13 @@ let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
 
     match result with
     | Ok content -> Assert.Equal(expectedContent, content)
-    | Error error -> Assert.True(false, error)
+    | Error _ -> Assert.True(false, "Expected success but got error.")
 
     deleteFile filePath
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
-    let url = Uri "http://example.com/test"
+    let url = Uri "http://example.com/testxyz789"
     let cachedContent = "Old cached response content"
     let newContent = "New response content"
     let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
@@ -318,7 +321,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache more than 1 hour old and 304 response`` () =
-    let url = Uri "http://example.com/test"
+    let url = Uri "http://example.com/testasdf456"
     let cachedContent = "Old cached response content"
     let responseMessage = new HttpResponseMessage(HttpStatusCode.NotModified)
 
