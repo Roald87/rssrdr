@@ -3,7 +3,7 @@ Description=HTTP server for rssrdr
 After=network.target
 
 [Service]
-ExecStart=/bin/bash -c "/var/www/rssrdr/SimpleRssServer --hostname http://localhost:8001/ --loglevel debug 2> >(/usr/bin/ts '[%%Y-%%m-%%d %%H:%%M:%%S]' >&2) | /usr/bin/ts '[%%Y-%%m-%%d %%H:%%M:%%S]'"
+ExecStart=/bin/bash -c "/var/www/rssrdr/SimpleRssServer --hostname http://localhost:8001/ --loglevel warning 2> >(/usr/bin/ts '[%%Y-%%m-%%d %%H:%%M:%%S]' >&2) | /usr/bin/ts '[%%Y-%%m-%%d %%H:%%M:%%S]'"
 WorkingDirectory=/var/www/rssrdr
 User=rss
 Group=1000
