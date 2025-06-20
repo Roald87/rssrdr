@@ -11,7 +11,7 @@ type ParsedArgs =
     | Help
 
 let parse (args: string) : ParsedArgs =
-    let parts = args.Split(' ')
+    let parts = args.Split ' '
 
     let rec parseArgs parts acc =
         match parts with
