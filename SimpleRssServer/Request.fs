@@ -19,16 +19,21 @@ let convertUrlToValidFilename (uri: Uri) : string =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
     replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_")
 
-let getRssUrls (context: string) : Uri list =
+let getRssUrls (context: string) : Result<Uri, string> array =
     context
     |> HttpUtility.ParseQueryString
     |> fun query ->
         let rssValues = query.GetValues "rss"
 
         if rssValues <> null && rssValues.Length > 0 then
-            rssValues |> Array.map Uri |> List.ofArray
+            rssValues
+            |> Array.map (fun s ->
+                try
+                    Ok(Uri s)
+                with :? UriFormatException as ex ->
+                    Error $"Invalid URI: {s} ({ex.Message})")
         else
-            []
+            [||]
 
 let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
     async {
@@ -53,43 +58,51 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
             let! page = fetchUrlAsync client logger uri lastModified RequestTimeout
 
             match page with
-            | Success "No changes" ->
+            | Ok "No changes" ->
                 try
                     logger.LogDebug $"Reading from cached file {cachePath}, because feed didn't change"
                     let! content = readCache cachePath
                     File.SetLastWriteTime(cachePath, DateTime.Now)
-                    return Success content.Value
+                    return Ok content.Value
                 with ex ->
-                    return Failure $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
-            | Success content ->
+                    return Error $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
+            | Ok content ->
                 do! writeCache cachePath content
                 return page
-            | Failure _ -> return page
+            | Error _ -> return page
         else
             logger.LogDebug $"Found cached file {cachePath} and it is up to date"
             let! content = readCache cachePath
-            return Success content.Value
+            return Error content.Value
     }
 
-let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri list) =
+let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri array) =
     uris
-    |> List.map (fetchUrlWithCacheAsync client cacheLocation)
+    |> Array.map (fetchUrlWithCacheAsync client cacheLocation)
     |> Async.Parallel
     |> Async.RunSynchronously
 
 let notEmpty (s: string) = not (String.IsNullOrWhiteSpace s)
 
 let assembleRssFeeds client cacheLocation rssUris =
-    let items = rssUris |> fetchAllRssFeeds client cacheLocation
+    let items = rssUris |> validUris |> fetchAllRssFeeds client cacheLocation
+
+    let invalidUris: Result<string, string>[] =
+        rssUris
+        |> Array.choose (function
+            | Error e -> Some(Error e)
+            | Ok _ -> None)
+
+    let allItems = Array.append items invalidUris
 
     let rssQuery =
         rssUris
-        |> List.map (fun u -> u.AbsoluteUri)
-        |> List.filter notEmpty
+        |> validUris
+        |> Array.map (fun u -> u.AbsoluteUri)
         |> String.concat "&rss="
 
     let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
-    homepage query items
+    homepage query allItems
 
 let handleRequest client (cacheLocation: string) (context: HttpListenerContext) =
     async {

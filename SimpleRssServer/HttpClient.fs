@@ -6,8 +6,6 @@ open System.Net.Http
 open System.Reflection
 open Microsoft.Extensions.Logging
 
-open SimpleRssServer.Helper
-
 let fetchUrlAsync
     (client: HttpClient)
     (logger: ILogger)
@@ -35,13 +33,13 @@ let fetchUrlAsync
 
             if response.IsSuccessStatusCode then
                 let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
-                return Success content
+                return Ok content
             else if response.StatusCode = HttpStatusCode.NotModified then
-                return Success "No changes"
+                return Ok "No changes"
             else
-                return Failure $"Failed to get {uri}. Error: {response.StatusCode}."
+                return Error $"Failed to get {uri}. Error: {response.StatusCode}."
         with
         | :? Threading.Tasks.TaskCanceledException ->
-            return Failure $"Request to {uri} timed out after {timeoutSeconds} seconds"
-        | ex -> return Failure $"Failed to get {uri}. {ex.GetType().Name}: {ex.Message}"
+            return Error $"Request to {uri} timed out after {timeoutSeconds} seconds"
+        | ex -> return Error $"Failed to get {uri}. {ex.GetType().Name}: {ex.Message}"
     }

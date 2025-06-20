@@ -30,8 +30,8 @@ let ``Test fetchUrlAsync with successful response`` () =
         |> Async.RunSynchronously
 
     match result with
-    | Success result -> Assert.Equal(expectedContent, result)
-    | Failure error -> Assert.True(false, error)
+    | Ok result -> Assert.Equal(expectedContent, result)
+    | Error error -> Assert.True(false, error)
 
 [<Fact>]
 let ``Test fetchUrlAsync with unsuccessful response`` () =
@@ -43,8 +43,8 @@ let ``Test fetchUrlAsync with unsuccessful response`` () =
         |> Async.RunSynchronously
 
     match response with
-    | Success _ -> Assert.False(true, "Expected Failure but got Success")
-    | Failure errorMsg -> Assert.Contains("Exception", errorMsg)
+    | Ok _ -> Assert.False(true, "Expected Failure but got Success")
+    | Error errorMsg -> Assert.Contains("Exception", errorMsg)
 
 [<Fact>]
 let ``Test fetchUrlAsync with real URL`` () =
@@ -56,5 +56,5 @@ let ``Test fetchUrlAsync with real URL`` () =
         |> Async.RunSynchronously
 
     match result with
-    | Success content -> Assert.NotEmpty(content)
-    | Failure error -> Assert.True(false, error)
+    | Ok content -> Assert.NotEmpty(content)
+    | Error error -> Assert.True(false, error)

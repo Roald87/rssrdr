@@ -23,7 +23,7 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     // Arrange
     let client = new HttpClient()
     let cacheLocation = "test_cache"
-    let rssUrls = []
+    let rssUrls = [||]
 
     // Act
     let result = assembleRssFeeds client cacheLocation rssUrls
@@ -36,13 +36,16 @@ let ``Test assembleRssFeeds includes config link with query`` () =
     // Arrange
     let client = new HttpClient()
     let cacheLocation = "test_cache"
-    let rssUrls = [ Uri "https://example.com/feed"; Uri "https://example.com/feed2" ]
+
+    let rssUrls =
+        [| Ok(Uri "https://example.com/feed"); Ok(Uri "https://example.com/feed2") |]
 
     // Act
     let result = assembleRssFeeds client cacheLocation rssUrls
 
     // Assert
-    let expectedQuery = $"?rss={rssUrls[0].AbsoluteUri}&rss={rssUrls[1].AbsoluteUri}"
+    let valids = rssUrls |> validUris
+    let expectedQuery = $"?rss={valids[0].AbsoluteUri}&rss={valids[1].AbsoluteUri}"
     Assert.Contains($"<a id=\"config-link\" href=\"config.html/%s{expectedQuery}\">config/</a>", result)
 
 [<Fact>]
@@ -51,7 +54,7 @@ let ``Test requestUrls returns two URLs from request-log.txt`` () =
 
     let urls = requestUrls logFilePath
 
-    Assert.Equal(2, List.length urls)
+    Assert.Equal(2, Array.length urls)
     Assert.Contains(Uri "https://example.com/feed1", urls)
     Assert.Contains(Uri "https://example.com/feed2", urls)
 
@@ -71,7 +74,7 @@ let ``Test updateRequestLog removes entries older than retention period`` () =
 
     File.WriteAllLines(filename, [ oldEntry; recentEntry ])
 
-    updateRequestLog filename retention [ Uri "http://newentry.nl" ]
+    updateRequestLog filename retention [| Ok(Uri "http://newentry.nl") |]
 
     let fileContent = File.ReadAllLines filename
 
@@ -86,7 +89,9 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     let filename = "test_log.txt"
 
     let logEntries =
-        [ Uri "https://Entry1.com"; Uri "http://Entry2.ch"; Uri "https://Entry3.nl" ]
+        [| Ok(Uri "https://Entry1.com")
+           Ok(Uri "http://Entry2.ch")
+           Ok(Uri "https://Entry3.nl") |]
 
     let retention = TimeSpan 1
 
@@ -101,27 +106,38 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     let currentDate = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
     logEntries
-    |> List.iter (fun entry -> Assert.Contains($"{currentDate} {entry.AbsoluteUri}", fileContent))
+    |> validUris
+    |> Array.iter (fun entry -> Assert.Contains($"{currentDate} {entry.AbsoluteUri}", fileContent))
 
     deleteFile filename
 
 [<Fact>]
-let ``Test getRequestInfo`` () =
+let ``Test getRssUrls`` () =
     let result = getRssUrls "?rss=https://abs.com/test"
 
-    Assert.Equal<Uri list>([ Uri "https://abs.com/test" ], result)
+    Assert.Equal<Result<Uri, string>[]>([| Ok(Uri "https://abs.com/test") |], result)
 
 [<Fact>]
-let ``Test getRequestInfo with two URLs`` () =
+let ``Test getRssUrls with two URLs`` () =
     let result = getRssUrls "?rss=https://abs.com/test1&rss=https://abs.com/test2"
 
-    Assert.Equal<Uri list>([ Uri "https://abs.com/test1"; Uri "https://abs.com/test2" ], result)
+    let expected: Result<Uri, string>[] =
+        [| Ok(Uri "https://abs.com/test1"); Ok(Uri "https://abs.com/test2") |]
+
+    Assert.Equal<Result<Uri, string>[]>(expected, result)
+
 
 [<Fact>]
-let ``Test getRequestInfo with empty string`` () =
+let ``Test getRssUrls with empty string`` () =
     let result = getRssUrls ""
 
-    Assert.Equal<Uri list>([], result)
+    Assert.Equal<Result<Uri, string>[]>([||], result)
+
+[<Fact>]
+let ``Test getRssUrls with invalid URL`` () =
+    let result = getRssUrls "?rss=invalid-url"
+
+    Assert.Equal<Result<Uri, string>[]>([| Error "Invalid URI: invalid-url (message)" |], result)
 
 [<Fact>]
 let ``Test convertUrlToFilename`` () =
@@ -147,8 +163,8 @@ let ``Test getAsync with successful response`` () =
         |> Async.RunSynchronously
 
     match result with
-    | Success result -> Assert.Equal(expectedContent, result)
-    | Failure error -> Assert.True(false, error)
+    | Ok result -> Assert.Equal(expectedContent, result)
+    | Error error -> Assert.True(false, error)
 
 [<Fact>]
 let ``Test getAsync with unsuccessful response on real page`` () =
@@ -160,8 +176,8 @@ let ``Test getAsync with unsuccessful response on real page`` () =
         |> Async.RunSynchronously
 
     match response with
-    | Success _ -> Assert.False(true, "Expected Failure but got Success")
-    | Failure errorMsg -> Assert.Contains("Exception", errorMsg)
+    | Ok _ -> Assert.False(true, "Expected Failure but got Success")
+    | Error errorMsg -> Assert.Contains("Exception", errorMsg)
 
 type MockHttpMessageHandler(sendAsyncImpl: HttpRequestMessage -> Task<HttpResponseMessage>) =
     inherit HttpMessageHandler()
@@ -195,8 +211,8 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
         |> Async.RunSynchronously
 
     match result1 with
-    | Success content -> Assert.Equal("No changes", content)
-    | Failure error -> failwithf "Expected success, but got failure: %s" error
+    | Ok content -> Assert.Equal("No changes", content)
+    | Error error -> failwithf "Expected success, but got failure: %s" error
 
     // Case 2: When If-Modified-Since is before lastModifiedDate
     let earlierDate = lastModifiedDate.AddDays -1.0
@@ -205,15 +221,15 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
         fetchUrlAsync client logger url (Some earlierDate) 5 |> Async.RunSynchronously
 
     match result2 with
-    | Success content -> Assert.Equal("Content has changed since the last modification date", content)
-    | Failure error -> failwithf "Expected success, but got failure: %s" error
+    | Ok content -> Assert.Equal("Content has changed since the last modification date", content)
+    | Error error -> failwithf "Expected success, but got failure: %s" error
 
     // Case 3: When If-Modified-Since is not provided
     let result3 = fetchUrlAsync client logger url None 5 |> Async.RunSynchronously
 
     match result3 with
-    | Success content -> Assert.Equal("Content has changed since the last modification date", content)
-    | Failure error -> failwithf "Expected success, but got failure: %s" error
+    | Ok content -> Assert.Equal("Content has changed since the last modification date", content)
+    | Error error -> failwithf "Expected success, but got failure: %s" error
 
 [<Fact>]
 let ``Test fetchWithCache with no cache`` () =
@@ -235,11 +251,11 @@ let ``Test fetchWithCache with no cache`` () =
     let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
-    | Success _ ->
+    | Ok _ ->
         Assert.True(File.Exists filePath, "Expected file to be created")
         let fileContent = File.ReadAllText filePath
         Assert.Equal(expectedContent, fileContent)
-    | Failure error -> Assert.True(false, error)
+    | Error error -> Assert.True(false, error)
 
     deleteFile filePath
 
@@ -265,8 +281,8 @@ let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
     let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
-    | Success content -> Assert.Equal(expectedContent, content)
-    | Failure error -> Assert.True(false, error)
+    | Ok content -> Assert.Equal(expectedContent, content)
+    | Error error -> Assert.True(false, error)
 
     deleteFile filePath
 
@@ -292,11 +308,11 @@ let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
     let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
-    | Success content ->
+    | Ok content ->
         Assert.Equal(newContent, content)
         let fileContent = File.ReadAllText filePath
         Assert.Equal(newContent, fileContent)
-    | Failure error -> Assert.True(false, error)
+    | Error error -> Assert.True(false, error)
 
     deleteFile filePath
 
@@ -321,11 +337,11 @@ let ``Test fetchWithCache with existing cache more than 1 hour old and 304 respo
     let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
 
     match result with
-    | Success content ->
+    | Ok content ->
         Assert.Equal(cachedContent, content)
         let newWriteTime = File.GetLastWriteTime filePath
         Assert.True(newWriteTime > oldWriteTime, "Expected file write time to be updated")
-    | Failure error -> Assert.True(false, error)
+    | Error error -> Assert.True(false, error)
 
     deleteFile filePath
 
@@ -376,5 +392,5 @@ let ``GetAsync returns timeout error when request takes too long`` () =
         |> Async.RunSynchronously
 
     match result with
-    | Success _ -> Assert.True(false, "Expected timeout failure but got success")
-    | Failure error -> Assert.Contains($"timed out after {timeout} seconds", error)
+    | Ok _ -> Assert.True(false, "Expected timeout failure but got success")
+    | Error error -> Assert.Contains($"timed out after {timeout} seconds", error)

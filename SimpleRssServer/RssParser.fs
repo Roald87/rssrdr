@@ -5,8 +5,6 @@ open System.IO
 
 open Roald87.FeedReader
 
-open SimpleRssServer.Helper
-
 type Article =
     { PostDate: DateTime option
       Title: string
@@ -42,12 +40,12 @@ let createErrorFeed errorMessage =
 let parseRss (feedContent: Result<string, string>) : Article list =
     let feed =
         match feedContent with
-        | Success content ->
+        | Ok content ->
             try
                 FeedReader.ReadFromString content
             with ex ->
                 createErrorFeed $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
-        | Failure error -> createErrorFeed error
+        | Error error -> createErrorFeed error
 
     feed.Items
     |> Seq.map (fun entry ->
@@ -99,7 +97,7 @@ let parseRss (feedContent: Result<string, string>) : Article list =
 
 let parseRssFromFile fileName =
     try
-        let content = File.ReadAllText fileName |> Success
+        let content = File.ReadAllText fileName |> Ok
         parseRss content
     with ex ->
         [ { PostDate = Some DateTime.Now

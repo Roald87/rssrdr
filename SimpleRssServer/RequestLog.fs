@@ -4,20 +4,23 @@ open System
 open System.IO
 open System.Globalization
 
-let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Uri list) =
+open SimpleRssServer.Helper
+
+let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri, string> array) =
     let currentDate = DateTime.Now
 
     let currentDateString =
         currentDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
     let logEntries =
-        uris |> List.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
+        uris
+        |> validUris
+        |> Array.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
 
     let existingEntries =
         if File.Exists filename then
             File.ReadAllLines filename
-            |> Array.toList
-            |> List.filter (fun line ->
+            |> Array.filter (fun line ->
                 let datePart = line.Split(' ').[0]
 
                 let entryDate =
@@ -25,9 +28,9 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Uri list) =
 
                 currentDate - entryDate <= retention)
         else
-            []
+            [||]
 
-    let updatedEntries = List.append existingEntries logEntries
+    let updatedEntries = Array.append existingEntries logEntries
     File.WriteAllLines(filename, updatedEntries)
 
 let requestUrls logPath =
@@ -35,7 +38,6 @@ let requestUrls logPath =
         File.ReadAllLines logPath
         |> Array.map (fun line -> line.Split(' ').[1])
         |> Array.distinct
-        |> Array.toList
-        |> List.map Uri
+        |> Array.map Uri
     else
-        []
+        [||]

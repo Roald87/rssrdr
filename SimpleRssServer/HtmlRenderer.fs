@@ -56,7 +56,7 @@ let homepage query rssItems =
 
     header + body + rssFeeds + footer
 
-let configPage (rssUrls: Uri list) =
+let configPage (rssUrls: Result<Uri, string> array) =
     let body =
         """
     <body>
@@ -65,7 +65,20 @@ let configPage (rssUrls: Uri list) =
         </div>
     """
 
-    let urlFields = rssUrls |> List.map (fun u -> u.AbsoluteUri) |> String.concat "\n"
+    let validUrls =
+        rssUrls
+        |> Array.choose (function
+            | Ok uri -> Some uri.AbsoluteUri
+            | _ -> None)
+
+    let invalidUrlErrorMsgs =
+        rssUrls
+        |> Array.choose (function
+            | Error msg -> Some msg
+            | _ -> None)
+
+    let urlFields = String.concat "\n" validUrls
+    let errorFields = String.concat "\n" invalidUrlErrorMsgs
 
     let textArea =
         $"""
