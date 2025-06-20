@@ -15,24 +15,24 @@ open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.RequestLog
 open SimpleRssServer.Config
 
-let convertUrlToValidFilename (url: string) : string =
+let convertUrlToValidFilename (uri: Uri) : string =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
-    replaceInvalidFilenameChars.Replace(url, "_")
+    replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_")
 
-let getRssUrls (context: string) : string list =
+let getRssUrls (context: string) : Uri list =
     context
     |> HttpUtility.ParseQueryString
     |> fun query ->
-        let rssValues = query.GetValues "rss"
+        let rssValues = query.GetValues "rss" |> Array.map Uri
 
         if rssValues <> null && rssValues.Length > 0 then
             rssValues |> List.ofArray
         else
             []
 
-let fetchUrlWithCacheAsync client (cacheLocation: string) (url: string) =
+let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
     async {
-        let cacheFilename = convertUrlToValidFilename url
+        let cacheFilename = convertUrlToValidFilename uri
         let cachePath = Path.Combine(cacheLocation, cacheFilename)
 
         let fileExists = File.Exists cachePath
@@ -40,9 +40,9 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (url: string) =
 
         if not fileExists || fileIsOld then
             if fileIsOld then
-                logger.LogDebug $"Cached file {cachePath} is older than 1 hour. Fetching {url}"
+                logger.LogDebug $"Cached file {cachePath} is older than 1 hour. Fetching {uri}"
             else
-                logger.LogInformation $"Did not find cached file {cachePath}. Fetching {url}"
+                logger.LogInformation $"Did not find cached file {cachePath}. Fetching {uri}"
 
             let lastModified =
                 if fileExists then
@@ -50,7 +50,7 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (url: string) =
                 else
                     None
 
-            let! page = fetchUrlAsync client logger url lastModified RequestTimeout
+            let! page = fetchUrlAsync client logger uri lastModified RequestTimeout
 
             match page with
             | Success "No changes" ->
@@ -71,8 +71,8 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (url: string) =
             return Success content.Value
     }
 
-let fetchAllRssFeeds client (cacheLocation: string) (urls: string list) =
-    urls
+let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri list) =
+    uris
     |> List.map (fetchUrlWithCacheAsync client cacheLocation)
     |> Async.Parallel
     |> Async.RunSynchronously

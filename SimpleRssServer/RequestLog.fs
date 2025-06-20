@@ -35,5 +35,6 @@ let requestUrls logPath =
         |> Array.map (fun line -> line.Split(' ').[1])
         |> Array.distinct
         |> Array.toList
+        |> List.map Uri
     else
         []

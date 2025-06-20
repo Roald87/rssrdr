@@ -26,7 +26,7 @@ let ``Test fetchUrlAsync with successful response`` () =
     let logger = NullLogger.Instance
 
     let result =
-        fetchUrlAsync client logger "http://example.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client logger (Uri "http://example.com") (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match result with
@@ -39,9 +39,22 @@ let ``Test fetchUrlAsync with unsuccessful response`` () =
     let logger = NullLogger.Instance
 
     let response =
-        fetchUrlAsync client logger "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client logger (Uri "https://thisurldoesntexistforsureordoesit.com") (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match response with
     | Success _ -> Assert.False(true, "Expected Failure but got Success")
     | Failure errorMsg -> Assert.Contains("Exception", errorMsg)
+
+[<Fact>]
+let ``Test fetchUrlAsync with real URL`` () =
+    let client = new HttpClient()
+    let logger = NullLogger.Instance
+
+    let result =
+        fetchUrlAsync client logger (Uri "http://honkbalsoftbal.nl/feed/") None 5.0
+        |> Async.RunSynchronously
+
+    match result with
+    | Success content -> Assert.NotEmpty(content)
+    | Failure error -> Assert.True(false, error)
