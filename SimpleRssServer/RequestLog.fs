@@ -4,13 +4,14 @@ open System
 open System.IO
 open System.Globalization
 
-let updateRequestLog (filename: string) (retention: TimeSpan) (urls: string list) =
+let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Uri list) =
     let currentDate = DateTime.Now
 
     let currentDateString =
         currentDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
-    let logEntries = urls |> List.map (fun url -> $"{currentDateString} {url}")
+    let logEntries =
+        uris |> List.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
 
     let existingEntries =
         if File.Exists filename then

@@ -36,13 +36,13 @@ let ``Test assembleRssFeeds includes config link with query`` () =
     // Arrange
     let client = new HttpClient()
     let cacheLocation = "test_cache"
-    let rssUrls = [ "https://example.com/feed"; "rss=https://example.com/feed2" ]
+    let rssUrls = [ Uri "https://example.com/feed"; Uri "https://example.com/feed2" ]
 
     // Act
     let result = assembleRssFeeds client cacheLocation rssUrls
 
     // Assert
-    let expectedQuery = $"?rss={rssUrls[0]}&rss={rssUrls[1]}"
+    let expectedQuery = $"?rss={rssUrls[0].AbsoluteUri}&rss={rssUrls[1].AbsoluteUri}"
     Assert.Contains($"<a id=\"config-link\" href=\"config.html/%s{expectedQuery}\">config/</a>", result)
 
 [<Fact>]
@@ -52,8 +52,8 @@ let ``Test requestUrls returns two URLs from request-log.txt`` () =
     let urls = requestUrls logFilePath
 
     Assert.Equal(2, List.length urls)
-    Assert.Contains("https://example.com/feed1", urls)
-    Assert.Contains("https://example.com/feed2", urls)
+    Assert.Contains(Uri "https://example.com/feed1", urls)
+    Assert.Contains(Uri "https://example.com/feed2", urls)
 
 [<Fact>]
 let ``Test updateRequestLog removes entries older than retention period`` () =
@@ -71,20 +71,23 @@ let ``Test updateRequestLog removes entries older than retention period`` () =
 
     File.WriteAllLines(filename, [ oldEntry; recentEntry ])
 
-    updateRequestLog filename retention [ "NewEntry" ]
+    updateRequestLog filename retention [ Uri "http://newentry.nl" ]
 
     let fileContent = File.ReadAllLines filename
 
     Assert.DoesNotContain(oldEntry, fileContent)
     Assert.Contains(recentEntry, fileContent[0])
-    Assert.Contains("NewEntry", fileContent[1])
+    Assert.Contains("http://newentry.nl", fileContent[1])
 
     deleteFile filename
 
 [<Fact>]
 let ``Test updateRequestLog creates file and appends strings with datetime`` () =
     let filename = "test_log.txt"
-    let logEntries = [ "Entry1"; "Entry2"; "Entry3" ]
+
+    let logEntries =
+        [ Uri "https://Entry1.com"; Uri "http://Entry2.ch"; Uri "https://Entry3.nl" ]
+
     let retention = TimeSpan 1
 
     if File.Exists filename then
@@ -98,7 +101,7 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     let currentDate = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
     logEntries
-    |> List.iter (fun entry -> Assert.Contains($"{currentDate} {entry}", fileContent))
+    |> List.iter (fun entry -> Assert.Contains($"{currentDate} {entry.AbsoluteUri}", fileContent))
 
     deleteFile filename
 
@@ -106,28 +109,28 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
 let ``Test getRequestInfo`` () =
     let result = getRssUrls "?rss=https://abs.com/test"
 
-    Assert.Equal<string list>([ "https://abs.com/test" ], result)
+    Assert.Equal<Uri list>([ Uri "https://abs.com/test" ], result)
 
 [<Fact>]
 let ``Test getRequestInfo with two URLs`` () =
     let result = getRssUrls "?rss=https://abs.com/test1&rss=https://abs.com/test2"
 
-    Assert.Equal<string list>([ "https://abs.com/test1"; "https://abs.com/test2" ], result)
+    Assert.Equal<Uri list>([ Uri "https://abs.com/test1"; Uri "https://abs.com/test2" ], result)
 
 [<Fact>]
 let ``Test getRequestInfo with empty string`` () =
     let result = getRssUrls ""
 
-    Assert.Equal<string list>([], result)
+    Assert.Equal<Uri list>([], result)
 
 [<Fact>]
 let ``Test convertUrlToFilename`` () =
-    Assert.Equal("https_abc_com_test", convertUrlToValidFilename "https://abc.com/test")
-    Assert.Equal("https_abc_com_test_rss_blabla", convertUrlToValidFilename "https://abc.com/test?rss=blabla")
+    Assert.Equal("https_abc_com_test", convertUrlToValidFilename (Uri "https://abc.com/test"))
+    Assert.Equal("https_abc_com_test_rss_blabla", convertUrlToValidFilename (Uri "https://abc.com/test?rss=blabla"))
 
 type MockHttpResponseHandler(response: HttpResponseMessage) =
     inherit HttpMessageHandler()
-    override _.SendAsync(request, cancellationToken) = Task.FromResult(response)
+    override _.SendAsync(request, cancellationToken) = Task.FromResult response
 
 [<Fact>]
 let ``Test getAsync with successful response`` () =
@@ -140,7 +143,7 @@ let ``Test getAsync with successful response`` () =
     let logger = NullLogger.Instance
 
     let result =
-        fetchUrlAsync client logger "http://example.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client logger (Uri "http://example.com") (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match result with
@@ -153,7 +156,7 @@ let ``Test getAsync with unsuccessful response on real page`` () =
     let logger = NullLogger.Instance
 
     let response =
-        fetchUrlAsync client logger "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client logger (Uri "https://thisurldoesntexistforsureordoesit.com") (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match response with
@@ -181,7 +184,7 @@ let createDynamicResponse (lastModifiedDate: DateTimeOffset) =
 [<Fact>]
 let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
     // Arrange
-    let url = "http://example.com"
+    let url = Uri "http://example.com"
     let lastModifiedDate = DateTimeOffset(DateTime(2023, 1, 1))
     let client = mockHttpClient (createDynamicResponse lastModifiedDate)
     let logger = NullLogger.Instance
@@ -214,7 +217,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
 
 [<Fact>]
 let ``Test fetchWithCache with no cache`` () =
-    let url = "http://example.com/test"
+    let url = Uri "http://example.com/test"
     let expectedContent = "Mock response content"
     let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
     responseMessage.Content <- new StringContent(expectedContent)
@@ -242,7 +245,7 @@ let ``Test fetchWithCache with no cache`` () =
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
-    let url = "http://example.com/test"
+    let url = Uri "http://example.com/test"
     let expectedContent = "Cached response content"
 
     // Create a mock handler that throws an exception if called
@@ -269,7 +272,7 @@ let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
-    let url = "http://example.com/test"
+    let url = Uri "http://example.com/test"
     let cachedContent = "Old cached response content"
     let newContent = "New response content"
     let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
@@ -299,7 +302,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old`` () =
 
 [<Fact>]
 let ``Test fetchWithCache with existing cache more than 1 hour old and 304 response`` () =
-    let url = "http://example.com/test"
+    let url = Uri "http://example.com/test"
     let cachedContent = "Old cached response content"
     let responseMessage = new HttpResponseMessage(HttpStatusCode.NotModified)
 
@@ -369,7 +372,7 @@ let ``GetAsync returns timeout error when request takes too long`` () =
     let logger = NullLogger.Instance
 
     let result =
-        fetchUrlAsync client logger "http://example.com" None timeout
+        fetchUrlAsync client logger (Uri "http://example.com") None timeout
         |> Async.RunSynchronously
 
     match result with

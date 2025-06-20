@@ -1,8 +1,10 @@
 module SimpleRssServer.HtmlRenderer
 
-open System.Net
-open RssParser
+open System
 open System.IO
+open System.Net
+
+open RssParser
 
 let convertArticleToHtml (article: Article) =
     let date =
@@ -22,7 +24,7 @@ let convertArticleToHtml (article: Article) =
 let header = File.ReadAllText(Path.Combine("site", "header.html"))
 
 let versionNumber =
-    let version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version
+    let version = Reflection.Assembly.GetExecutingAssembly().GetName().Version
     $"{version.Major}.{version.Minor}.{version.Build}"
 
 let landingPage =
@@ -54,7 +56,7 @@ let homepage query rssItems =
 
     header + body + rssFeeds + footer
 
-let configPage rssUrls =
+let configPage (rssUrls: Uri list) =
     let body =
         """
     <body>
@@ -63,7 +65,7 @@ let configPage rssUrls =
         </div>
     """
 
-    let urlFields = rssUrls |> String.concat "\n"
+    let urlFields = rssUrls |> List.map (fun u -> u.AbsoluteUri) |> String.concat "\n"
 
     let textArea =
         $"""

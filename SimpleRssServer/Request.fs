@@ -23,10 +23,10 @@ let getRssUrls (context: string) : Uri list =
     context
     |> HttpUtility.ParseQueryString
     |> fun query ->
-        let rssValues = query.GetValues "rss" |> Array.map Uri
+        let rssValues = query.GetValues "rss"
 
         if rssValues <> null && rssValues.Length > 0 then
-            rssValues |> List.ofArray
+            rssValues |> Array.map Uri |> List.ofArray
         else
             []
 
@@ -79,27 +79,30 @@ let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri list) =
 
 let notEmpty (s: string) = not (String.IsNullOrWhiteSpace s)
 
-let assembleRssFeeds client cacheLocation rssUrls =
-    let items = rssUrls |> List.filter notEmpty |> fetchAllRssFeeds client cacheLocation
+let assembleRssFeeds client cacheLocation rssUris =
+    let items = rssUris |> fetchAllRssFeeds client cacheLocation
 
-    let rssQuery = rssUrls |> List.filter notEmpty |> String.concat "&rss="
+    let rssQuery =
+        rssUris
+        |> List.map (fun u -> u.AbsoluteUri)
+        |> List.filter notEmpty
+        |> String.concat "&rss="
 
     let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
-
     homepage query items
 
 let handleRequest client (cacheLocation: string) (context: HttpListenerContext) =
     async {
         logger.LogInformation $"Received request {context.Request.Url}"
 
-        let rssUrls = getRssUrls context.Request.Url.Query
+        let rssUris = getRssUrls context.Request.Url.Query
 
         let responseString =
             match context.Request.RawUrl with
-            | Prefix "/config.html" _ -> configPage rssUrls
+            | Prefix "/config.html" _ -> configPage rssUris
             | Prefix "/?rss=" _ ->
-                updateRequestLog RequestLogPath RequestLogRetention rssUrls
-                assembleRssFeeds client cacheLocation rssUrls
+                updateRequestLog RequestLogPath RequestLogRetention rssUris
+                assembleRssFeeds client cacheLocation rssUris
             | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
             | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
             | _ -> landingPage
