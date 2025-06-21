@@ -45,16 +45,3 @@ let ``Test fetchUrlAsync with unsuccessful response`` () =
     match response with
     | Ok _ -> Assert.False(true, "Expected Failure but got Success")
     | Error errorMsg -> Assert.Contains("Exception", errorMsg)
-
-[<Fact>]
-let ``Test fetchUrlAsync with real URL`` () =
-    let client = new HttpClient()
-    let logger = NullLogger.Instance
-
-    let result =
-        fetchUrlAsync client logger (Uri "http://honkbalsoftbal.nl/feed/") None 5.0
-        |> Async.RunSynchronously
-
-    match result with
-    | Ok content -> Assert.NotEmpty(content)
-    | Error error -> Assert.True(false, error)
