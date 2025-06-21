@@ -138,7 +138,7 @@ let ``Test getRssUrls with invalid URL`` () =
     let result = getRssUrls "?rss=invalid-url"
 
     Assert.Equal<Result<Uri, string>[]>(
-        [| Error "Invalid URI: invalid-url (Invalid URI: The format of the URI could not be determined.)" |],
+        [| Error "Invalid URI: 'invalid-url' (Invalid URI: The format of the URI could not be determined.)" |],
         result
     )
 
@@ -147,7 +147,7 @@ let ``Test getRssUrls with valid and invalid URLs`` () =
     let result = getRssUrls "?rss=invalid-url&rss=https://valid-url.com"
 
     Assert.Equal<Result<Uri, string>[]>(
-        [| Error "Invalid URI: invalid-url (Invalid URI: The format of the URI could not be determined.)"
+        [| Error "Invalid URI: 'invalid-url' (Invalid URI: The format of the URI could not be determined.)"
            Ok(Uri "https://valid-url.com") |],
         result
     )

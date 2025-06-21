@@ -31,7 +31,7 @@ let getRssUrls (context: string) : Result<Uri, string> array =
                 try
                     Ok(Uri s)
                 with :? UriFormatException as ex ->
-                    Error $"Invalid URI: {s} ({ex.Message})")
+                    Error $"Invalid URI: '{s}' ({ex.Message})")
         else
             [||]
 

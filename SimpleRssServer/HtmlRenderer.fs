@@ -5,6 +5,7 @@ open System.IO
 open System.Net
 
 open RssParser
+open Helper
 
 let convertArticleToHtml (article: Article) =
     let date =
@@ -65,29 +66,27 @@ let configPage (rssUrls: Result<Uri, string> array) =
         </div>
     """
 
-    let validUrls =
-        rssUrls
-        |> Array.choose (function
-            | Ok uri -> Some uri.AbsoluteUri
-            | _ -> None)
-
-    let invalidUrlErrorMsgs =
-        rssUrls
-        |> Array.choose (function
-            | Error msg -> Some msg
-            | _ -> None)
-
-    let urlFields = String.concat "\n" validUrls
-    let errorFields = String.concat "\n" invalidUrlErrorMsgs
+    let validRssUris =
+        rssUrls |> validUris |> Array.map (fun u -> u.AbsoluteUri) |> String.concat "\n"
 
     let textArea =
         $"""
         <form id='feed-form'>
             <label for='feeds'>Enter one feed URL per line:</label><br>
-            <textarea id='feeds' rows='10' cols='30'>{urlFields}</textarea><br>
+            <textarea id='feeds' rows='10' cols='30'>{validRssUris}</textarea><br>
             <button type='button' onclick='submitFeeds()'>Submit</button>
         </form>
         """
+
+    let errorFields = rssUrls |> invalidUris |> String.concat "<br>"
+
+    let invalidDiv =
+        if errorFields <> "" then
+            $"""
+            <div id='invalid-uris'>{errorFields}</div>
+            """
+        else
+            ""
 
     let filterFeeds =
         """
@@ -101,4 +100,4 @@ let configPage (rssUrls: Result<Uri, string> array) =
         </script>
         """
 
-    header + body + textArea + filterFeeds + footer
+    header + body + textArea + invalidDiv + filterFeeds + footer
