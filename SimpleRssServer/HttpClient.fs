@@ -6,12 +6,10 @@ open System.Net.Http
 open System.Reflection
 open Microsoft.Extensions.Logging
 
-open SimpleRssServer.Helper
-
 let fetchUrlAsync
     (client: HttpClient)
     (logger: ILogger)
-    (url: string)
+    (uri: Uri)
     (lastModified: DateTimeOffset option)
     (timeoutSeconds: float)
     =
@@ -19,7 +17,7 @@ let fetchUrlAsync
         try
             use cts = new Threading.CancellationTokenSource(TimeSpan.FromSeconds timeoutSeconds)
 
-            let request = new HttpRequestMessage(HttpMethod.Get, url)
+            let request = new HttpRequestMessage(HttpMethod.Get, uri)
             let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
             request.Headers.UserAgent.ParseAdd $"rssrdr/{version}"
 
@@ -31,17 +29,17 @@ let fetchUrlAsync
             let! response = client.SendAsync(request, cts.Token) |> Async.AwaitTask
             let endTime = DateTimeOffset.Now
             let duration = endTime - startTime
-            logger.LogDebug $"Request to {url} took {duration.TotalMilliseconds} ms"
+            logger.LogDebug $"Request to {uri} took {duration.TotalMilliseconds} ms"
 
             if response.IsSuccessStatusCode then
                 let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
-                return Success content
+                return Ok content
             else if response.StatusCode = HttpStatusCode.NotModified then
-                return Success "No changes"
+                return Ok "No changes"
             else
-                return Failure $"Failed to get {url}. Error: {response.StatusCode}."
+                return Error $"Failed to get {uri}. Error: {response.StatusCode}."
         with
         | :? Threading.Tasks.TaskCanceledException ->
-            return Failure $"Request to {url} timed out after {timeoutSeconds} seconds"
-        | ex -> return Failure $"Failed to get {url}. {ex.GetType().Name}: {ex.Message}"
+            return Error $"Request to {uri} timed out after {timeoutSeconds} seconds"
+        | ex -> return Error $"Failed to get {uri}. {ex.GetType().Name}: {ex.Message}"
     }

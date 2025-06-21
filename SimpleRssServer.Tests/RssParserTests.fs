@@ -4,7 +4,6 @@ open System
 
 open Xunit
 
-open SimpleRssServer.Helper
 open SimpleRssServer.RssParser
 
 [<Fact>]
@@ -12,7 +11,7 @@ let ``Test parseRss with non-valid RSS feed`` () =
     let invalidContent =
         "<html><head><title>Not an RSS feed</title></head><body>This is a test.</body></html>"
 
-    let result = parseRss (Success invalidContent)
+    let result = parseRss (Ok invalidContent)
 
     let expected =
         { PostDate = Some DateTime.Now
@@ -173,7 +172,7 @@ let ``Test parseRss with nature.rss`` () =
 [<Fact>]
 let ``Test parseRss with Failure feedContent`` () =
     let errorMessage = "An error occurred while fetching the feed."
-    let result = parseRss (Failure errorMessage)
+    let result = parseRss (Error errorMessage)
 
     let expected =
         { PostDate = Some DateTime.Now

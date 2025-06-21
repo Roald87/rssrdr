@@ -39,3 +39,23 @@ let ``Test landing page displays correct version number using XML parser`` () =
     let version = xmlDoc.Descendants(XName.Get "Version").FirstOrDefault().Value
 
     Assert.Contains($"v{version}", landingPage)
+
+[<Fact>]
+let ``Test configPage handles valid and invalid URIs`` () =
+    let validUri1 = Uri "https://example.com/feed1"
+    let validUri2 = Uri "https://example.com/feed2"
+    let invalidUri1 = "invalid-uri"
+    let invalidUri2 = "not-a-url"
+
+    let rssUrls = [| Ok validUri1; Ok validUri2; Error invalidUri1; Error invalidUri2 |]
+
+    let resultHtml = configPage rssUrls
+
+    // Check valid URIs in feed-form text area
+    let expectedValidUris = "https://example.com/feed1\nhttps://example.com/feed2"
+    Assert.Contains(expectedValidUris, resultHtml)
+
+    // Check both invalid URIs in invalid-uris div
+    Assert.Contains(invalidUri1, resultHtml)
+    Assert.Contains(invalidUri2, resultHtml)
+    Assert.Contains("<div id='invalid-uris'>", resultHtml)

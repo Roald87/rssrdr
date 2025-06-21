@@ -1,8 +1,11 @@
 module SimpleRssServer.HtmlRenderer
 
-open System.Net
-open RssParser
+open System
 open System.IO
+open System.Net
+
+open RssParser
+open Helper
 
 let convertArticleToHtml (article: Article) =
     let date =
@@ -22,7 +25,7 @@ let convertArticleToHtml (article: Article) =
 let header = File.ReadAllText(Path.Combine("site", "header.html"))
 
 let versionNumber =
-    let version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version
+    let version = Reflection.Assembly.GetExecutingAssembly().GetName().Version
     $"{version.Major}.{version.Minor}.{version.Build}"
 
 let landingPage =
@@ -54,7 +57,7 @@ let homepage query rssItems =
 
     header + body + rssFeeds + footer
 
-let configPage rssUrls =
+let configPage (rssUrls: Result<Uri, string> array) =
     let body =
         """
     <body>
@@ -63,16 +66,27 @@ let configPage rssUrls =
         </div>
     """
 
-    let urlFields = rssUrls |> String.concat "\n"
+    let validRssUris =
+        rssUrls |> validUris |> Array.map (fun u -> u.AbsoluteUri) |> String.concat "\n"
 
     let textArea =
         $"""
         <form id='feed-form'>
             <label for='feeds'>Enter one feed URL per line:</label><br>
-            <textarea id='feeds' rows='10' cols='30'>{urlFields}</textarea><br>
+            <textarea id='feeds' rows='10' cols='30'>{validRssUris}</textarea><br>
             <button type='button' onclick='submitFeeds()'>Submit</button>
         </form>
         """
+
+    let errorFields = rssUrls |> invalidUris |> String.concat "<br>"
+
+    let invalidDiv =
+        if errorFields <> "" then
+            $"""
+            <div id='invalid-uris'>{errorFields}</div>
+            """
+        else
+            ""
 
     let filterFeeds =
         """
@@ -86,4 +100,4 @@ let configPage rssUrls =
         </script>
         """
 
-    header + body + textArea + filterFeeds + footer
+    header + body + textArea + invalidDiv + filterFeeds + footer

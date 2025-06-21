@@ -15,91 +15,107 @@ open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.RequestLog
 open SimpleRssServer.Config
 
-let convertUrlToValidFilename (url: string) : string =
+let convertUrlToValidFilename (uri: Uri) : string =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
-    replaceInvalidFilenameChars.Replace(url, "_")
+    replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_")
 
-let getRssUrls (context: string) : string list =
+let getRssUrls (context: string) : Result<Uri, string> array =
     context
     |> HttpUtility.ParseQueryString
     |> fun query ->
         let rssValues = query.GetValues "rss"
 
         if rssValues <> null && rssValues.Length > 0 then
-            rssValues |> List.ofArray
+            rssValues
+            |> Array.map (fun s ->
+                try
+                    Ok(Uri s)
+                with :? UriFormatException as ex ->
+                    Error $"Invalid URI: '{s}' ({ex.Message})")
         else
-            []
+            [||]
 
-let fetchUrlWithCacheAsync client (cacheLocation: string) (url: string) =
+let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
     async {
-        let cacheFilename = convertUrlToValidFilename url
+        let cacheFilename = convertUrlToValidFilename uri
         let cachePath = Path.Combine(cacheLocation, cacheFilename)
 
-        let fileExists = File.Exists cachePath
+        let noCache = File.Exists cachePath |> not
         let fileIsOld = isCacheOld cachePath 1.0
 
-        if not fileExists || fileIsOld then
+        if noCache || fileIsOld then
             if fileIsOld then
-                logger.LogDebug $"Cached file {cachePath} is older than 1 hour. Fetching {url}"
+                logger.LogDebug $"Cached file {cachePath} is older than 1 hour. Fetching {uri}"
             else
-                logger.LogInformation $"Did not find cached file {cachePath}. Fetching {url}"
+                logger.LogInformation $"Did not find cached file {cachePath}. Fetching {uri}"
 
             let lastModified =
-                if fileExists then
-                    File.GetLastWriteTime cachePath |> DateTimeOffset |> Some
-                else
+                if noCache then
                     None
+                else
+                    File.GetLastWriteTime cachePath |> DateTimeOffset |> Some
 
-            let! page = fetchUrlAsync client logger url lastModified RequestTimeout
+            let! page = fetchUrlAsync client logger uri lastModified RequestTimeout
 
             match page with
-            | Success "No changes" ->
+            | Ok "No changes" ->
                 try
                     logger.LogDebug $"Reading from cached file {cachePath}, because feed didn't change"
                     let! content = readCache cachePath
                     File.SetLastWriteTime(cachePath, DateTime.Now)
-                    return Success content.Value
+                    return Ok content.Value
                 with ex ->
-                    return Failure $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
-            | Success content ->
+                    return Error $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
+            | Ok content ->
                 do! writeCache cachePath content
                 return page
-            | Failure _ -> return page
+            | Error _ -> return page
         else
             logger.LogDebug $"Found cached file {cachePath} and it is up to date"
             let! content = readCache cachePath
-            return Success content.Value
+            return Ok content.Value
     }
 
-let fetchAllRssFeeds client (cacheLocation: string) (urls: string list) =
-    urls
-    |> List.map (fetchUrlWithCacheAsync client cacheLocation)
+let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri array) =
+    uris
+    |> Array.map (fetchUrlWithCacheAsync client cacheLocation)
     |> Async.Parallel
     |> Async.RunSynchronously
 
 let notEmpty (s: string) = not (String.IsNullOrWhiteSpace s)
 
-let assembleRssFeeds client cacheLocation rssUrls =
-    let items = rssUrls |> List.filter notEmpty |> fetchAllRssFeeds client cacheLocation
+let assembleRssFeeds client cacheLocation rssUris =
+    let items = rssUris |> validUris |> fetchAllRssFeeds client cacheLocation
 
-    let rssQuery = rssUrls |> List.filter notEmpty |> String.concat "&rss="
+    let invalidUris: Result<string, string>[] =
+        rssUris
+        |> Array.choose (function
+            | Error e -> Some(Error e)
+            | Ok _ -> None)
+
+    let allItems = Array.append items invalidUris
+
+    let rssQuery =
+        rssUris
+        |> validUris
+        |> Array.map (fun u -> u.AbsoluteUri)
+        |> String.concat "&rss="
 
     let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
-
-    homepage query items
+    homepage query allItems
 
 let handleRequest client (cacheLocation: string) (context: HttpListenerContext) =
     async {
         logger.LogInformation $"Received request {context.Request.Url}"
 
-        let rssUrls = getRssUrls context.Request.Url.Query
+        let rssUris = getRssUrls context.Request.Url.Query
 
         let responseString =
             match context.Request.RawUrl with
-            | Prefix "/config.html" _ -> configPage rssUrls
+            | Prefix "/config.html" _ -> configPage rssUris
             | Prefix "/?rss=" _ ->
-                updateRequestLog RequestLogPath RequestLogRetention rssUrls
-                assembleRssFeeds client cacheLocation rssUrls
+                updateRequestLog RequestLogPath RequestLogRetention rssUris
+                assembleRssFeeds client cacheLocation rssUris
             | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
             | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
             | _ -> landingPage

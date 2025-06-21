@@ -24,12 +24,12 @@ let ``Test updateRequestLog removes old entries`` () =
 
     File.WriteAllLines(filename, [ oldEntry; recentEntry ])
 
-    updateRequestLog filename retention [ "NewEntry" ]
+    updateRequestLog filename retention [| Ok(Uri "http://newentry.com") |]
 
     let fileContent = File.ReadAllLines filename
 
     Assert.DoesNotContain(oldEntry, fileContent)
     Assert.Contains(recentEntry, fileContent[0])
-    Assert.Contains("NewEntry", fileContent[1])
+    Assert.Contains("newentry.com", fileContent[1])
 
     deleteFile filename

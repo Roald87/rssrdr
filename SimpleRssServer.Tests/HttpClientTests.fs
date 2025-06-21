@@ -26,12 +26,12 @@ let ``Test fetchUrlAsync with successful response`` () =
     let logger = NullLogger.Instance
 
     let result =
-        fetchUrlAsync client logger "http://example.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client logger (Uri "http://example.com") (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match result with
-    | Success result -> Assert.Equal(expectedContent, result)
-    | Failure error -> Assert.True(false, error)
+    | Ok result -> Assert.Equal(expectedContent, result)
+    | Error error -> Assert.True(false, error)
 
 [<Fact>]
 let ``Test fetchUrlAsync with unsuccessful response`` () =
@@ -39,9 +39,9 @@ let ``Test fetchUrlAsync with unsuccessful response`` () =
     let logger = NullLogger.Instance
 
     let response =
-        fetchUrlAsync client logger "https://thisurldoesntexistforsureordoesit.com" (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client logger (Uri "https://thisurldoesntexistforsureordoesit.com") (Some DateTimeOffset.Now) 5.0
         |> Async.RunSynchronously
 
     match response with
-    | Success _ -> Assert.False(true, "Expected Failure but got Success")
-    | Failure errorMsg -> Assert.Contains("Exception", errorMsg)
+    | Ok _ -> Assert.False(true, "Expected Failure but got Success")
+    | Error errorMsg -> Assert.Contains("Exception", errorMsg)
