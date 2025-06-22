@@ -23,12 +23,11 @@ let updateRssFeedsPeriodically client cacheDir (period: Millisecond) =
             do! Async.Sleep t
     }
 
-let startServer cacheDir (hosts: Uri list) =
-    let _hosts = hosts |> List.map (fun u -> u.AbsoluteUri)
+let startServer cacheDir (hosts: string list) =
     let listener = new HttpListener()
-    _hosts |> List.iter listener.Prefixes.Add
+    hosts |> List.iter listener.Prefixes.Add
     listener.Start()
-    let addresses = _hosts |> String.concat ", "
+    let addresses = hosts |> String.concat ", "
     logger.LogInformation("Listening at {Addresses}", addresses)
 
     let httpClient = new Http.HttpClient()
@@ -67,9 +66,7 @@ let main argv =
             Directory.CreateDirectory cacheDir |> ignore
 
         let hostname =
-            args.Hostname
-            |> Option.defaultValue "http://127.0.0.1:5000/"
-            |> fun x -> [ Uri x ]
+            args.Hostname |> Option.defaultValue "http://+:5000/" |> (fun x -> [ x ])
 
         let logLevel = args.LogLevel |> Option.defaultValue LogLevel.Information
         initializeLogger logLevel |> ignore
