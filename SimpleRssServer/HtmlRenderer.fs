@@ -38,7 +38,7 @@ let footer =
     </html>
     """
 
-let homepage query rssItems =
+let homepage query (rssItems: Article seq) =
     let body =
         $"""
     <body>
@@ -50,7 +50,6 @@ let homepage query rssItems =
 
     let rssFeeds =
         rssItems
-        |> Seq.collect parseRss
         |> Seq.sortByDescending (fun a -> a.PostDate)
         |> Seq.map convertArticleToHtml
         |> String.concat ""

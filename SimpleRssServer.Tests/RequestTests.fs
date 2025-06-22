@@ -32,20 +32,22 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     Assert.Contains($"<a id=\"config-link\" href=\"config.html/\">config/</a>", result)
 
 [<Fact>]
-let ``Test assembleRssFeeds includes config link with query`` () =
+let ``Test assembleRssFeeds includes config link with query and removes https prefix`` () =
     // Arrange
     let client = new HttpClient()
     let cacheLocation = "test_cache"
 
     let rssUrls =
-        [| Ok(Uri "https://example.com/feed"); Ok(Uri "https://example.com/feed2") |]
+        [| Ok(Uri "https://example.com/feed")
+           Ok(Uri "https://example.com/feed2")
+           Ok(Uri "http://example.com/feed3") |]
 
     // Act
     let result = assembleRssFeeds client cacheLocation rssUrls
 
-    // Assert
-    let valids = rssUrls |> validUris
-    let expectedQuery = $"?rss={valids[0].AbsoluteUri}&rss={valids[1].AbsoluteUri}"
+    let expectedQuery =
+        $"?rss=example.com/feed&rss=example.com/feed2&rss=http://example.com/feed3"
+
     Assert.Contains($"<a id=\"config-link\" href=\"config.html/%s{expectedQuery}\">config/</a>", result)
 
 [<Fact>]

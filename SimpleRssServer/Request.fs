@@ -14,6 +14,7 @@ open SimpleRssServer.Cache
 open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.RequestLog
 open SimpleRssServer.Config
+open RssParser
 
 let convertUrlToValidFilename (uri: Uri) : string =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
@@ -109,15 +110,16 @@ let assembleRssFeeds client cacheLocation rssUris =
             | Error e -> Some(Error e)
             | Ok _ -> None)
 
-    let allItems = Array.append items invalidUris
+    let allItems = Array.append items invalidUris |> Seq.collect parseRss
 
     let rssQuery =
         rssUris
         |> validUris
-        |> Array.map (fun u -> u.AbsoluteUri)
+        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
         |> String.concat "&rss="
 
     let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
+
     homepage query allItems
 
 let handleRequest client (cacheLocation: string) (context: HttpListenerContext) =
