@@ -98,7 +98,7 @@ let configPage (rssUrls: Result<Uri, string> array) =
             function submitFeeds() {
                 const feeds = document.getElementById('feeds').value.trim().split('\n');
                 const filteredFeeds = feeds.filter(feed => feed.trim() !== '');
-                const queryString = filteredFeeds.map(feed => `rss=${encodeURIComponent(feed.trim())}`).join('&');
+                const queryString = filteredFeeds.map(feed => `rss=${feed.trim()}`).join('&');
                 window.location.href = `/?${queryString}`;
             }
         </script>
