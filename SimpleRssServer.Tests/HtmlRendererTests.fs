@@ -2,6 +2,7 @@ module SimpleRssServer.Tests.HtmlRendererTests
 
 open System
 open System.Linq
+open System.Text
 open System.Xml.Linq
 open Xunit
 
@@ -43,7 +44,7 @@ let ``Test landing page displays correct version number using XML parser`` () =
 [<Fact>]
 let ``Test configPage handles valid and invalid URIs`` () =
     let validUri1 = Uri "https://example.com/feed1"
-    let validUri2 = Uri "https://example.com/feed2"
+    let validUri2 = Uri "http://example.com/feed2"
     let invalidUri1 = "invalid-uri"
     let invalidUri2 = "not-a-url"
 
@@ -51,9 +52,22 @@ let ``Test configPage handles valid and invalid URIs`` () =
 
     let resultHtml = configPage rssUrls
 
-    // Check valid URIs in feed-form text area
-    let expectedValidUris = "https://example.com/feed1\nhttps://example.com/feed2"
-    Assert.Contains(expectedValidUris, resultHtml)
+    // Use regex to extract the value of the textarea with id 'feeds'
+    let textareaValue =
+        let m =
+            RegularExpressions.Regex.Match(
+                resultHtml,
+                "<textarea id='feeds'[^>]*>(.*?)</textarea>",
+                RegularExpressions.RegexOptions.Singleline
+            )
+
+        if m.Success then
+            m.Groups.[1].Value
+        else
+            failwith "Textarea not found"
+
+    let expectedValidUris = "example.com/feed1\nhttp://example.com/feed2"
+    Assert.Equal(expectedValidUris, textareaValue)
 
     // Check both invalid URIs in invalid-uris div
     Assert.Contains(invalidUri1, resultHtml)

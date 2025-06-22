@@ -66,7 +66,10 @@ let configPage (rssUrls: Result<Uri, string> array) =
     """
 
     let validRssUris =
-        rssUrls |> validUris |> Array.map (fun u -> u.AbsoluteUri) |> String.concat "\n"
+        rssUrls
+        |> validUris
+        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
+        |> String.concat "\n"
 
     let textArea =
         $"""
