@@ -25,11 +25,27 @@ let getRssUrls (context: string) : Result<Uri, string> array =
     |> fun query ->
         let rssValues = query.GetValues "rss"
 
+        let ensureScheme (s: string) =
+            if
+                s.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || s.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            then
+                s
+            else
+                $"https://{s}"
+
         if rssValues <> null && rssValues.Length > 0 then
             rssValues
             |> Array.map (fun s ->
+                let url = ensureScheme s
+
                 try
-                    Ok(Uri s)
+                    let uri = Uri url
+
+                    if uri.Host.Contains "." then
+                        Ok uri
+                    else
+                        Error $"Invalid URI: '{s}' (Host must contain a dot)"
                 with :? UriFormatException as ex ->
                     Error $"Invalid URI: '{s}' ({ex.Message})")
         else

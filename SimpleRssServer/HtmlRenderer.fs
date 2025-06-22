@@ -72,7 +72,9 @@ let configPage (rssUrls: Result<Uri, string> array) =
     let textArea =
         $"""
         <form id='feed-form'>
-            <label for='feeds'>Enter one feed URL per line:</label><br>
+            <label for='feeds'>Enter one feed URL per line.
+                You can ommit the <code>https://</code>, but add <code>http://</code> if needed.
+            </label><br>
             <textarea id='feeds' rows='10' cols='30'>{validRssUris}</textarea><br>
             <button type='button' onclick='submitFeeds()'>Submit</button>
         </form>
