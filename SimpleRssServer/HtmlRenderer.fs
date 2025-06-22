@@ -38,7 +38,7 @@ let footer =
     </html>
     """
 
-let homepage query rssItems =
+let homepage query (rssItems: Article seq) =
     let body =
         $"""
     <body>
@@ -50,7 +50,6 @@ let homepage query rssItems =
 
     let rssFeeds =
         rssItems
-        |> Seq.collect parseRss
         |> Seq.sortByDescending (fun a -> a.PostDate)
         |> Seq.map convertArticleToHtml
         |> String.concat ""
@@ -67,12 +66,17 @@ let configPage (rssUrls: Result<Uri, string> array) =
     """
 
     let validRssUris =
-        rssUrls |> validUris |> Array.map (fun u -> u.AbsoluteUri) |> String.concat "\n"
+        rssUrls
+        |> validUris
+        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
+        |> String.concat "\n"
 
     let textArea =
         $"""
         <form id='feed-form'>
-            <label for='feeds'>Enter one feed URL per line:</label><br>
+            <label for='feeds'>Enter one feed URL per line.
+                You can ommit the <code>https://</code>, but add <code>http://</code> if needed.
+            </label><br>
             <textarea id='feeds' rows='10' cols='30'>{validRssUris}</textarea><br>
             <button type='button' onclick='submitFeeds()'>Submit</button>
         </form>
@@ -94,7 +98,7 @@ let configPage (rssUrls: Result<Uri, string> array) =
             function submitFeeds() {
                 const feeds = document.getElementById('feeds').value.trim().split('\n');
                 const filteredFeeds = feeds.filter(feed => feed.trim() !== '');
-                const queryString = filteredFeeds.map(feed => `rss=${encodeURIComponent(feed.trim())}`).join('&');
+                const queryString = filteredFeeds.map(feed => `rss=${feed.trim()}`).join('&');
                 window.location.href = `/?${queryString}`;
             }
         </script>

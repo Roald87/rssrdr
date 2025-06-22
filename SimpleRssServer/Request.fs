@@ -14,6 +14,7 @@ open SimpleRssServer.Cache
 open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.RequestLog
 open SimpleRssServer.Config
+open RssParser
 
 let convertUrlToValidFilename (uri: Uri) : string =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
@@ -25,11 +26,27 @@ let getRssUrls (context: string) : Result<Uri, string> array =
     |> fun query ->
         let rssValues = query.GetValues "rss"
 
+        let ensureScheme (s: string) =
+            if
+                s.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || s.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            then
+                s
+            else
+                $"https://{s}"
+
         if rssValues <> null && rssValues.Length > 0 then
             rssValues
             |> Array.map (fun s ->
+                let url = ensureScheme s
+
                 try
-                    Ok(Uri s)
+                    let uri = Uri url
+
+                    if uri.Host.Contains "." then
+                        Ok uri
+                    else
+                        Error $"Invalid URI: '{s}' (Host must contain a dot)"
                 with :? UriFormatException as ex ->
                     Error $"Invalid URI: '{s}' ({ex.Message})")
         else
@@ -93,15 +110,16 @@ let assembleRssFeeds client cacheLocation rssUris =
             | Error e -> Some(Error e)
             | Ok _ -> None)
 
-    let allItems = Array.append items invalidUris
+    let allItems = Array.append items invalidUris |> Seq.collect parseRss
 
     let rssQuery =
         rssUris
         |> validUris
-        |> Array.map (fun u -> u.AbsoluteUri)
+        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
         |> String.concat "&rss="
 
     let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
+
     homepage query allItems
 
 let handleRequest client (cacheLocation: string) (context: HttpListenerContext) =

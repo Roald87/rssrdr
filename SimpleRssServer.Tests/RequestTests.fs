@@ -32,20 +32,22 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     Assert.Contains($"<a id=\"config-link\" href=\"config.html/\">config/</a>", result)
 
 [<Fact>]
-let ``Test assembleRssFeeds includes config link with query`` () =
+let ``Test assembleRssFeeds includes config link with query and removes https prefix`` () =
     // Arrange
     let client = new HttpClient()
     let cacheLocation = "test_cache"
 
     let rssUrls =
-        [| Ok(Uri "https://example.com/feed"); Ok(Uri "https://example.com/feed2") |]
+        [| Ok(Uri "https://example.com/feed")
+           Ok(Uri "https://example.com/feed2")
+           Ok(Uri "http://example.com/feed3") |]
 
     // Act
     let result = assembleRssFeeds client cacheLocation rssUrls
 
-    // Assert
-    let valids = rssUrls |> validUris
-    let expectedQuery = $"?rss={valids[0].AbsoluteUri}&rss={valids[1].AbsoluteUri}"
+    let expectedQuery =
+        $"?rss=example.com/feed&rss=example.com/feed2&rss=http://example.com/feed3"
+
     Assert.Contains($"<a id=\"config-link\" href=\"config.html/%s{expectedQuery}\">config/</a>", result)
 
 [<Fact>]
@@ -126,7 +128,6 @@ let ``Test getRssUrls with two URLs`` () =
 
     Assert.Equal<Result<Uri, string>[]>(expected, result)
 
-
 [<Fact>]
 let ``Test getRssUrls with empty string`` () =
     let result = getRssUrls ""
@@ -136,21 +137,33 @@ let ``Test getRssUrls with empty string`` () =
 [<Fact>]
 let ``Test getRssUrls with invalid URL`` () =
     let result = getRssUrls "?rss=invalid-url"
+    Assert.Equal(1, result.Length)
 
-    Assert.Equal<Result<Uri, string>[]>(
-        [| Error "Invalid URI: 'invalid-url' (Invalid URI: The format of the URI could not be determined.)" |],
-        result
-    )
+    match result.[0] with
+    | Error msg -> Assert.Contains("invalid-url", msg)
+    | Ok _ -> Assert.True(false, "Expected Error, got Ok")
 
 [<Fact>]
 let ``Test getRssUrls with valid and invalid URLs`` () =
     let result = getRssUrls "?rss=invalid-url&rss=https://valid-url.com"
+    Assert.Equal(2, result.Length)
 
-    Assert.Equal<Result<Uri, string>[]>(
-        [| Error "Invalid URI: 'invalid-url' (Invalid URI: The format of the URI could not be determined.)"
-           Ok(Uri "https://valid-url.com") |],
-        result
-    )
+    match result.[0] with
+    | Error msg -> Assert.Contains("invalid-url", msg)
+    | Ok _ -> Assert.True(false, "Expected Error, got Ok")
+
+    match result.[1] with
+    | Ok uri -> Assert.Equal(Uri "https://valid-url.com", uri)
+    | Error _ -> Assert.True(false, "Expected Ok, got Error")
+
+[<Fact>]
+let ``Test getRssUrls adds https if missing`` () =
+    let result = getRssUrls "?rss=example.com/feed&rss=http://example.com/feed2"
+
+    let expected =
+        [| Ok(Uri "https://example.com/feed"); Ok(Uri "http://example.com/feed2") |]
+
+    Assert.Equal<Result<Uri, string>[]>(expected, result)
 
 [<Fact>]
 let ``Test convertUrlToFilename`` () =
