@@ -54,7 +54,7 @@ let ``Test assembleRssFeeds includes config link with query and removes https pr
 let ``Test requestUrls returns two URLs from request-log.txt`` () =
     let logFilePath = "data/request-log.txt"
 
-    let urls = requestUrls logFilePath
+    let urls = readRequestLog logFilePath
 
     Assert.Equal(2, Array.length urls)
     Assert.Contains(Uri "https://example.com/feed1", urls)
@@ -440,7 +440,7 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
 
     let urls =
         try
-            requestUrls filename
+            readRequestLog filename
         with _ ->
             [||]
     // Only valid https URLs should be returned

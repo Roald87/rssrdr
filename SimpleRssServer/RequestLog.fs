@@ -33,7 +33,7 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri,
     let updatedEntries = Array.append existingEntries logEntries
     File.WriteAllLines(filename, updatedEntries)
 
-let requestUrls logPath =
+let readRequestLog logPath =
     if File.Exists logPath then
         File.ReadAllLines logPath
         |> Array.map (fun line -> line.Trim().Split([| ' ' |], 2))
