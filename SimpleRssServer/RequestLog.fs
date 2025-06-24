@@ -36,25 +36,18 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri,
 let requestUrls logPath =
     if File.Exists logPath then
         File.ReadAllLines logPath
-        |> Array.choose (fun line ->
-            let parts = line.Trim().Split([| ' ' |], 2)
+        |> Array.map (fun line -> line.Trim().Split([| ' ' |], 2))
+        |> Array.filter (fun parts -> parts.Length = 2 && isText parts.[1])
+        |> Array.map (fun parts -> parts.[1].Trim())
+        |> Array.choose (fun url ->
+            try
+                let uri = Uri url
 
-            if parts.Length = 2 then
-                let url = parts.[1].Trim()
-
-                try
-                    if not (String.IsNullOrWhiteSpace url) then
-                        let uri = Uri url
-
-                        if uri.Scheme = "http" || uri.Scheme = "https" then
-                            Some uri
-                        else
-                            None
-                    else
-                        None
-                with :? UriFormatException ->
+                if uri.Scheme = "http" || uri.Scheme = "https" then
+                    Some uri
+                else
                     None
-            else
+            with :? UriFormatException ->
                 None)
         |> Array.distinct
     else

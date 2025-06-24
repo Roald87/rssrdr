@@ -17,3 +17,5 @@ let invalidUris (uris: Result<Uri, string> array) : string array =
     |> Array.choose (function
         | Ok _ -> None
         | Error msg -> Some msg)
+
+let isText (s: string) = not (String.IsNullOrWhiteSpace s)
