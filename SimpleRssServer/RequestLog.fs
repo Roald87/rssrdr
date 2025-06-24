@@ -37,8 +37,8 @@ let requestUrls logPath =
     if File.Exists logPath then
         File.ReadAllLines logPath
         |> Array.map (fun line -> line.Trim().Split([| ' ' |], 2))
-        |> Array.filter (fun parts -> parts.Length = 2 && isText parts.[1])
-        |> Array.map (fun parts -> parts.[1].Trim())
+        |> Array.filter (fun parts -> parts.Length = 2 && isText parts[1])
+        |> Array.map (fun parts -> parts[1].Trim())
         |> Array.choose (fun url ->
             try
                 let uri = Uri url
