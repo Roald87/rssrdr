@@ -21,7 +21,7 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri,
         if File.Exists filename then
             File.ReadAllLines filename
             |> Array.filter (fun line ->
-                let datePart = line.Split(' ').[0]
+                let datePart = line.Split(' ', 2)[0]
 
                 let entryDate =
                     DateTime.ParseExact(datePart, "yyyy-MM-dd", CultureInfo.InvariantCulture)
