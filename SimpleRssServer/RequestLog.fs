@@ -35,9 +35,11 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri,
 
 let readRequestLog logPath =
     if File.Exists logPath then
+        let expectedColumns = 2
+
         File.ReadAllLines logPath
-        |> Array.map (fun line -> line.Trim().Split([| ' ' |], 2))
-        |> Array.filter (fun parts -> parts.Length = 2)
+        |> Array.map (fun line -> line.Trim().Split(' ', expectedColumns))
+        |> Array.filter (fun parts -> parts.Length = expectedColumns)
         |> Array.choose (fun parts ->
             try
                 let uri = Uri parts[1]

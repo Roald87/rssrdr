@@ -443,10 +443,9 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
             readRequestLog filename
         with _ ->
             [||]
-    // Only valid https URLs should be returned
+
     Assert.Contains(Uri "https://valid-url.com/feed1", urls)
     Assert.Contains(Uri "https://valid-url.com/feed2", urls)
-    // Should not throw, and should not include invalid or empty URLs
     Assert.DoesNotContain(Uri "ftp://unsupported-protocol.com/feed3", urls)
     Assert.Equal(2, Array.length urls)
     File.Delete(filename)
