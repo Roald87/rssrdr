@@ -4,6 +4,7 @@ open System
 open System.IO
 
 open Roald87.FeedReader
+open Helper
 
 type Article =
     { PostDate: DateTime option
@@ -73,12 +74,9 @@ let parseRss (feedContent: Result<string, string>) : Article list =
 
         let text =
             let content =
-                if not (entry.Description |> String.IsNullOrEmpty) then
-                    entry.Description
-                else if not (entry.Content |> String.IsNullOrEmpty) then
-                    entry.Content
-                else
-                    ""
+                if isText entry.Description then entry.Description
+                else if isText entry.Content then entry.Content
+                else ""
 
             let cleanedContent = content |> stripHtml
 

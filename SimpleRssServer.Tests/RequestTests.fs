@@ -54,7 +54,7 @@ let ``Test assembleRssFeeds includes config link with query and removes https pr
 let ``Test requestUrls returns two URLs from request-log.txt`` () =
     let logFilePath = "data/request-log.txt"
 
-    let urls = requestUrls logFilePath
+    let urls = readRequestLog logFilePath
 
     Assert.Equal(2, Array.length urls)
     Assert.Contains(Uri "https://example.com/feed1", urls)
@@ -420,3 +420,32 @@ let ``GetAsync returns timeout error when request takes too long`` () =
     match result with
     | Ok _ -> Assert.True(false, "Expected timeout failure but got success")
     | Error error -> Assert.Contains($"timed out after {timeout} seconds", error)
+
+[<Fact>]
+let ``Test requestUrls skips invalid URLs in log file`` () =
+    let filename = "test_invalid_urls.txt"
+
+    let lines =
+        [| "2025-06-23 https://valid-url.com/feed1"
+           "2025-06-23 not-a-valid-url"
+           "2025-06-23 https://valid-url.com/feed2"
+           "2025-06-23 "
+           " sd sdfa weq"
+           "  a     "
+           "\t \t"
+           "2025-06-23 ftp://unsupported-protocol.com/feed3"
+           "2025-06-23 https://valid-url.com/feed1" |]
+
+    File.WriteAllLines(filename, lines)
+
+    let urls =
+        try
+            readRequestLog filename
+        with _ ->
+            [||]
+
+    Assert.Contains(Uri "https://valid-url.com/feed1", urls)
+    Assert.Contains(Uri "https://valid-url.com/feed2", urls)
+    Assert.DoesNotContain(Uri "ftp://unsupported-protocol.com/feed3", urls)
+    Assert.Equal(2, Array.length urls)
+    File.Delete(filename)

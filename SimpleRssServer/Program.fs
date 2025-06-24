@@ -13,7 +13,7 @@ type Millisecond = Millisecond of int
 let updateRssFeedsPeriodically client cacheDir (period: Millisecond) =
     async {
         while true do
-            let urls = requestUrls RequestLogPath
+            let urls = readRequestLog RequestLogPath
 
             if urls.Length > 0 then
                 logger.LogDebug $"Periodically updating {urls.Length} RSS feeds."

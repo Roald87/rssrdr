@@ -21,7 +21,7 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri,
         if File.Exists filename then
             File.ReadAllLines filename
             |> Array.filter (fun line ->
-                let datePart = line.Split(' ').[0]
+                let datePart = line.Split(' ', 2)[0]
 
                 let entryDate =
                     DateTime.ParseExact(datePart, "yyyy-MM-dd", CultureInfo.InvariantCulture)
@@ -33,11 +33,23 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri,
     let updatedEntries = Array.append existingEntries logEntries
     File.WriteAllLines(filename, updatedEntries)
 
-let requestUrls logPath =
+let readRequestLog logPath =
     if File.Exists logPath then
+        let expectedColumns = 2
+
         File.ReadAllLines logPath
-        |> Array.map (fun line -> line.Split(' ').[1])
+        |> Array.map (fun line -> line.Trim().Split(' ', expectedColumns))
+        |> Array.filter (fun parts -> parts.Length = expectedColumns)
+        |> Array.choose (fun parts ->
+            try
+                let uri = Uri parts[1]
+
+                if uri.Scheme = "http" || uri.Scheme = "https" then
+                    Some uri
+                else
+                    None
+            with :? UriFormatException ->
+                None)
         |> Array.distinct
-        |> Array.map Uri
     else
         [||]
