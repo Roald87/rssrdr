@@ -2,6 +2,7 @@ module SimpleRssServer.Request
 
 open Microsoft.Extensions.Logging
 open System
+open System.Buffers
 open System.IO
 open System.Net
 open System.Text
@@ -16,11 +17,15 @@ open SimpleRssServer.RequestLog
 open SimpleRssServer.Config
 open RssParser
 
+let unised = 5
+
 let convertUrlToValidFilename (uri: Uri) : string =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
     replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_")
 
 let getRssUrls (context: string) : Result<Uri, string> array =
+    let unused = 6
+
     context
     |> HttpUtility.ParseQueryString
     |> fun query ->
