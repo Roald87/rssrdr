@@ -7,8 +7,6 @@ open System.Net
 open RssParser
 open Helper
 
-// Html type to wrap HTML strings
-// [<Struct>] is an F# attribute that makes a type a struct (value type) instead of a class (reference type). Not needed here, so removed.
 type Html =
     | Html of string
 
