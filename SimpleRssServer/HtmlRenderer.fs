@@ -56,6 +56,7 @@ let homepage query (rssItems: Article seq) : Html =
         <div class="header">
             <h1><a href="/" style="text-decoration: none; color: black;">rssrdr</a></h1>
             <a id="config-link" href="config.html/%s{query}">config/</a>
+            <a id="random-link" href="/random%s{query}" style="margin-left: 20px;">random/</a>
         </div>
     """
         |> Html
@@ -67,6 +68,27 @@ let homepage query (rssItems: Article seq) : Html =
         |> Seq.fold (+) Html.Empty
 
     header + body + rssFeeds + footer
+
+let randomPage query (rssItems: Article seq) : Html =
+    let body =
+        $"""
+    <body>
+        <div class="header">
+            <h1><a href="/" style="text-decoration: none; color: black;">rssrdr</a></h1>
+            <a id="config-link" href="config.html/%s{query}">config/</a>
+            <a id="chron-link" href="/%s{query}" style="margin-left: 20px;">chronological/</a>
+        </div>
+    """
+        |> Html
+
+    let shuffledFeeds =
+        rssItems
+        |> Seq.toArray
+        |> Array.randomShuffle
+        |> Seq.map convertArticleToHtml
+        |> Seq.fold (+) Html.Empty
+
+    header + body + shuffledFeeds + footer
 
 let configPage (rssUrls: Result<Uri, string> array) : Html =
     let body =

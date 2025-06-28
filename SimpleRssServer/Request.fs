@@ -101,7 +101,11 @@ let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri array) =
 
 let notEmpty (s: string) = not (String.IsNullOrWhiteSpace s)
 
-let assembleRssFeeds client cacheLocation rssUris =
+type FeedOrder =
+    | Chronological
+    | Random
+
+let assembleRssFeeds order client cacheLocation rssUris =
     let items = rssUris |> validUris |> fetchAllRssFeeds client cacheLocation
 
     let invalidUris: Result<string, string>[] =
@@ -120,7 +124,9 @@ let assembleRssFeeds client cacheLocation rssUris =
 
     let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
 
-    homepage query allItems
+    match order with
+    | Chronological -> homepage query allItems
+    | Random -> randomPage query allItems
 
 let handleRequest client (cacheLocation: string) (context: HttpListenerContext) =
     async {
@@ -131,9 +137,12 @@ let handleRequest client (cacheLocation: string) (context: HttpListenerContext) 
         let responseString =
             match context.Request.RawUrl with
             | Prefix "/config.html" _ -> configPage rssUris |> string
+            | Prefix "/random?rss=" _ ->
+                updateRequestLog RequestLogPath RequestLogRetention rssUris
+                assembleRssFeeds Random client cacheLocation rssUris |> string
             | Prefix "/?rss=" _ ->
                 updateRequestLog RequestLogPath RequestLogRetention rssUris
-                assembleRssFeeds client cacheLocation rssUris |> string
+                assembleRssFeeds Chronological client cacheLocation rssUris |> string
             | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
             | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
             | _ -> landingPage |> string
