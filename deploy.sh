@@ -7,11 +7,10 @@ sed -i "s/<Version>.*<\/Version>/<Version>$new_version<\/Version>/" SimpleRssSer
 git add SimpleRssServer/SimpleRssServer.fsproj
 git commit -m "bump version number"
 git tag $new_version
-dotnet_version=$(grep -oP '(?<=<TargetFramework>).*?(?=</TargetFramework>)' SimpleRssServer/SimpleRssServer.fsproj)
-dotnet publish
+
 sudo systemctl stop rssrdr-server.service
 find /var/www/rssrdr/* -not -name 'rss-cache' -not -path '/var/www/rssrdr/rss-cache/*' -exec rm -rf {} +
-cp -r SimpleRssServer/bin/Release/$dotnet_version/publish/* /var/www/rssrdr/
+dotnet publish SimpleRssServer/SimpleRssServer.fsproj --output /var/www/rssrdr/
 sudo systemctl start rssrdr-server.service
 git push
 git push origin "$new_version"
