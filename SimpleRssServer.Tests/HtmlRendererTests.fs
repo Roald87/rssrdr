@@ -28,7 +28,9 @@ let ``Test convertArticleToHtml encodes special characters`` () =
           Url = "https://rachelbythebay.com/w/2024/02/24/signext/"
           BaseUrl = "rachelbythebay.com" }
         |> convertArticleToHtml
+        |> string
 
+    // Comparing strings, instead of Html, is easier to see where they differ
     Assert.Equal(expected, actual)
 
 [<Fact>]
@@ -39,7 +41,7 @@ let ``Test landing page displays correct version number using XML parser`` () =
     let xmlDoc = XDocument.Parse fsprojContent
     let version = xmlDoc.Descendants(XName.Get "Version").FirstOrDefault().Value
 
-    Assert.Contains($"v{version}", landingPage)
+    Assert.Contains($"v{version}", string landingPage)
 
 [<Fact>]
 let ``Test configPage handles valid and invalid URIs`` () =
@@ -50,7 +52,7 @@ let ``Test configPage handles valid and invalid URIs`` () =
 
     let rssUrls = [| Ok validUri1; Ok validUri2; Error invalidUri1; Error invalidUri2 |]
 
-    let resultHtml = configPage rssUrls
+    let resultHtml = configPage rssUrls |> string
 
     // Use regex to extract the value of the textarea with id 'feeds'
     let textareaValue =
