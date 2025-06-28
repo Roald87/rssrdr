@@ -1,5 +1,4 @@
 ﻿open Microsoft.Extensions.Logging
-open System
 open System.IO
 open System.Net
 

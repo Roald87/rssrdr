@@ -26,7 +26,7 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     let rssUrls = [||]
 
     // Act
-    let result = assembleRssFeeds client cacheLocation rssUrls |> string
+    let result = assembleRssFeeds Chronological client cacheLocation rssUrls |> string
 
     // Assert
     Assert.Contains($"<a id=\"config-link\" href=\"config.html/\">config/</a>", result)
@@ -43,7 +43,7 @@ let ``Test assembleRssFeeds includes config link with query and removes https pr
            Ok(Uri "http://example.com/feed3") |]
 
     // Act
-    let result = assembleRssFeeds client cacheLocation rssUrls |> string
+    let result = assembleRssFeeds Chronological client cacheLocation rssUrls |> string
 
     let expectedQuery =
         $"?rss=example.com/feed&rss=example.com/feed2&rss=http://example.com/feed3"
