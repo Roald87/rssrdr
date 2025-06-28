@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <Version>0.7.2</Version>
-  </PropertyGroup>
-  <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
+    <!-- Enable warnings for unused values (1182), unused value declarations (1183), and unused open statements (1185) -->
+    <WarningsAsErrors>1182;1183;1185</WarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Config.fs" />
