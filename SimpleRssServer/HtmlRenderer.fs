@@ -7,7 +7,16 @@ open System.Net
 open RssParser
 open Helper
 
-let convertArticleToHtml (article: Article) =
+// Html type to wrap HTML strings
+// [<Struct>] is an F# attribute that makes a type a struct (value type) instead of a class (reference type). Not needed here, so removed.
+type Html =
+    | Html of string
+
+    override this.ToString() = let (Html s) = this in s
+    static member (+)(Html a, Html b) = Html(a + b)
+    static member Empty = Html ""
+
+let convertArticleToHtml (article: Article) : Html =
     let date =
         if article.PostDate.IsSome then
             $"on %s{article.PostDate.Value.ToLongDateString()}"
@@ -21,24 +30,28 @@ let convertArticleToHtml (article: Article) =
         <p>%s{article.Text}</p>
     </div>
     """
+    |> Html
 
-let header = File.ReadAllText(Path.Combine("site", "header.html"))
+let header: Html = File.ReadAllText(Path.Combine("site", "header.html")) |> Html
 
 let versionNumber =
     let version = Reflection.Assembly.GetExecutingAssembly().GetName().Version
     $"{version.Major}.{version.Minor}.{version.Build}"
 
-let landingPage =
-    header + File.ReadAllText(Path.Combine("site", "landing-page.html"))
-    |> fun html -> html.Replace("{{version}}", versionNumber)
+let landingPage: Html =
+    header
+    + (File.ReadAllText(Path.Combine("site", "landing-page.html"))
+       |> fun html -> html.Replace("{{version}}", versionNumber)
+       |> Html)
 
-let footer =
+let footer: Html =
     """
     </body>
     </html>
     """
+    |> Html
 
-let homepage query (rssItems: Article seq) =
+let homepage query (rssItems: Article seq) : Html =
     let body =
         $"""
     <body>
@@ -47,16 +60,17 @@ let homepage query (rssItems: Article seq) =
             <a id="config-link" href="config.html/%s{query}">config/</a>
         </div>
     """
+        |> Html
 
     let rssFeeds =
         rssItems
         |> Seq.sortByDescending (fun a -> a.PostDate)
         |> Seq.map convertArticleToHtml
-        |> String.concat ""
+        |> Seq.fold (+) Html.Empty
 
     header + body + rssFeeds + footer
 
-let configPage (rssUrls: Result<Uri, string> array) =
+let configPage (rssUrls: Result<Uri, string> array) : Html =
     let body =
         """
     <body>
@@ -64,6 +78,7 @@ let configPage (rssUrls: Result<Uri, string> array) =
             <h1><a href="/" style="text-decoration: none; color: black;">rssrdr</a>/config</h1>
         </div>
     """
+        |> Html
 
     let validRssUris =
         rssUrls
@@ -81,6 +96,7 @@ let configPage (rssUrls: Result<Uri, string> array) =
             <button type='button' onclick='submitFeeds()'>Submit</button>
         </form>
         """
+        |> Html
 
     let errorFields = rssUrls |> invalidUris |> String.concat "<br>"
 
@@ -89,8 +105,9 @@ let configPage (rssUrls: Result<Uri, string> array) =
             $"""
             <div id='invalid-uris'>{errorFields}</div>
             """
+            |> Html
         else
-            ""
+            Html.Empty
 
     let filterFeeds =
         """
@@ -103,5 +120,6 @@ let configPage (rssUrls: Result<Uri, string> array) =
             }
         </script>
         """
+        |> Html
 
     header + body + textArea + invalidDiv + filterFeeds + footer

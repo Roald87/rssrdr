@@ -130,13 +130,13 @@ let handleRequest client (cacheLocation: string) (context: HttpListenerContext) 
 
         let responseString =
             match context.Request.RawUrl with
-            | Prefix "/config.html" _ -> configPage rssUris
+            | Prefix "/config.html" _ -> configPage rssUris |> string
             | Prefix "/?rss=" _ ->
                 updateRequestLog RequestLogPath RequestLogRetention rssUris
-                assembleRssFeeds client cacheLocation rssUris
+                assembleRssFeeds client cacheLocation rssUris |> string
             | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
             | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
-            | _ -> landingPage
+            | _ -> landingPage |> string
 
         let buffer = responseString |> Encoding.UTF8.GetBytes
         context.Response.ContentLength64 <- int64 buffer.Length
