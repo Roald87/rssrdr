@@ -22,7 +22,7 @@ let convertArticleToHtml (article: Article) : Html =
             ""
 
     $"""
-    <div class="feed-item">
+    <div>
         <h2><a href="%s{article.Url}" target="_blank">%s{article.Title |> WebUtility.HtmlEncode}</a></h2>
         <div class="source-date">%s{article.BaseUrl} %s{date}</div>
         <p>%s{article.Text}</p>
@@ -53,10 +53,10 @@ let homepage query (rssItems: Article seq) : Html =
     let body =
         $"""
     <body>
-        <div class="header">
-            <h1><a href="/" style="text-decoration: none; color: black;">rssrdr</a></h1>
-            <a id="config-link" href="config.html/%s{query}">config/</a>
-            <a id="random-link" href="/random%s{query}" style="margin-left: 20px;">random/</a>
+        <div>
+            <h1><a href="/">rssrdr</a></h1>
+            <a href="config.html/%s{query}">config/</a>
+            <a href="/random%s{query}" style="margin-left: 20px;">random/</a>
         </div>
     """
         |> Html
@@ -73,10 +73,10 @@ let randomPage query (rssItems: Article seq) : Html =
     let body =
         $"""
     <body>
-        <div class="header">
-            <h1><a href="/" style="text-decoration: none; color: black;">rssrdr</a></h1>
-            <a id="config-link" href="config.html/%s{query}">config/</a>
-            <a id="chron-link" href="/%s{query}" style="margin-left: 20px;">chronological/</a>
+        <div>
+            <h1><a href="/" >rssrdr</a></h1>
+            <a href="config.html/%s{query}">config/</a>
+            <a href="/%s{query}" style="margin-left: 20px;">chronological/</a>
         </div>
     """
         |> Html
@@ -94,8 +94,8 @@ let configPage (rssUrls: Result<Uri, string> array) : Html =
     let body =
         """
     <body>
-        <div class="header">
-            <h1><a href="/" style="text-decoration: none; color: black;">rssrdr</a>/config</h1>
+        <div>
+            <h1><a href="/">rssrdr</a>/config</h1>
         </div>
     """
         |> Html
@@ -108,7 +108,7 @@ let configPage (rssUrls: Result<Uri, string> array) : Html =
 
     let textArea =
         $"""
-        <form id='feed-form'>
+        <form>
             <label for='feeds'>Enter one feed URL per line.
                 You can ommit the <code>https://</code>, but add <code>http://</code> if needed.
             </label><br>
@@ -123,7 +123,7 @@ let configPage (rssUrls: Result<Uri, string> array) : Html =
     let invalidDiv =
         if errorFields <> "" then
             $"""
-            <div id='invalid-uris'>{errorFields}</div>
+            <div class='invalid-uris'>{errorFields}</div>
             """
             |> Html
         else

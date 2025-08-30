@@ -29,7 +29,7 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     let result = assembleRssFeeds Chronological client cacheLocation rssUrls |> string
 
     // Assert
-    Assert.Contains($"<a id=\"config-link\" href=\"config.html/\">config/</a>", result)
+    Assert.Contains($"<a href=\"config.html/\">config/</a>", result)
 
 [<Fact>]
 let ``Test assembleRssFeeds includes config link with query and removes https prefix`` () =
@@ -48,7 +48,7 @@ let ``Test assembleRssFeeds includes config link with query and removes https pr
     let expectedQuery =
         $"?rss=example.com/feed&rss=example.com/feed2&rss=http://example.com/feed3"
 
-    Assert.Contains($"<a id=\"config-link\" href=\"config.html/%s{expectedQuery}\">config/</a>", result)
+    Assert.Contains($"<a href=\"config.html/%s{expectedQuery}\">config/</a>", result)
 
 [<Fact>]
 let ``Test requestUrls returns two URLs from request-log.txt`` () =
@@ -375,7 +375,7 @@ let ``Test fetchWithCache with existing cache more than 1 hour old and 304 respo
 let ``Test Html encoding of special characters`` () =
     let expected =
         """
-    <div class="feed-item">
+    <div>
         <h2><a href="https://rachelbythebay.com/w/2024/02/24/signext/" target="_blank">1 &lt;&lt; n vs. 1U &lt;&lt; n and a cell phone autofocus problem</a></h2>
         <div class="source-date">rachelbythebay.com on Sunday, February 25, 2024</div>
         <p>Maybe 15 years ago, I heard that a certain cell phone camera would lose the ability to autofocus for about two weeks, then it would go back to working for another two weeks, and so on. It had something to do with the time ( since the epoch), the bits in u...</p>
