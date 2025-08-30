@@ -13,7 +13,7 @@ open SimpleRssServer.RssParser
 let ``Test convertArticleToHtml encodes special characters`` () =
     let expected =
         """
-    <div class="feed-item">
+    <div>
         <h2><a href="https://rachelbythebay.com/w/2024/02/24/signext/" target="_blank">1 &lt;&lt; n vs. 1U &lt;&lt; n and a cell phone autofocus problem</a></h2>
         <div class="source-date">rachelbythebay.com on Sunday, February 25, 2024</div>
         <p>Maybe 15 years ago, I heard that a certain cell phone camera would lose the ability to autofocus for about two weeks, then it would go back to working for another two weeks, and so on. It had something to do with the time ( since the epoch), the bits in u...</p>
@@ -74,4 +74,4 @@ let ``Test configPage handles valid and invalid URIs`` () =
     // Check both invalid URIs in invalid-uris div
     Assert.Contains(invalidUri1, resultHtml)
     Assert.Contains(invalidUri2, resultHtml)
-    Assert.Contains("<div id='invalid-uris'>", resultHtml)
+    Assert.Contains("<div class='invalid-uris'>", resultHtml)
