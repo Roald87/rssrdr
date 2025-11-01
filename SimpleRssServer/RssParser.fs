@@ -2,6 +2,7 @@ module SimpleRssServer.RssParser
 
 open System
 open System.IO
+open Microsoft.Extensions.Logging
 
 open Roald87.FeedReader
 open Helper
@@ -38,14 +39,16 @@ let createErrorFeed errorMessage =
 
     customFeed
 
-let parseRss (feedContent: Result<string, string>) : Article list =
+let parseRss (logger: ILogger) (feedContent: Result<string, string>) : Article list =
     let feed =
         match feedContent with
         | Ok content ->
             try
                 FeedReader.ReadFromString content
             with ex ->
-                createErrorFeed $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
+                let errorMessage = $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
+                logger.LogError errorMessage
+                createErrorFeed errorMessage
         | Error error -> createErrorFeed error
 
     feed.Items
@@ -93,10 +96,10 @@ let parseRss (feedContent: Result<string, string>) : Article list =
     |> Seq.toList
 
 
-let parseRssFromFile fileName =
+let parseRssFromFile logger fileName =
     try
         let content = File.ReadAllText fileName |> Ok
-        parseRss content
+        parseRss logger content
     with ex ->
         [ { PostDate = Some DateTime.Now
             Title = "Error"
