@@ -59,8 +59,9 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
 
         let noCache = File.Exists cachePath |> not
         let fileIsOld = isCacheOld cachePath 1.0
+        let canRetry = shouldRetry cachePath
 
-        if noCache || fileIsOld then
+        if (noCache || fileIsOld) && canRetry then
             if fileIsOld then
                 logger.LogDebug $"Cached file {cachePath} is older than 1 hour. Fetching {uri}"
             else
@@ -86,15 +87,21 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
                         $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
 
                     logger.LogError errorMessage
+                    do! recordFailure cachePath
                     return Error errorMessage
             | Ok content ->
                 do! writeCache cachePath content
                 return page
-            | Error _ -> return page
+            | Error _ ->
+                do! recordFailure cachePath
+                return page
         else
             logger.LogDebug $"Found cached file {cachePath} and it is up to date"
             let! content = readCache cachePath
-            return Ok content.Value
+
+            match content with
+            | Some value -> return Ok value
+            | None -> return Error $"Cache file {cachePath} exists but could not be read"
     }
 
 let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri array) =

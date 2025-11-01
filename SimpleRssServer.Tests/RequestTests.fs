@@ -16,6 +16,7 @@ open SimpleRssServer.RssParser
 open SimpleRssServer.RequestLog
 open SimpleRssServer.HttpClient
 open SimpleRssServer.HtmlRenderer
+open SimpleRssServer.Cache
 open TestHelpers
 
 [<Fact>]
@@ -374,6 +375,93 @@ let ``Test fetchWithCache with existing cache more than 1 hour old and 304 respo
     | Error error -> Assert.True(false, error)
 
     deleteFile filePath
+
+[<Fact>]
+let ``Test fetchWithCache respects failure backoff when retry is not allowed yet`` () =
+    let url = Uri "http://example.com/test-backoff"
+    let cachedContent = "Cached response content"
+
+    // Create a mock handler that throws if called - we expect no HTTP request
+    let handler =
+        new MockHttpMessageHandler(fun _ -> failwith "HTTP request should not be made during backoff period")
+
+    let client = new HttpClient(handler)
+
+    let filename = convertUrlToValidFilename url
+    let currentDir = Directory.GetCurrentDirectory()
+    let filePath = Path.Combine(currentDir, filename)
+    let failurePath = filePath + ".failures"
+
+    // Setup: Create cache file and failure record
+    Directory.CreateDirectory(currentDir) |> ignore
+    File.WriteAllText(filePath, cachedContent)
+    File.SetLastWriteTime(filePath, DateTime.Now.AddHours(-2.0)) // Cache is old
+
+    // Create a failure record indicating 2 failures (should wait 2 hours)
+    let failure =
+        { LastFailure = DateTimeOffset.Now.AddMinutes(-30.0) // Only 30 minutes ago
+          ConsecutiveFailures = 2 }
+
+    let json = System.Text.Json.JsonSerializer.Serialize(failure)
+    File.WriteAllText(failurePath, json)
+
+    // Act
+    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
+
+    // Assert - should return cached content without attempting HTTP request
+    match result with
+    | Ok content -> Assert.Equal(cachedContent, content)
+    | Error error -> Assert.True(false, $"Expected success with cached content but got error: {error}")
+
+    // Cleanup
+    deleteFile filePath
+    deleteFile failurePath
+
+[<Fact>]
+let ``Test fetchWithCache attempts retry when backoff period has passed`` () =
+    let url = Uri "http://example.com/test-retry"
+    let cachedContent = "Old cached content"
+    let newContent = "New content after retry"
+
+    // Create response for when retry is attempted
+    let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+    responseMessage.Content <- new StringContent(newContent)
+    let handler = new MockHttpResponseHandler(responseMessage)
+    let client = new HttpClient(handler)
+
+    let filename = convertUrlToValidFilename url
+    let currentDir = Directory.GetCurrentDirectory()
+    let filePath = Path.Combine(currentDir, filename)
+    let failurePath = filePath + ".failures"
+
+    // Setup: Create cache file and failure record
+    Directory.CreateDirectory(currentDir) |> ignore
+    File.WriteAllText(filePath, cachedContent)
+    File.SetLastWriteTime(filePath, DateTime.Now.AddHours(-2.0)) // Cache is old
+
+    // Create a failure record that's old enough to allow retry
+    let failure =
+        { LastFailure = DateTimeOffset.Now.AddHours(-3.0) // 3 hours ago
+          ConsecutiveFailures = 2 // Would normally require 2 hour wait
+        }
+
+    let json = System.Text.Json.JsonSerializer.Serialize(failure)
+    File.WriteAllText(failurePath, json)
+
+    // Act
+    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
+
+    // Assert - should have attempted HTTP request and got new content
+    match result with
+    | Ok content ->
+        Assert.Equal(newContent, content)
+        // Failure record should be deleted after successful fetch
+        Assert.False(File.Exists failurePath, "Expected failure record to be cleared after successful fetch")
+    | Error error -> Assert.True(false, $"Expected success with new content but got error: {error}")
+
+    // Cleanup
+    deleteFile filePath
+    deleteFile failurePath
 
 [<Fact>]
 let ``Test Html encoding of special characters`` () =
