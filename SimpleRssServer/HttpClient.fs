@@ -37,9 +37,16 @@ let fetchUrlAsync
             else if response.StatusCode = HttpStatusCode.NotModified then
                 return Ok "No changes"
             else
-                return Error $"Failed to get {uri}. Error: {response.StatusCode}."
+                let errorMessage = $"Failed to get {uri}. Error: {response.StatusCode}."
+                logger.LogError errorMessage
+                return Error errorMessage
         with
         | :? Threading.Tasks.TaskCanceledException ->
-            return Error $"Request to {uri} timed out after {timeoutSeconds} seconds"
-        | ex -> return Error $"Failed to get {uri}. {ex.GetType().Name}: {ex.Message}"
+            let warningMessage = $"Request to {uri} timed out after {timeoutSeconds} seconds"
+            logger.LogWarning warningMessage
+            return Error warningMessage
+        | ex ->
+            let errorMessage = $"Failed to get {uri}. {ex.GetType().Name}: {ex.Message}"
+            logger.LogError errorMessage
+            return Error errorMessage
     }

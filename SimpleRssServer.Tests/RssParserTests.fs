@@ -1,6 +1,7 @@
 module SimpleRssServer.Tests.RssParser
 
 open System
+open Microsoft.Extensions.Logging.Abstractions
 
 open Xunit
 
@@ -11,7 +12,7 @@ let ``Test parseRss with non-valid RSS feed`` () =
     let invalidContent =
         "<html><head><title>Not an RSS feed</title></head><body>This is a test.</body></html>"
 
-    let result = parseRss (Ok invalidContent)
+    let result = parseRss NullLogger.Instance (Ok invalidContent)
 
     let expected =
         { PostDate = Some DateTime.Now
@@ -29,7 +30,7 @@ let ``Test parseRss with non-valid RSS feed`` () =
     Assert.True((expected.PostDate.Value - actual.PostDate.Value).TotalSeconds < 1.0)
 
 let ``Test parseRss with roaldinch.xml`` () =
-    let result = parseRssFromFile "data/roaldinch.xml"
+    let result = parseRssFromFile NullLogger.Instance "data/roaldinch.xml"
 
     let expected =
         [ { PostDate = Some(DateTime(2024, 8, 6, 0, 0, 0))
@@ -104,7 +105,7 @@ let ``Test parseRss with roaldinch.xml`` () =
 
 [<Fact>]
 let ``Test parseRss with zoesklot.xml`` () =
-    let result = parseRssFromFile "data/zoesklot.xml"
+    let result = parseRssFromFile NullLogger.Instance "data/zoesklot.xml"
 
     let expectedFirst =
         { PostDate = Some(DateTime(2024, 8, 6, 13, 26, 32))
@@ -132,7 +133,7 @@ let ``Test parseRss with zoesklot.xml`` () =
 
 [<Fact>]
 let ``Test parseRss with nature.rss`` () =
-    let result = parseRssFromFile "data/nature.rss"
+    let result = parseRssFromFile NullLogger.Instance "data/nature.rss"
 
     let expectedFirst =
         { PostDate = Some(DateTime(2024, 8, 19))
@@ -172,7 +173,7 @@ let ``Test parseRss with nature.rss`` () =
 [<Fact>]
 let ``Test parseRss with Failure feedContent`` () =
     let errorMessage = "An error occurred while fetching the feed."
-    let result = parseRss (Error errorMessage)
+    let result = parseRss NullLogger.Instance (Error errorMessage)
 
     let expected =
         { PostDate = Some DateTime.Now
@@ -191,7 +192,7 @@ let ``Test parseRss with Failure feedContent`` () =
 
 [<Fact>]
 let ``Test parsing date if only update date is available`` () =
-    let result = parseRssFromFile "data/rachel.xml"
+    let result = parseRssFromFile NullLogger.Instance "data/rachel.xml"
 
     let expectedFirst = Some(DateTime(2024, 8, 18, 23, 16, 27))
     let actualFirst = result |> List.head
@@ -204,7 +205,7 @@ let ``Test parsing date if only update date is available`` () =
 
 [<Fact>]
 let ``Test get content for article text if description is empty`` () =
-    let result = parseRssFromFile "data/rachel.xml"
+    let result = parseRssFromFile NullLogger.Instance "data/rachel.xml"
 
     let actualFirst = result |> List.head
 
