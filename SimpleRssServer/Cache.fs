@@ -14,7 +14,7 @@ let getBackoffHours failures =
     // Exponential backoff: 1hr, 2hrs, 4hrs, 8hrs, max 24hrs
     min 24.0 (Math.Pow(2.0, float (failures - 1)))
 
-let fileLastModifued (path: string) =
+let fileLastModified (path: string) =
     if File.Exists path then
         File.GetLastWriteTime path |> DateTimeOffset |> Some
     else

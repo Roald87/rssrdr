@@ -377,16 +377,16 @@ let ``Test fetchWithCache with existing cache more than 1 hour old and 304 respo
 
     deleteFile filePath
 
+let mockClientThrowsWhenCalled =
+    let handler =
+        new MockHttpMessageHandler(fun _ -> failwith "HTTP request not expected to be made")
+
+    new HttpClient(handler)
+
 [<Fact>]
-let ``Test fetchWithCache respects failure backoff when retry is not allowed yet`` () =
+let ``Test fetchWithCache respects failure backoff when retry is not allowed yet and outdated cache`` () =
     let url = Uri "http://example.com/test-backoff"
     let cachedContent = "Cached response content"
-
-    // Create a mock handler that throws if called - we expect no HTTP request
-    let handler =
-        new MockHttpMessageHandler(fun _ -> failwith "HTTP request should not be made during backoff period")
-
-    let client = new HttpClient(handler)
 
     let filename = convertUrlToValidFilename url
     let currentDir = Directory.GetCurrentDirectory()
@@ -396,18 +396,20 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed yet
     // Setup: Create cache file and failure record
     Directory.CreateDirectory(currentDir) |> ignore
     File.WriteAllText(filePath, cachedContent)
-    File.SetLastWriteTime(filePath, DateTime.Now.AddHours(-2.0)) // Cache is old
+    File.SetLastWriteTime(filePath, DateTime.Now.AddHours -2.0) // Cache is old
 
     // Create a failure record indicating 2 failures (should wait 2 hours)
     let failure =
-        { LastFailure = DateTimeOffset.Now.AddMinutes(-30.0) // Only 30 minutes ago
+        { LastFailure = DateTimeOffset.Now.AddMinutes -30.0 // Only 30 minutes ago
           ConsecutiveFailures = 2 }
 
     let json = System.Text.Json.JsonSerializer.Serialize(failure)
     File.WriteAllText(failurePath, json)
 
     // Act
-    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync mockClientThrowsWhenCalled currentDir url
+        |> Async.RunSynchronously
 
     // Assert
     match result with
@@ -419,7 +421,7 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed yet
     deleteFile failurePath
 
 [<Fact>]
-let ``Test fetchWithCache attempts retry when backoff period has passed`` () =
+let ``Test fetchWithCache attempts retry when backoff period has passed and outdated cache`` () =
     let url = Uri "http://example.com/test-retry"
     let cachedContent = "Old cached content"
     let newContent = "New content after retry"
@@ -436,13 +438,13 @@ let ``Test fetchWithCache attempts retry when backoff period has passed`` () =
     let failurePath = filePath + ".failures"
 
     // Setup: Create cache file and failure record
-    Directory.CreateDirectory(currentDir) |> ignore
+    Directory.CreateDirectory currentDir |> ignore
     File.WriteAllText(filePath, cachedContent)
-    File.SetLastWriteTime(filePath, DateTime.Now.AddHours(-2.0)) // Cache is old
+    File.SetLastWriteTime(filePath, DateTime.Now.AddHours -2.0) // Cache is old
 
     // Create a failure record that's old enough to allow retry
     let failure =
-        { LastFailure = DateTimeOffset.Now.AddHours(-3.0) // 3 hours ago
+        { LastFailure = DateTimeOffset.Now.AddHours -3.0 // 3 hours ago
           ConsecutiveFailures = 2 // Would normally require 2 hour wait
         }
 
@@ -459,6 +461,43 @@ let ``Test fetchWithCache attempts retry when backoff period has passed`` () =
         // Failure record should be deleted after successful fetch
         Assert.False(File.Exists failurePath, "Expected failure record to be cleared after successful fetch")
     | Error error -> Assert.True(false, $"Expected success with new content but got error: {error}")
+
+    // Cleanup
+    deleteFile filePath
+    deleteFile failurePath
+
+[<Fact>]
+let ``Test fetchWithCache returns error with outdated cache and cooldown time when retrying too soon`` () =
+    let url = Uri "http://example.com/test-cooldown"
+    let cachedContent = "Cached response content"
+
+    let filename = convertUrlToValidFilename url
+    let currentDir = Directory.GetCurrentDirectory()
+    let filePath = Path.Combine(currentDir, filename)
+    let failurePath = failureFilePath filePath
+
+    // Setup cache and failure files
+    Directory.CreateDirectory(currentDir) |> ignore
+    File.WriteAllText(filePath, cachedContent)
+    File.SetLastWriteTime(filePath, DateTime.Now.AddHours -2.0) // Old enough to need refresh
+
+    // Create failure record with 2 consecutive failures (should wait 2 hours)
+    let failure =
+        { LastFailure = DateTimeOffset.Now.AddMinutes -30.0 // Only 30 minutes ago
+          ConsecutiveFailures = 2 }
+
+    let json = JsonSerializer.Serialize(failure)
+    File.WriteAllText(failurePath, json)
+
+    // Act
+    let result =
+        fetchUrlWithCacheAsync mockClientThrowsWhenCalled currentDir url
+        |> Async.RunSynchronously
+
+    // Assert
+    match result with
+    | Error error -> Assert.Contains($"Previous request(s) to {url} failed. You can retry in 1.5 hours.", error)
+    | Ok _ -> Assert.True(false, "Expected error message with cooldown time but got success")
 
     // Cleanup
     deleteFile filePath
@@ -515,44 +554,6 @@ let ``GetAsync returns timeout error when request takes too long`` () =
     | Ok _ -> Assert.True(false, "Expected timeout failure but got success")
     | Error error -> Assert.Contains($"timed out after {timeout} seconds", error)
 
-[<Fact>]
-let ``Test fetchWithCache returns error with cooldown time when retrying too soon`` () =
-    let url = Uri "http://example.com/test-cooldown"
-    let cachedContent = "Cached response content"
-    let client = new HttpClient() // Won't be used as retry is not allowed
-
-    let filename = convertUrlToValidFilename url
-    let currentDir = Directory.GetCurrentDirectory()
-    let filePath = Path.Combine(currentDir, filename)
-    let failurePath = failureFilePath filePath
-
-    // Setup cache and failure files
-    Directory.CreateDirectory(currentDir) |> ignore
-    File.WriteAllText(filePath, cachedContent)
-    File.SetLastWriteTime(filePath, DateTime.Now.AddHours(-2.0)) // Old enough to need refresh
-
-    // Create failure record with 2 consecutive failures (should wait 2 hours)
-    let failure =
-        { LastFailure = DateTimeOffset.Now.AddMinutes(-30.0) // Only 30 minutes ago
-          ConsecutiveFailures = 2 }
-
-    let json = JsonSerializer.Serialize(failure)
-    File.WriteAllText(failurePath, json)
-
-    // Act
-    let result = fetchUrlWithCacheAsync client currentDir url |> Async.RunSynchronously
-
-    // Assert
-    match result with
-    | Error error ->
-        let expectedHours = getBackoffHours failure.ConsecutiveFailures // Should be 2 hours for 2 failures
-        let remainingHours = expectedHours - 0.5 // 30 minutes have passed
-        Assert.Contains($"Previous request(s) to {url} failed. You can retry in {remainingHours:F1} hours.", error)
-    | Ok _ -> Assert.True(false, "Expected error message with cooldown time but got success")
-
-    // Cleanup
-    deleteFile filePath
-    deleteFile failurePath
 
 [<Fact>]
 let ``Test requestUrls skips invalid URLs in log file`` () =

@@ -5,7 +5,6 @@ open System
 open System.IO
 open System.Net
 open System.Text
-open System.Text.Json
 open System.Web
 
 open SimpleRssServer.Helper
@@ -53,7 +52,7 @@ let getRssUrls (context: string) : Result<Uri, string> array =
         else
             [||]
 
-let fetchAndReadPage client (cacheLocation: string) (uri: Uri) cacheModified cachePath =
+let fetchAndReadPage client (uri: Uri) cacheModified cachePath =
     async {
         logger.LogDebug $"Fetching {uri}"
         let! page = fetchUrlAsync client logger uri cacheModified RequestTimeout
@@ -83,18 +82,17 @@ let fetchAndReadPage client (cacheLocation: string) (uri: Uri) cacheModified cac
 let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
     let cacheFilename = convertUrlToValidFilename uri
     let cachePath = Path.Combine(cacheLocation, cacheFilename)
-    let cacheModified = fileLastModifued cachePath
+    let cacheModified = fileLastModified cachePath
 
     let failureFile = nextRetry cachePath
 
     match cacheModified, failureFile with
-    | None, None -> fetchAndReadPage client cacheLocation uri cacheModified cachePath
-    | _, Some d when d < DateTimeOffset.Now -> fetchAndReadPage client cacheLocation uri cacheModified cachePath
+    | None, None -> fetchAndReadPage client uri cacheModified cachePath
+    | _, Some d when d < DateTimeOffset.Now -> fetchAndReadPage client uri cacheModified cachePath
+    | Some d, None when (DateTimeOffset.Now - d).TotalHours > 1 -> fetchAndReadPage client uri cacheModified cachePath
     | _, Some d ->
         let waitTime = (d - DateTimeOffset.Now).TotalHours
         async { return Error $"Previous request(s) to {uri} failed. You can retry in {waitTime:F1} hours." }
-    | Some d, None when (DateTimeOffset.Now - d).TotalHours > 1 ->
-        fetchAndReadPage client cacheLocation uri cacheModified cachePath
     | Some d, None ->
         async {
             let! cache = readCache cachePath

@@ -33,9 +33,7 @@ let ``Test writeCache clears failure record`` () =
 
 [<Fact>]
 let ``Test recordFailure tracks consecutive failures`` () =
-    let cachePath = "test_cache"
-    Directory.CreateDirectory(cachePath) |> ignore
-    let filePath = Path.Combine(cachePath, "test_cache_file.txt")
+    let filePath = Path.GetRandomFileName()
     let failurePath = failureFilePath filePath
 
     // Record first failure
@@ -56,28 +54,25 @@ let ``Test recordFailure tracks consecutive failures`` () =
 
     // Cleanup
     deleteFile failurePath
-    Directory.Delete(cachePath, true)
 
 [<Fact>]
-let ``Test shouldRetry respects backoff periods`` () =
+let ``Test get retry periods from failure file`` () =
     let filePath = Path.GetRandomFileName()
     let failurePath = failureFilePath filePath
 
-    // Create a failure record 30 minutes ago with 1 failure (should not retry yet)
     let failure1 =
-        { LastFailure = DateTimeOffset.Now.AddMinutes(-30.0)
+        { LastFailure = DateTimeOffset.Now.AddMinutes -30.0
           ConsecutiveFailures = 1 }
 
-    let json1 = JsonSerializer.Serialize(failure1)
+    let json1 = JsonSerializer.Serialize failure1
     File.WriteAllText(failurePath, json1)
 
     let result = nextRetry filePath
 
     match result with
-    | Some d -> Assert.True(d > DateTimeOffset.Now, "Can not retry before backoff period")
+    | Some d -> Assert.True(d > DateTimeOffset.Now, "Backoff period should not have passed yet")
     | None -> Assert.False(true, "No .faillure file found")
 
-    // Create a failure record 2 hours ago with 1 failure (should retry)
     let failure2 =
         { LastFailure = DateTimeOffset.Now.AddHours(-2.0)
           ConsecutiveFailures = 1 }
@@ -88,7 +83,7 @@ let ``Test shouldRetry respects backoff periods`` () =
     let result = nextRetry filePath
 
     match result with
-    | Some d -> Assert.True(d < DateTimeOffset.Now, "Can retry after backoff period")
+    | Some d -> Assert.True(d < DateTimeOffset.Now, "Backoff period should have passed")
     | None -> Assert.False(true, "No .faillure file found")
 
     // Cleanup
@@ -119,13 +114,13 @@ let ``Test getBackoffHours follows exponential pattern`` () =
     Assert.Equal(24.0, getBackoffHours 7) // Should stay capped
 
 [<Fact>]
-let ``Test cacheAge returns age for existing file`` () =
+let ``Test fileLastModifued returns age for existing file`` () =
     let filePath = Path.GetRandomFileName()
     File.WriteAllText(filePath, "Test content")
     let age = DateTime.Now.AddHours -2
     File.SetLastWriteTime(filePath, age)
 
-    let result = fileLastModifued filePath
+    let result = fileLastModified filePath
 
     Assert.Equal(age |> DateTimeOffset, result.Value)
 
@@ -135,7 +130,7 @@ let ``Test cacheAge returns age for existing file`` () =
 let ``Test cacheAge returns None for non existing cache`` () =
     let filePath = Path.GetRandomFileName()
 
-    let result = fileLastModifued filePath
+    let result = fileLastModified filePath
 
     Assert.True(result.IsNone, "Expected cache Age to be none")
 
