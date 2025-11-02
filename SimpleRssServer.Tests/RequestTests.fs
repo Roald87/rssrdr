@@ -420,10 +420,7 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed yet
     let filePath = Path.Combine(cacheConfig.Dir, filename)
     let failurePath = filePath + ".failures"
 
-    // Setup: Create cache file and failure record
-    Directory.CreateDirectory cacheConfig.Dir |> ignore
-    File.WriteAllText(filePath, cachedContent)
-    File.SetLastWriteTime(filePath, DateTime.Now.AddHours -(2.0 * cacheConfig.ExpirationHours)) // Cache is old
+    createOutdatedCache cacheConfig filePath cachedContent
 
     // Create a failure record indicating 2 failures (should wait 2 hours)
     let failure =
