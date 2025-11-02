@@ -38,8 +38,10 @@ let startServer cacheDir (hosts: string list) =
             return! loop ()
         }
 
-    let oneHour = Millisecond(1000 * 60 * 60)
-    Async.Start(updateRssFeedsPeriodically httpClient cacheDir oneHour)
+    let cacheExpirationPeriod =
+        Millisecond(DefaultCacheConfig.ExpirationHours * 1000.0 * 60.0 * 60.0 |> int)
+
+    Async.Start(updateRssFeedsPeriodically httpClient cacheDir cacheExpirationPeriod)
     loop ()
 
 let helpMessage =
@@ -59,7 +61,7 @@ let main argv =
         printfn "%s" helpMessage
         0
     | ArgParser.Args args ->
-        let cacheDir = "rss-cache"
+        let cacheDir = DefaultCacheConfig.Dir
 
         if not (Directory.Exists cacheDir) then
             Directory.CreateDirectory cacheDir |> ignore
@@ -70,5 +72,5 @@ let main argv =
         let logLevel = args.LogLevel |> Option.defaultValue LogLevel.Information
         initializeLogger logLevel |> ignore
 
-        startServer cacheDir hostname |> Async.RunSynchronously
+        startServer DefaultCacheConfig hostname |> Async.RunSynchronously
         0

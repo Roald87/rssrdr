@@ -79,9 +79,9 @@ let fetchAndReadPage client (uri: Uri) cacheModified cachePath =
             return page
     }
 
-let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
+let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Uri) =
     let cacheFilename = convertUrlToValidFilename uri
-    let cachePath = Path.Combine(cacheLocation, cacheFilename)
+    let cachePath = Path.Combine(cacheConfig.Dir, cacheFilename)
     let cacheModified = fileLastModified cachePath
 
     let failureFile = nextRetry cachePath
@@ -89,7 +89,8 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
     match cacheModified, failureFile with
     | None, None -> fetchAndReadPage client uri cacheModified cachePath
     | _, Some d when d < DateTimeOffset.Now -> fetchAndReadPage client uri cacheModified cachePath
-    | Some d, None when (DateTimeOffset.Now - d).TotalHours > 1 -> fetchAndReadPage client uri cacheModified cachePath
+    | Some d, None when (DateTimeOffset.Now - d).TotalHours > cacheConfig.ExpirationHours ->
+        fetchAndReadPage client uri cacheModified cachePath
     | _, Some d ->
         let waitTime = (d - DateTimeOffset.Now).TotalHours
         async { return Error $"Previous request(s) to {uri} failed. You can retry in {waitTime:F1} hours." }
@@ -102,9 +103,9 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
             | None -> return Error "Something went wrong with reading the page of {uri} from cache."
         }
 
-let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri array) =
+let fetchAllRssFeeds client (cacheConfig: CacheConfig) (uris: Uri array) =
     uris
-    |> Array.map (fetchUrlWithCacheAsync client cacheLocation)
+    |> Array.map (fetchUrlWithCacheAsync client cacheConfig)
     |> Async.Parallel
     |> Async.RunSynchronously
 
@@ -114,8 +115,8 @@ type FeedOrder =
     | Chronological
     | Random
 
-let assembleRssFeeds (logger: ILogger) order client cacheLocation rssUris =
-    let items = rssUris |> validUris |> fetchAllRssFeeds client cacheLocation
+let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
+    let items = rssUris |> validUris |> fetchAllRssFeeds client cacheConfig
 
     let invalidUris: Result<string, string>[] =
         rssUris
@@ -137,7 +138,7 @@ let assembleRssFeeds (logger: ILogger) order client cacheLocation rssUris =
     | Chronological -> homepage query allItems
     | Random -> randomPage query allItems
 
-let handleRequest client (cacheLocation: string) (context: HttpListenerContext) =
+let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContext) =
     async {
         logger.LogDebug $"Received request {context.Request.Url}"
 
@@ -148,10 +149,10 @@ let handleRequest client (cacheLocation: string) (context: HttpListenerContext) 
             | Prefix "/config.html" _ -> configPage rssUris |> string
             | Prefix "/random?rss=" _ ->
                 updateRequestLog RequestLogPath RequestLogRetention rssUris
-                assembleRssFeeds logger Random client cacheLocation rssUris |> string
+                assembleRssFeeds logger Random client cacheConfig rssUris |> string
             | Prefix "/?rss=" _ ->
                 updateRequestLog RequestLogPath RequestLogRetention rssUris
-                assembleRssFeeds logger Chronological client cacheLocation rssUris |> string
+                assembleRssFeeds logger Chronological client cacheConfig rssUris |> string
             | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
             | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
             | _ -> landingPage |> string
