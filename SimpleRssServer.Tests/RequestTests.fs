@@ -304,7 +304,7 @@ let ``Test fetchWithCache with no cache`` () =
     deleteFile filePath
 
 [<Fact>]
-let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
+let ``Test fetchWithCache with non expired cache`` () =
     let url = Uri "http://example.com/testabc123"
     let expectedContent = "Cached response content"
 
@@ -335,8 +335,13 @@ let ``Test fetchWithCache with existing cache less than 1 hour old`` () =
 
     deleteFile filePath
 
+let createOutdatedCache (cacheConfig: CacheConfig) (cachePath: string) (content: string) =
+    File.WriteAllText(cachePath, content)
+    let cacheAge = DateTime.Now.AddHours -(2.0 * cacheConfig.ExpirationHours)
+    File.SetLastWriteTime(cachePath, cacheAge)
+
 [<Fact>]
-let ``Test fetchWithCache with existing cache more than cache expiration`` () =
+let ``Test fetchWithCache with expired cache`` () =
     let url = Uri "http://example.com/testxyz789"
     let cachedContent = "Old cached response content"
     let newContent = "New response content"
@@ -368,7 +373,7 @@ let ``Test fetchWithCache with existing cache more than cache expiration`` () =
     deleteFile filePath
 
 [<Fact>]
-let ``Test fetchWithCache with existing cache more than cache expiration and 304 response`` () =
+let ``Test fetchWithCache with expired cache and 304 response`` () =
     let url = Uri "http://example.com/testasdf456"
     let cachedContent = "Old cached response content"
     let responseMessage = new HttpResponseMessage(HttpStatusCode.NotModified)
@@ -407,7 +412,7 @@ let mockClientThrowsWhenCalled =
     new HttpClient(handler)
 
 [<Fact>]
-let ``Test fetchWithCache respects failure backoff when retry is not allowed yet and outdated cache`` () =
+let ``Test fetchWithCache respects failure backoff when retry is not allowed and cache is expired`` () =
     let url = Uri "http://example.com/test-backoff"
     let cachedContent = "Cached response content"
 
@@ -445,7 +450,7 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed yet
     deleteFile failurePath
 
 [<Fact>]
-let ``Test fetchWithCache attempts retry when backoff period has passed and outdated cache`` () =
+let ``Test fetchWithCache attempts retry when backoff period has passed and cache is expired`` () =
     let url = Uri "http://example.com/test-retry"
     let cachedContent = "Old cached content"
     let newContent = "New content after retry"
@@ -492,7 +497,7 @@ let ``Test fetchWithCache attempts retry when backoff period has passed and outd
     deleteFile failurePath
 
 [<Fact>]
-let ``Test fetchWithCache returns error with outdated cache and cooldown time when retrying too soon`` () =
+let ``Test fetchWithCache returns error with expired cache and cooldown time when retrying too soon`` () =
     let url = Uri "http://example.com/test-cooldown"
     let cachedContent = "Cached response content"
 
