@@ -21,14 +21,59 @@ open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.Cache
 open TestHelpers
 
+let cacheConfig =
+    { Dir = Directory.GetCurrentDirectory()
+      ExpirationHours = 1.0 }
+
+let createOutdatedCache (cachePath: string) (content: string) =
+    File.WriteAllText(cachePath, content)
+    let cacheAge = DateTime.Now.AddHours -(2.0 * cacheConfig.ExpirationHours)
+    File.SetLastWriteTime(cachePath, cacheAge)
+
+type MockHttpResponseHandler(response: HttpResponseMessage) =
+    inherit HttpMessageHandler()
+    override _.SendAsync(request, cancellationToken) = Task.FromResult response
+
+type MockHttpMessageHandler(sendAsyncImpl: HttpRequestMessage -> Task<HttpResponseMessage>) =
+    inherit HttpMessageHandler()
+    override _.SendAsync(request, cancellationToken) = sendAsyncImpl request
+
+let mockHttpClient (handler: HttpMessageHandler) = new HttpClient(handler)
+
+let createDynamicResponse (lastModifiedDate: DateTimeOffset) =
+    new MockHttpMessageHandler(fun request ->
+        let ifModifiedSince = request.Headers.IfModifiedSince
+
+        if ifModifiedSince.HasValue && ifModifiedSince.Value >= lastModifiedDate then
+            new HttpResponseMessage(HttpStatusCode.NotModified) |> Task.FromResult
+        else
+            let response = new HttpResponseMessage(HttpStatusCode.OK)
+            response.Content <- new StringContent "Content has changed since the last modification date"
+            response.Content.Headers.LastModified <- Nullable lastModifiedDate
+            response |> Task.FromResult)
+
+type DelayedResponseHandler(delay: TimeSpan) =
+    inherit HttpMessageHandler()
+
+    override _.SendAsync(request, cancellationToken) =
+        async {
+            do! Async.Sleep(int delay.TotalMilliseconds)
+            let response = new HttpResponseMessage(HttpStatusCode.OK)
+            response.Content <- new StringContent("Delayed response")
+            return response
+        }
+        |> Async.StartAsTask
+
+let mockClientThrowsWhenCalled =
+    let handler =
+        new MockHttpMessageHandler(fun _ -> failwith "HTTP request not expected to be made")
+
+    new HttpClient(handler)
+
 [<Fact>]
 let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     // Arrange
     let client = new HttpClient()
-
-    let cacheConfig =
-        { Dir = "test_cache"
-          ExpirationHours = 1.0 }
 
     let rssUrls = [||]
 
@@ -44,10 +89,6 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
 let ``Test assembleRssFeeds includes config link with query and removes https prefix`` () =
     // Arrange
     let client = new HttpClient()
-
-    let cacheConfig =
-        { Dir = "test_cache"
-          ExpirationHours = 1.0 }
 
     let rssUrls =
         [| Ok(Uri "https://example.com/feed")
@@ -184,10 +225,6 @@ let ``Test convertUrlToFilename`` () =
     Assert.Equal("https_abc_com_test", convertUrlToValidFilename (Uri "https://abc.com/test"))
     Assert.Equal("https_abc_com_test_rss_blabla", convertUrlToValidFilename (Uri "https://abc.com/test?rss=blabla"))
 
-type MockHttpResponseHandler(response: HttpResponseMessage) =
-    inherit HttpMessageHandler()
-    override _.SendAsync(request, cancellationToken) = Task.FromResult response
-
 [<Fact>]
 let ``Test getAsync with successful response`` () =
     let expectedContent = "Hello, world!"
@@ -218,24 +255,6 @@ let ``Test getAsync with unsuccessful response on real page`` () =
     match response with
     | Ok _ -> Assert.False(true, "Expected Failure but got Success")
     | Error errorMsg -> Assert.Contains("Exception", errorMsg)
-
-type MockHttpMessageHandler(sendAsyncImpl: HttpRequestMessage -> Task<HttpResponseMessage>) =
-    inherit HttpMessageHandler()
-    override _.SendAsync(request, cancellationToken) = sendAsyncImpl request
-
-let mockHttpClient (handler: HttpMessageHandler) = new HttpClient(handler)
-
-let createDynamicResponse (lastModifiedDate: DateTimeOffset) =
-    new MockHttpMessageHandler(fun request ->
-        let ifModifiedSince = request.Headers.IfModifiedSince
-
-        if ifModifiedSince.HasValue && ifModifiedSince.Value >= lastModifiedDate then
-            new HttpResponseMessage(HttpStatusCode.NotModified) |> Task.FromResult
-        else
-            let response = new HttpResponseMessage(HttpStatusCode.OK)
-            response.Content <- new StringContent "Content has changed since the last modification date"
-            response.Content.Headers.LastModified <- Nullable lastModifiedDate
-            response |> Task.FromResult)
 
 [<Fact>]
 let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
@@ -283,10 +302,6 @@ let ``Test fetchWithCache with no cache`` () =
 
     let filename = convertUrlToValidFilename url
 
-    let cacheConfig =
-        { Dir = Directory.GetCurrentDirectory()
-          ExpirationHours = 1.0 }
-
     let filePath = Path.Combine(cacheConfig.Dir, filename)
 
     // Ensure the file does not exist before the test
@@ -316,10 +331,6 @@ let ``Test fetchWithCache with non expired cache`` () =
 
     let filename = convertUrlToValidFilename url
 
-    let cacheConfig =
-        { Dir = Directory.GetCurrentDirectory()
-          ExpirationHours = 1.0 }
-
     let filePath = Path.Combine(cacheConfig.Dir, filename)
 
     // Write the expected content to the file and set its last write time to less than 1 hour ago
@@ -335,11 +346,6 @@ let ``Test fetchWithCache with non expired cache`` () =
 
     deleteFile filePath
 
-let createOutdatedCache (cacheConfig: CacheConfig) (cachePath: string) (content: string) =
-    File.WriteAllText(cachePath, content)
-    let cacheAge = DateTime.Now.AddHours -(2.0 * cacheConfig.ExpirationHours)
-    File.SetLastWriteTime(cachePath, cacheAge)
-
 [<Fact>]
 let ``Test fetchWithCache with expired cache`` () =
     let url = Uri "http://example.com/testxyz789"
@@ -353,13 +359,9 @@ let ``Test fetchWithCache with expired cache`` () =
 
     let filename = convertUrlToValidFilename url
 
-    let cacheConfig =
-        { Dir = Directory.GetCurrentDirectory()
-          ExpirationHours = 1.0 }
-
     let filePath = Path.Combine(cacheConfig.Dir, filename)
 
-    createOutdatedCache cacheConfig filePath cachedContent
+    createOutdatedCache filePath cachedContent
 
     let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
 
@@ -383,10 +385,6 @@ let ``Test fetchWithCache with expired cache and 304 response`` () =
 
     let filename = convertUrlToValidFilename url
 
-    let cacheConfig =
-        { Dir = Directory.GetCurrentDirectory()
-          ExpirationHours = 1.0 }
-
     let filePath = Path.Combine(cacheConfig.Dir, filename)
 
     // Write the cached content to the file and set its last write time to more than 1 hour ago
@@ -405,12 +403,6 @@ let ``Test fetchWithCache with expired cache and 304 response`` () =
 
     deleteFile filePath
 
-let mockClientThrowsWhenCalled =
-    let handler =
-        new MockHttpMessageHandler(fun _ -> failwith "HTTP request not expected to be made")
-
-    new HttpClient(handler)
-
 [<Fact>]
 let ``Test fetchWithCache respects failure backoff when retry is not allowed and cache is expired`` () =
     let url = Uri "http://example.com/test-backoff"
@@ -418,14 +410,10 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed and
 
     let filename = convertUrlToValidFilename url
 
-    let cacheConfig =
-        { Dir = Directory.GetCurrentDirectory()
-          ExpirationHours = 1.0 }
-
     let filePath = Path.Combine(cacheConfig.Dir, filename)
     let failurePath = filePath + ".failures"
 
-    createOutdatedCache cacheConfig filePath cachedContent
+    createOutdatedCache filePath cachedContent
 
     // Create a failure record indicating 2 failures (should wait 2 hours)
     let failure =
@@ -463,14 +451,10 @@ let ``Test fetchWithCache attempts retry when backoff period has passed and cach
 
     let filename = convertUrlToValidFilename url
 
-    let cacheConfig =
-        { Dir = Directory.GetCurrentDirectory()
-          ExpirationHours = 1.0 }
-
     let filePath = Path.Combine(cacheConfig.Dir, filename)
     let failurePath = filePath + ".failures"
 
-    createOutdatedCache cacheConfig filePath cachedContent
+    createOutdatedCache filePath cachedContent
 
     // Create a failure record that's old enough to allow retry
     let failure =
@@ -503,14 +487,11 @@ let ``Test fetchWithCache returns error with expired cache and cooldown time whe
 
     let filename = convertUrlToValidFilename url
 
-    let cacheConfig =
-        { Dir = Directory.GetCurrentDirectory()
-          ExpirationHours = 1.0 }
 
     let filePath = Path.Combine(cacheConfig.Dir, filename)
     let failurePath = failureFilePath filePath
 
-    createOutdatedCache cacheConfig filePath cachedContent
+    createOutdatedCache filePath cachedContent
 
     // Create failure record with 2 consecutive failures (should wait 2 hours)
     let failure =
@@ -557,18 +538,6 @@ let ``Test Html encoding of special characters`` () =
 
     Assert.Equal(expected, actual)
 
-type DelayedResponseHandler(delay: TimeSpan) =
-    inherit HttpMessageHandler()
-
-    override _.SendAsync(request, cancellationToken) =
-        async {
-            do! Async.Sleep(int delay.TotalMilliseconds)
-            let response = new HttpResponseMessage(HttpStatusCode.OK)
-            response.Content <- new StringContent("Delayed response")
-            return response
-        }
-        |> Async.StartAsTask
-
 [<Fact>]
 let ``GetAsync returns timeout error when request takes too long`` () =
     let timeout = 1.0
@@ -584,7 +553,6 @@ let ``GetAsync returns timeout error when request takes too long`` () =
     match result with
     | Ok _ -> Assert.True(false, "Expected timeout failure but got success")
     | Error error -> Assert.Contains($"timed out after {timeout} seconds", error)
-
 
 [<Fact>]
 let ``Test requestUrls skips invalid URLs in log file`` () =
