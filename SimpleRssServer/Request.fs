@@ -52,50 +52,55 @@ let getRssUrls (context: string) : Result<Uri, string> array =
         else
             [||]
 
-let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
+let fetchAndReadPage client (uri: Uri) cacheModified cachePath =
     async {
-        let cacheFilename = convertUrlToValidFilename uri
-        let cachePath = Path.Combine(cacheLocation, cacheFilename)
+        logger.LogDebug $"Fetching {uri}"
+        let! page = fetchUrlAsync client logger uri cacheModified RequestTimeout
 
-        let noCache = File.Exists cachePath |> not
-        let fileIsOld = isCacheOld cachePath 1.0
+        match page with
+        | Ok "No changes" ->
+            try
+                logger.LogDebug $"Reading from cached file {cachePath}, because feed didn't change"
+                let! content = readCache cachePath
+                File.SetLastWriteTime(cachePath, DateTime.Now)
+                return Ok content.Value
+            with ex ->
+                let errorMessage =
+                    $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
 
-        if noCache || fileIsOld then
-            if fileIsOld then
-                logger.LogDebug $"Cached file {cachePath} is older than 1 hour. Fetching {uri}"
-            else
-                logger.LogInformation $"Did not find cached file {cachePath}. Fetching {uri}"
-
-            let lastModified =
-                if noCache then
-                    None
-                else
-                    File.GetLastWriteTime cachePath |> DateTimeOffset |> Some
-
-            let! page = fetchUrlAsync client logger uri lastModified RequestTimeout
-
-            match page with
-            | Ok "No changes" ->
-                try
-                    logger.LogDebug $"Reading from cached file {cachePath}, because feed didn't change"
-                    let! content = readCache cachePath
-                    File.SetLastWriteTime(cachePath, DateTime.Now)
-                    return Ok content.Value
-                with ex ->
-                    let errorMessage =
-                        $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
-
-                    logger.LogError errorMessage
-                    return Error errorMessage
-            | Ok content ->
-                do! writeCache cachePath content
-                return page
-            | Error _ -> return page
-        else
-            logger.LogDebug $"Found cached file {cachePath} and it is up to date"
-            let! content = readCache cachePath
-            return Ok content.Value
+                logger.LogError errorMessage
+                do! recordFailure cachePath
+                return Error errorMessage
+        | Ok content ->
+            do! writeCache cachePath content
+            return page
+        | Error _ ->
+            do! recordFailure cachePath
+            return page
     }
+
+let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
+    let cacheFilename = convertUrlToValidFilename uri
+    let cachePath = Path.Combine(cacheLocation, cacheFilename)
+    let cacheModified = fileLastModified cachePath
+
+    let failureFile = nextRetry cachePath
+
+    match cacheModified, failureFile with
+    | None, None -> fetchAndReadPage client uri cacheModified cachePath
+    | _, Some d when d < DateTimeOffset.Now -> fetchAndReadPage client uri cacheModified cachePath
+    | Some d, None when (DateTimeOffset.Now - d).TotalHours > 1 -> fetchAndReadPage client uri cacheModified cachePath
+    | _, Some d ->
+        let waitTime = (d - DateTimeOffset.Now).TotalHours
+        async { return Error $"Previous request(s) to {uri} failed. You can retry in {waitTime:F1} hours." }
+    | Some d, None ->
+        async {
+            let! cache = readCache cachePath
+
+            match cache with
+            | Some page -> return Ok page
+            | None -> return Error "Something went wrong with reading the page of {uri} from cache."
+        }
 
 let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri array) =
     uris
