@@ -70,15 +70,21 @@ let recordFailure (cachePath: string) =
         do! File.WriteAllTextAsync(failurePath, json) |> Async.AwaitTask
     }
 
-let shouldRetry (cachePath: string) =
-    if File.Exists(failureFilePath cachePath) then
+let readFailure (cachePath: string) =
+    let path = failureFilePath cachePath
+
+    if File.Exists(path) then
         try
-            let json = File.ReadAllText(failureFilePath cachePath)
-            let failure = JsonSerializer.Deserialize<FetchFailure>(json)
-            let backoffHours = getBackoffHours failure.ConsecutiveFailures
-            let timeSinceFailure = (DateTimeOffset.Now - failure.LastFailure).TotalHours
-            timeSinceFailure >= backoffHours
+            let json = File.ReadAllText(path)
+            Some(JsonSerializer.Deserialize<FetchFailure>(json))
         with _ ->
-            true // If we can't read the failure file, allow retry
+            None
     else
-        true // No failures recorded, so yes we can retry
+        None
+
+let nextRetry (cachePath: string) =
+    match readFailure cachePath with
+    | None -> None // No failures recorded or can't read failure file
+    | Some failure ->
+        let backoffHours = getBackoffHours failure.ConsecutiveFailures
+        Some(failure.LastFailure.AddHours backoffHours)

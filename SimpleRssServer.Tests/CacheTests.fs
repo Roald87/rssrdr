@@ -71,7 +71,11 @@ let ``Test shouldRetry respects backoff periods`` () =
     let json1 = JsonSerializer.Serialize(failure1)
     File.WriteAllText(failurePath, json1)
 
-    Assert.False(shouldRetry filePath, "Should not retry before backoff period")
+    let result = nextRetry filePath
+
+    match result with
+    | Some d -> Assert.True(d > DateTimeOffset.Now, "Can not retry before backoff period")
+    | None -> Assert.False(true, "No .faillure file found")
 
     // Create a failure record 2 hours ago with 1 failure (should retry)
     let failure2 =
@@ -81,7 +85,11 @@ let ``Test shouldRetry respects backoff periods`` () =
     let json2 = JsonSerializer.Serialize(failure2)
     File.WriteAllText(failurePath, json2)
 
-    Assert.True(shouldRetry filePath, "Should retry after backoff period")
+    let result = nextRetry filePath
+
+    match result with
+    | Some d -> Assert.True(d < DateTimeOffset.Now, "Can retry after backoff period")
+    | None -> Assert.False(true, "No .faillure file found")
 
     // Cleanup
     deleteFile failurePath
@@ -94,7 +102,8 @@ let ``Test shouldRetry with corrupted failure file`` () =
     // Create corrupted failure record
     File.WriteAllText(failurePath, "not valid json")
 
-    Assert.True(shouldRetry filePath, "Should allow retry with corrupted failure file")
+    let result = nextRetry filePath
+    Assert.True(result.IsNone, "Expected None for corrupted failure file")
 
     // Cleanup
     deleteFile failurePath

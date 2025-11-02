@@ -5,6 +5,7 @@ open System
 open System.IO
 open System.Net
 open System.Text
+open System.Text.Json
 open System.Web
 
 open SimpleRssServer.Helper
@@ -52,54 +53,57 @@ let getRssUrls (context: string) : Result<Uri, string> array =
         else
             [||]
 
-let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
+let fetchAndReadPage client (cacheLocation: string) (uri: Uri) cacheModified cachePath =
     async {
-        let cacheFilename = convertUrlToValidFilename uri
-        let cachePath = Path.Combine(cacheLocation, cacheFilename)
+        logger.LogDebug $"Fetching {uri}"
+        let! page = fetchUrlAsync client logger uri cacheModified RequestTimeout
 
-        let cacheModified = fileLastModifued cachePath
+        match page with
+        | Ok "No changes" ->
+            try
+                logger.LogDebug $"Reading from cached file {cachePath}, because feed didn't change"
+                let! content = readCache cachePath
+                File.SetLastWriteTime(cachePath, DateTime.Now)
+                return Ok content.Value
+            with ex ->
+                let errorMessage =
+                    $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
 
-        let cacheOutdated =
-            match cacheModified with
-            | Some d -> (DateTimeOffset.Now - d).TotalHours > 1.0
-            | None -> true
-
-        let canRetry = shouldRetry cachePath
-
-        if cacheOutdated && canRetry then
-            logger.LogDebug $"Fetching {uri}"
-            let! page = fetchUrlAsync client logger uri cacheModified RequestTimeout
-
-            match page with
-            | Ok "No changes" ->
-                try
-                    logger.LogDebug $"Reading from cached file {cachePath}, because feed didn't change"
-                    let! content = readCache cachePath
-                    File.SetLastWriteTime(cachePath, DateTime.Now)
-                    return Ok content.Value
-                with ex ->
-                    let errorMessage =
-                        $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
-
-                    logger.LogError errorMessage
-                    do! recordFailure cachePath
-                    return Error errorMessage
-            | Ok content ->
-                do! writeCache cachePath content
-                return page
-            | Error _ ->
+                logger.LogError errorMessage
                 do! recordFailure cachePath
-                return page
-        else if cacheModified.IsSome then
-            logger.LogDebug $"Found up-to-date cached file at {cachePath}."
+                return Error errorMessage
+        | Ok content ->
+            do! writeCache cachePath content
+            return page
+        | Error _ ->
+            do! recordFailure cachePath
+            return page
+    }
+
+let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
+
+    let cacheFilename = convertUrlToValidFilename uri
+    let cachePath = Path.Combine(cacheLocation, cacheFilename)
+    let cacheModified = fileLastModifued cachePath
+
+    let failureFile = nextRetry cachePath
+
+    match cacheModified, failureFile with
+    | None, None -> fetchAndReadPage client cacheLocation uri cacheModified cachePath
+    | _, Some d when d < DateTimeOffset.Now -> fetchAndReadPage client cacheLocation uri cacheModified cachePath
+    | _, Some d ->
+        let waitTime = (d - DateTimeOffset.Now).TotalHours
+        async { return Error $"Previous request(s) failed. You can retry in {waitTime:F1} hours." }
+    | Some d, None when (DateTimeOffset.Now - d).TotalHours > 1 ->
+        fetchAndReadPage client cacheLocation uri cacheModified cachePath
+    | Some d, None ->
+        async {
             let! cache = readCache cachePath
 
             match cache with
             | Some page -> return Ok page
             | None -> return Error "Something went wrong with reading the page from cache."
-        else
-            return Error "State should not be reached under normal conditions."
-    }
+        }
 
 let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri array) =
     uris
