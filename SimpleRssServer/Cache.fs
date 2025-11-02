@@ -14,12 +14,11 @@ let getBackoffHours failures =
     // Exponential backoff: 1hr, 2hrs, 4hrs, 8hrs, max 24hrs
     min 24.0 (Math.Pow(2.0, float (failures - 1)))
 
-let isCacheOld (cachePath: string) (maxAgeHours: float) =
-    if File.Exists cachePath then
-        let lastWriteTime = File.GetLastWriteTime cachePath |> DateTimeOffset
-        (DateTimeOffset.Now - lastWriteTime).TotalHours > maxAgeHours
+let fileLastModifued (path: string) =
+    if File.Exists path then
+        File.GetLastWriteTime path |> DateTimeOffset |> Some
     else
-        true
+        None
 
 let readCache (cachePath: string) =
     async {

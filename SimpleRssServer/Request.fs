@@ -57,23 +57,18 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
         let cacheFilename = convertUrlToValidFilename uri
         let cachePath = Path.Combine(cacheLocation, cacheFilename)
 
-        let noCache = File.Exists cachePath |> not
-        let fileIsOld = isCacheOld cachePath 1.0
+        let cacheModified = fileLastModifued cachePath
+
+        let cacheOutdated =
+            match cacheModified with
+            | Some d -> (DateTimeOffset.Now - d).TotalHours > 1.0
+            | None -> true
+
         let canRetry = shouldRetry cachePath
 
-        if (noCache || fileIsOld) && canRetry then
-            if fileIsOld then
-                logger.LogDebug $"Cached file {cachePath} is older than 1 hour. Fetching {uri}"
-            else
-                logger.LogInformation $"Did not find cached file {cachePath}. Fetching {uri}"
-
-            let lastModified =
-                if noCache then
-                    None
-                else
-                    File.GetLastWriteTime cachePath |> DateTimeOffset |> Some
-
-            let! page = fetchUrlAsync client logger uri lastModified RequestTimeout
+        if cacheOutdated && canRetry then
+            logger.LogDebug $"Fetching {uri}"
+            let! page = fetchUrlAsync client logger uri cacheModified RequestTimeout
 
             match page with
             | Ok "No changes" ->
@@ -95,13 +90,15 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
             | Error _ ->
                 do! recordFailure cachePath
                 return page
-        else
-            logger.LogDebug $"Found cached file {cachePath} and it is up to date"
-            let! content = readCache cachePath
+        else if cacheModified.IsSome then
+            logger.LogDebug $"Found up-to-date cached file at {cachePath}."
+            let! cache = readCache cachePath
 
-            match content with
-            | Some value -> return Ok value
-            | None -> return Error $"Cache file {cachePath} exists but could not be read"
+            match cache with
+            | Some page -> return Ok page
+            | None -> return Error "Something went wrong with reading the page from cache."
+        else
+            return Error "State should not be reached under normal conditions."
     }
 
 let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri array) =

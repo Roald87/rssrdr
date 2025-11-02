@@ -60,7 +60,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
 
 [<Fact>]
 let ``Test shouldRetry respects backoff periods`` () =
-    let filePath = "test_cache_file.txt"
+    let filePath = Path.GetRandomFileName()
     let failurePath = failureFilePath filePath
 
     // Create a failure record 30 minutes ago with 1 failure (should not retry yet)
@@ -88,7 +88,7 @@ let ``Test shouldRetry respects backoff periods`` () =
 
 [<Fact>]
 let ``Test shouldRetry with corrupted failure file`` () =
-    let filePath = "test_cache_file.txt"
+    let filePath = Path.GetRandomFileName()
     let failurePath = failureFilePath filePath
 
     // Create corrupted failure record
@@ -110,35 +110,24 @@ let ``Test getBackoffHours follows exponential pattern`` () =
     Assert.Equal(24.0, getBackoffHours 7) // Should stay capped
 
 [<Fact>]
-let ``Test isCacheOld returns true for old cache`` () =
-    let filePath = "test_cache_file.txt"
+let ``Test cacheAge returns age for existing file`` () =
+    let filePath = Path.GetRandomFileName()
     File.WriteAllText(filePath, "Test content")
-    File.SetLastWriteTime(filePath, DateTime.Now.AddHours -2.0)
+    let age = DateTime.Now.AddHours -2
+    File.SetLastWriteTime(filePath, age)
 
-    let result = isCacheOld filePath 1.0
+    let result = fileLastModifued filePath
 
-    Assert.True(result, "Expected cache to be old")
+    Assert.Equal(age |> DateTimeOffset, result.Value)
 
     deleteFile filePath
 
 [<Fact>]
-let ``Test isCacheOld returns false for recent cache`` () =
-    let filePath = "test_cache_file.txt"
-    File.WriteAllText(filePath, "Test content")
-    File.SetLastWriteTime(filePath, DateTime.Now.AddMinutes -30.0)
+let ``Test cacheAge returns None for non existing cache`` () =
+    let filePath = Path.GetRandomFileName()
 
-    let result = isCacheOld filePath 1.0
+    let result = fileLastModifued filePath
 
-    Assert.False(result, "Expected cache to be recent")
-
-    deleteFile filePath
-
-[<Fact>]
-let ``Test isCacheOld returns true for non existing cache`` () =
-    let filePath = "doesnt_exist.txt"
-
-    let result = isCacheOld filePath 1.0
-
-    Assert.True(result, "Expected cache to be old")
+    Assert.True(result.IsNone, "Expected cache Age to be none")
 
     deleteFile filePath
