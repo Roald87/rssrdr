@@ -40,6 +40,13 @@ type MockHttpMessageHandler(sendAsyncImpl: HttpRequestMessage -> Task<HttpRespon
 
 let mockHttpClient (handler: HttpMessageHandler) = new HttpClient(handler)
 
+let httpOkClient content =
+    let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+    responseMessage.Content <- new StringContent(content)
+
+    let handler = new MockHttpResponseHandler(responseMessage)
+    new HttpClient(handler)
+
 let createDynamicResponse (lastModifiedDate: DateTimeOffset) =
     new MockHttpMessageHandler(fun request ->
         let ifModifiedSince = request.Headers.IfModifiedSince
@@ -73,7 +80,7 @@ let mockClientThrowsWhenCalled =
 [<Fact>]
 let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     // Arrange
-    let client = new HttpClient()
+    let client = httpOkClient ""
 
     let rssUrls = [||]
 
@@ -88,7 +95,7 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
 [<Fact>]
 let ``Test assembleRssFeeds includes config link with query and removes https prefix`` () =
     // Arrange
-    let client = new HttpClient()
+    let client = httpOkClient ""
 
     let rssUrls =
         [| Ok(Uri "https://example.com/feed")
@@ -228,11 +235,7 @@ let ``Test convertUrlToFilename`` () =
 [<Fact>]
 let ``Test getAsync with successful response`` () =
     let expectedContent = "Hello, world!"
-    let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
-    responseMessage.Content <- new StringContent(expectedContent)
-
-    let handler = new MockHttpResponseHandler(responseMessage)
-    let client = new HttpClient(handler)
+    let client = httpOkClient expectedContent
     let logger = NullLogger.Instance
 
     let result =
@@ -294,11 +297,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
 let ``Test fetchWithCache with no cache`` () =
     let url = Uri "http://example.com/test"
     let expectedContent = "Mock response content"
-    let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
-    responseMessage.Content <- new StringContent(expectedContent)
-
-    let handler = new MockHttpResponseHandler(responseMessage)
-    let client = new HttpClient(handler)
+    let client = httpOkClient expectedContent
 
     let filename = convertUrlToValidFilename url
 
@@ -351,11 +350,7 @@ let ``Test fetchWithCache with expired cache`` () =
     let url = Uri "http://example.com/testxyz789"
     let cachedContent = "Old cached response content"
     let newContent = "New response content"
-    let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
-    responseMessage.Content <- new StringContent(newContent)
-
-    let handler = new MockHttpResponseHandler(responseMessage)
-    let client = new HttpClient(handler)
+    let client = httpOkClient newContent
 
     let filename = convertUrlToValidFilename url
 
@@ -443,11 +438,7 @@ let ``Test fetchWithCache attempts retry when backoff period has passed and cach
     let cachedContent = "Old cached content"
     let newContent = "New content after retry"
 
-    // Create response for when retry is attempted
-    let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
-    responseMessage.Content <- new StringContent(newContent)
-    let handler = new MockHttpResponseHandler(responseMessage)
-    let client = new HttpClient(handler)
+    let client = httpOkClient newContent
 
     let filename = convertUrlToValidFilename url
 
@@ -486,7 +477,6 @@ let ``Test fetchWithCache returns error with expired cache and cooldown time whe
     let cachedContent = "Cached response content"
 
     let filename = convertUrlToValidFilename url
-
 
     let filePath = Path.Combine(cacheConfig.Dir, filename)
     let failurePath = failureFilePath filePath
