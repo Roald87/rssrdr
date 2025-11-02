@@ -81,7 +81,6 @@ let fetchAndReadPage client (cacheLocation: string) (uri: Uri) cacheModified cac
     }
 
 let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
-
     let cacheFilename = convertUrlToValidFilename uri
     let cachePath = Path.Combine(cacheLocation, cacheFilename)
     let cacheModified = fileLastModifued cachePath
@@ -93,7 +92,7 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
     | _, Some d when d < DateTimeOffset.Now -> fetchAndReadPage client cacheLocation uri cacheModified cachePath
     | _, Some d ->
         let waitTime = (d - DateTimeOffset.Now).TotalHours
-        async { return Error $"Previous request(s) failed. You can retry in {waitTime:F1} hours." }
+        async { return Error $"Previous request(s) to {uri} failed. You can retry in {waitTime:F1} hours." }
     | Some d, None when (DateTimeOffset.Now - d).TotalHours > 1 ->
         fetchAndReadPage client cacheLocation uri cacheModified cachePath
     | Some d, None ->
@@ -102,7 +101,7 @@ let fetchUrlWithCacheAsync client (cacheLocation: string) (uri: Uri) =
 
             match cache with
             | Some page -> return Ok page
-            | None -> return Error "Something went wrong with reading the page from cache."
+            | None -> return Error "Something went wrong with reading the page of {uri} from cache."
         }
 
 let fetchAllRssFeeds client (cacheLocation: string) (uris: Uri array) =

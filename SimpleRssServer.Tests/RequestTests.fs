@@ -412,7 +412,7 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed yet
     // Assert
     match result with
     | Ok content -> Assert.False(true, "Should return an error due to backoff period")
-    | Error error -> Assert.Equal(error, $"Previous request(s) failed. You can retry in 1.5 hours.")
+    | Error error -> Assert.Equal(error, $"Previous request(s) to {url} failed. You can retry in 1.5 hours.")
 
     // Cleanup
     deleteFile filePath
@@ -547,7 +547,7 @@ let ``Test fetchWithCache returns error with cooldown time when retrying too soo
     | Error error ->
         let expectedHours = getBackoffHours failure.ConsecutiveFailures // Should be 2 hours for 2 failures
         let remainingHours = expectedHours - 0.5 // 30 minutes have passed
-        Assert.Contains($"Previous request(s) failed. You can retry in {remainingHours:F1} hours.", error)
+        Assert.Contains($"Previous request(s) to {url} failed. You can retry in {remainingHours:F1} hours.", error)
     | Ok _ -> Assert.True(false, "Expected error message with cooldown time but got success")
 
     // Cleanup
