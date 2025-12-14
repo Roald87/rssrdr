@@ -399,6 +399,42 @@ let ``Test fetchWithCache with expired cache and 304 response`` () =
     deleteFile filePath
 
 [<Fact>]
+let ``Test fetchWithCache with expired cache and 304 NotModified should clear failure record`` () =
+    let url = Uri "http://example.com/test-304"
+    let cachedContent = "Old cached content"
+
+    let filename = convertUrlToValidFilename url
+
+    let filePath = Path.Combine(cacheConfig.Dir, filename)
+    let failurePath = filePath + ".failures"
+
+    createOutdatedCache filePath cachedContent
+
+    // Create a failure record indicating previous failures
+    let failure =
+        { LastFailure = DateTimeOffset.Now.AddHours -3.0
+          ConsecutiveFailures = 2 }
+
+    let json = System.Text.Json.JsonSerializer.Serialize failure
+    File.WriteAllText(failurePath, json)
+
+    // Handler returns 304 Not Modified
+    let responseMessage = new HttpResponseMessage(HttpStatusCode.NotModified)
+    let handler = new MockHttpResponseHandler(responseMessage)
+    let client = new HttpClient(handler)
+
+    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+
+    match result with
+    | Ok content ->
+        Assert.Equal(cachedContent, content)
+        Assert.False(File.Exists failurePath, "Expected failure record to be removed after successful fetch")
+    | Error error -> Assert.True(false, error)
+
+    deleteFile filePath
+    deleteFile failurePath
+
+[<Fact>]
 let ``Test fetchWithCache respects failure backoff when retry is not allowed and cache is expired`` () =
     let url = Uri "http://example.com/test-backoff"
     let cachedContent = "Cached response content"
