@@ -39,7 +39,10 @@ let writeCache (cachePath: string) (content: string) =
     async {
         createDirectoryForPath cachePath
         do! File.WriteAllTextAsync(cachePath, content) |> Async.AwaitTask
-        // Clear any failure record when we successfully write cache
+    }
+
+let clearFailure (cachePath: string) =
+    async {
         let failurePath = failureFilePath cachePath
 
         if File.Exists(failurePath) then

@@ -9,7 +9,7 @@ open TestHelpers
 open System.Text.Json
 
 [<Fact>]
-let ``Test writeCache clears failure record`` () =
+let ``Test clearFailure deletes failure record`` () =
     let filePath = "test_cache_file.txt"
     let failurePath = failureFilePath filePath
 
@@ -21,11 +21,11 @@ let ``Test writeCache clears failure record`` () =
     let json = JsonSerializer.Serialize(failure)
     File.WriteAllText(failurePath, json)
 
-    // Write to cache
-    writeCache filePath "test content" |> Async.RunSynchronously
+    // Clear the failure record explicitly
+    clearFailure filePath |> Async.RunSynchronously
 
     // Verify failure record is cleared
-    Assert.False(File.Exists failurePath, "Expected failure record to be deleted")
+    Assert.False(File.Exists failurePath, "Expected failure record to be deleted by clearFailure")
 
     // Cleanup
     deleteFile filePath

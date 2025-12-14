@@ -63,6 +63,7 @@ let fetchAndReadPage client (uri: Uri) cacheModified cachePath =
                 logger.LogDebug $"Reading from cached file {cachePath}, because feed didn't change"
                 let! content = readCache cachePath
                 File.SetLastWriteTime(cachePath, DateTime.Now)
+                do! clearFailure cachePath
                 return Ok content.Value
             with ex ->
                 let errorMessage =
@@ -73,6 +74,7 @@ let fetchAndReadPage client (uri: Uri) cacheModified cachePath =
                 return Error errorMessage
         | Ok content ->
             do! writeCache cachePath content
+            do! clearFailure cachePath
             return page
         | Error _ ->
             do! recordFailure cachePath
@@ -84,9 +86,9 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Uri) =
     let cachePath = Path.Combine(cacheConfig.Dir, cacheFilename)
     let cacheModified = fileLastModified cachePath
 
-    let failureFile = nextRetry cachePath
+    let nextAttempt = nextRetry cachePath
 
-    match cacheModified, failureFile with
+    match cacheModified, nextAttempt with
     | None, None -> fetchAndReadPage client uri cacheModified cachePath
     | _, Some d when d < DateTimeOffset.Now -> fetchAndReadPage client uri cacheModified cachePath
     | Some d, None when (DateTimeOffset.Now - d).TotalHours > cacheConfig.ExpirationHours ->
