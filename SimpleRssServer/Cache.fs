@@ -3,6 +3,8 @@ module SimpleRssServer.Cache
 open System
 open System.IO
 open System.Text.Json
+open SimpleRssServer.Logging
+open Microsoft.Extensions.Logging
 
 type FetchFailure =
     { LastFailure: DateTimeOffset
@@ -95,18 +97,17 @@ let nextRetry (cachePath: string) =
 let clearExpiredCache (cacheDir: string) (retention: TimeSpan) =
     async {
         if Directory.Exists cacheDir then
-            let currentTime = DateTime.Now
-            let files = Directory.GetFiles cacheDir
+            let now = DateTime.Now
 
-            for file in files do
-                if not (file.EndsWith(".failures")) then
-                    let lastModified = File.GetLastWriteTime file
-                    let fileAge = currentTime - lastModified
+            Directory.GetFiles cacheDir
+            |> Array.filter (fun f -> not (f.EndsWith ".failures"))
+            |> Array.filter (fun f -> (now - File.GetLastWriteTime f) > retention)
+            |> Array.iter (fun file ->
+                File.Delete file
+                let failureFile = failureFilePath file
 
-                    if fileAge > retention then
-                        File.Delete file
-                        let failureFile = failureFilePath file
-
-                        if File.Exists failureFile then
-                            File.Delete failureFile
+                if File.Exists failureFile then
+                    File.Delete failureFile)
+        else
+            logger.LogWarning("Cache directory {Dir} does not exist", cacheDir)
     }
