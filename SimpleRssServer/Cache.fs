@@ -91,3 +91,22 @@ let nextRetry (cachePath: string) =
     | Some failure ->
         let backoffHours = getBackoffHours failure.ConsecutiveFailures
         Some(failure.LastFailure.AddHours backoffHours)
+
+let clearExpiredCache (cacheDir: string) (retention: TimeSpan) =
+    async {
+        if Directory.Exists cacheDir then
+            let currentTime = DateTime.Now
+            let files = Directory.GetFiles cacheDir
+
+            for file in files do
+                if not (file.EndsWith(".failures")) then
+                    let lastModified = File.GetLastWriteTime file
+                    let fileAge = currentTime - lastModified
+
+                    if fileAge > retention then
+                        File.Delete file
+                        let failureFile = failureFilePath file
+
+                        if File.Exists failureFile then
+                            File.Delete failureFile
+    }
