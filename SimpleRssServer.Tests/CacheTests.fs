@@ -182,6 +182,7 @@ let ``Test clearExpiredCache also removes failure files`` () =
 
     let json = JsonSerializer.Serialize(failure)
     File.WriteAllText(failureFile, json)
+    File.SetLastWriteTime(failureFile, DateTime.Now.AddDays(-10.0))
 
     let retention = TimeSpan.FromDays 7.0
 

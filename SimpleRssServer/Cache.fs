@@ -100,14 +100,8 @@ let clearExpiredCache (cacheDir: string) (retention: TimeSpan) =
             let now = DateTime.Now
 
             Directory.GetFiles cacheDir
-            |> Array.filter (fun f -> not (f.EndsWith ".failures"))
             |> Array.filter (fun f -> (now - File.GetLastWriteTime f) > retention)
-            |> Array.iter (fun file ->
-                File.Delete file
-                let failureFile = failureFilePath file
-
-                if File.Exists failureFile then
-                    File.Delete failureFile)
+            |> Array.iter File.Delete
         else
             logger.LogWarning("Cache directory {Dir} does not exist", cacheDir)
     }
