@@ -95,13 +95,11 @@ let nextRetry (cachePath: string) =
         Some(failure.LastFailure.AddHours backoffHours)
 
 let clearExpiredCache (cacheDir: string) (retention: TimeSpan) =
-    async {
-        if Directory.Exists cacheDir then
-            let now = DateTime.Now
+    if not (Directory.Exists cacheDir) then
+        logger.LogWarning("Cache directory {Dir} does not exist", cacheDir)
+    else
+        let now = DateTime.Now
 
-            Directory.GetFiles cacheDir
-            |> Array.filter (fun f -> (now - File.GetLastWriteTime f) > retention)
-            |> Array.iter File.Delete
-        else
-            logger.LogWarning("Cache directory {Dir} does not exist", cacheDir)
-    }
+        Directory.GetFiles cacheDir
+        |> Array.filter (fun f -> (now - File.GetLastWriteTime f) > retention)
+        |> Array.iter File.Delete

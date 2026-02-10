@@ -155,7 +155,7 @@ let ``Test clearExpiredCache removes files older than retention`` () =
     let retention = TimeSpan.FromDays 7.0
 
     // Act
-    clearExpiredCache cacheDir retention |> Async.RunSynchronously
+    clearExpiredCache cacheDir retention
 
     // Assert
     Assert.False(File.Exists oldFile, "Expected old cache file to be deleted")
@@ -187,7 +187,7 @@ let ``Test clearExpiredCache also removes failure files`` () =
     let retention = TimeSpan.FromDays 7.0
 
     // Act
-    clearExpiredCache cacheDir retention |> Async.RunSynchronously
+    clearExpiredCache cacheDir retention
 
     // Assert
     Assert.False(File.Exists oldFile, "Expected old cache file to be deleted")
@@ -202,14 +202,8 @@ let ``Test clearExpiredCache skips non-existent directory`` () =
     let retention = TimeSpan.FromDays 7.0
 
     // This should not throw an exception
-    let result =
-        async {
-            do! clearExpiredCache cacheDir retention
-            return true
-        }
-
-    let success = result |> Async.RunSynchronously
-    Assert.True(success, "Expected clearExpiredCache to handle non-existent directory gracefully")
+    clearExpiredCache cacheDir retention
+    Assert.True(true, "Expected clearExpiredCache to handle non-existent directory gracefully")
 
 [<Fact>]
 let ``Test clearExpiredCache keeps empty directory`` () =
@@ -219,7 +213,7 @@ let ``Test clearExpiredCache keeps empty directory`` () =
     let retention = TimeSpan.FromDays 7.0
 
     // Act
-    clearExpiredCache cacheDir retention |> Async.RunSynchronously
+    clearExpiredCache cacheDir retention
 
     // Assert
     Assert.True(Directory.Exists cacheDir, "Expected empty cache directory to still exist")

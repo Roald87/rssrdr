@@ -27,7 +27,7 @@ let clearCachePeriodically cacheDir retention (period: Millisecond) =
     async {
         while true do
             logger.LogDebug "Clearing expired cache files (older than 7 days)."
-            do! clearExpiredCache cacheDir retention
+            clearExpiredCache cacheDir retention
 
             let (Millisecond t) = period
             do! Async.Sleep t
