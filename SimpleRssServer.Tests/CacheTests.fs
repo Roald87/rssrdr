@@ -135,3 +135,88 @@ let ``Test cacheAge returns None for non existing cache`` () =
     Assert.True(result.IsNone, "Expected cache Age to be none")
 
     deleteFile filePath
+
+[<Fact>]
+let ``Test clearExpiredCache removes files older than retention`` () =
+    let cacheDir = "test_cache_cleanup"
+    Directory.CreateDirectory cacheDir |> ignore
+
+    let oldFile = Path.Combine(cacheDir, "old_cache")
+    let recentFile = Path.Combine(cacheDir, "recent_cache")
+
+    // Create old file (10 days old)
+    File.WriteAllText(oldFile, "old content")
+    File.SetLastWriteTime(oldFile, DateTime.Now.AddDays(-10.0))
+
+    // Create recent file (3 days old)
+    File.WriteAllText(recentFile, "recent content")
+    File.SetLastWriteTime(recentFile, DateTime.Now.AddDays(-3.0))
+
+    let retention = TimeSpan.FromDays 7.0
+
+    // Act
+    clearExpiredCache cacheDir retention
+
+    // Assert
+    Assert.False(File.Exists oldFile, "Expected old cache file to be deleted")
+    Assert.True(File.Exists recentFile, "Expected recent cache file to be kept")
+
+    // Cleanup
+    Directory.Delete(cacheDir, true)
+
+[<Fact>]
+let ``Test clearExpiredCache also removes failure files`` () =
+    let cacheDir = "test_cache_cleanup_failures"
+    Directory.CreateDirectory cacheDir |> ignore
+
+    let oldFile = Path.Combine(cacheDir, "old_cache")
+    let failureFile = failureFilePath oldFile
+
+    // Create old cache file and its failure record
+    File.WriteAllText(oldFile, "old content")
+    File.SetLastWriteTime(oldFile, DateTime.Now.AddDays(-10.0))
+
+    let failure =
+        { LastFailure = DateTimeOffset.Now.AddDays(-10.0)
+          ConsecutiveFailures = 3 }
+
+    let json = JsonSerializer.Serialize(failure)
+    File.WriteAllText(failureFile, json)
+    File.SetLastWriteTime(failureFile, DateTime.Now.AddDays(-10.0))
+
+    let retention = TimeSpan.FromDays 7.0
+
+    // Act
+    clearExpiredCache cacheDir retention
+
+    // Assert
+    Assert.False(File.Exists oldFile, "Expected old cache file to be deleted")
+    Assert.False(File.Exists failureFile, "Expected failure file to be deleted")
+
+    // Cleanup
+    Directory.Delete(cacheDir, true)
+
+[<Fact>]
+let ``Test clearExpiredCache skips non-existent directory`` () =
+    let cacheDir = "non_existent_cache_dir"
+    let retention = TimeSpan.FromDays 7.0
+
+    // This should not throw an exception
+    clearExpiredCache cacheDir retention
+    Assert.True(true, "Expected clearExpiredCache to handle non-existent directory gracefully")
+
+[<Fact>]
+let ``Test clearExpiredCache keeps empty directory`` () =
+    let cacheDir = "test_empty_cache"
+    Directory.CreateDirectory cacheDir |> ignore
+
+    let retention = TimeSpan.FromDays 7.0
+
+    // Act
+    clearExpiredCache cacheDir retention
+
+    // Assert
+    Assert.True(Directory.Exists cacheDir, "Expected empty cache directory to still exist")
+
+    // Cleanup
+    Directory.Delete(cacheDir, true)
