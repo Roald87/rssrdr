@@ -7,8 +7,71 @@ open SimpleRssServer.Request
 open SimpleRssServer.RequestLog
 open SimpleRssServer.Cache
 open SimpleRssServer.Config
+open SimpleRssServer.Helper
+open SimpleRssServer.HtmlRenderer
+open System.Text
+open SimpleRssServer.RssParser
 
 type Millisecond = Millisecond of int
+
+
+type FeedOrder =
+    | Chronological
+    | Random
+
+let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
+    let items = rssUris |> validUris |> fetchAllRssFeeds client cacheConfig
+
+    let invalidUris: Result<string, string>[] =
+        rssUris
+        |> Array.choose (function
+            | Error e -> Some(Error e)
+            | Ok _ -> None)
+
+    let allItems = Array.append items invalidUris |> Seq.collect (parseRss logger)
+
+    let rssQuery =
+        rssUris
+        |> validUris
+        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
+        |> String.concat "&rss="
+
+    let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
+
+    match order with
+    | Chronological -> homepage query allItems
+    | Random -> randomPage query allItems
+
+let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContext) =
+    async {
+        logger.LogDebug $"Received request {context.Request.Url}"
+
+        let rssUris = getRssUrls context.Request.Url.Query
+
+        let responseString =
+            match context.Request.RawUrl with
+            | Prefix "/config.html" _ -> configPage rssUris |> string
+            | Prefix "/random?rss=" _ ->
+                updateRequestLog RequestLogPath RequestLogRetention rssUris
+                assembleRssFeeds logger Random client cacheConfig rssUris |> string
+            | Prefix "/?rss=" _ ->
+                updateRequestLog RequestLogPath RequestLogRetention rssUris
+                assembleRssFeeds logger Chronological client cacheConfig rssUris |> string
+            | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
+            | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
+            | _ -> landingPage |> string
+
+        let buffer = responseString |> Encoding.UTF8.GetBytes
+        context.Response.ContentLength64 <- int64 buffer.Length
+        context.Response.ContentType <- "text/html"
+
+        do!
+            context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length)
+            |> Async.AwaitTask
+
+        context.Response.OutputStream.Close()
+    }
+
 
 let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.CacheConfig) (period: Millisecond) =
     async {
