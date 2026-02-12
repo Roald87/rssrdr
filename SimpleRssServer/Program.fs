@@ -1,19 +1,18 @@
 ﻿open Microsoft.Extensions.Logging
 open System.IO
 open System.Net
+open System.Text
 
-open SimpleRssServer.Logging
-open SimpleRssServer.Request
-open SimpleRssServer.RequestLog
 open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.Helper
 open SimpleRssServer.HtmlRenderer
-open System.Text
+open SimpleRssServer.Logging
+open SimpleRssServer.Request
+open SimpleRssServer.RequestLog
 open SimpleRssServer.RssParser
 
 type Millisecond = Millisecond of int
-
 
 type FeedOrder =
     | Chronological
@@ -71,7 +70,6 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
 
         context.Response.OutputStream.Close()
     }
-
 
 let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.CacheConfig) (period: Millisecond) =
     async {

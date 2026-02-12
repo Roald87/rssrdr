@@ -2,9 +2,10 @@ module SimpleRssServer.Tests.ProgramTests
 
 open System
 open Xunit
-open RequestTests
-open Program
 open Microsoft.Extensions.Logging.Abstractions
+
+open Program
+open RequestTests
 
 [<Fact>]
 let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
