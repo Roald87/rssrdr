@@ -13,6 +13,7 @@
     <Compile Include="CacheTests.fs" />
     <Compile Include="HtmlRendererTests.fs" />
     <Compile Include="RequestLogTests.fs" />
+    <Compile Include="ProgramTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Roald87.FeedReader" Version="2.1.0" />

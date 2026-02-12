@@ -1,10 +1,10 @@
 module SimpleRssServer.RssParser
 
+open Microsoft.Extensions.Logging
+open Roald87.FeedReader
 open System
 open System.IO
-open Microsoft.Extensions.Logging
 
-open Roald87.FeedReader
 open Helper
 
 type Article =

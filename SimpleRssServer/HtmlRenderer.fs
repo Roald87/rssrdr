@@ -4,8 +4,8 @@ open System
 open System.IO
 open System.Net
 
-open RssParser
 open Helper
+open RssParser
 
 type Html =
     | Html of string
