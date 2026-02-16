@@ -551,7 +551,7 @@ let ``GetAsync returns timeout error when request takes too long`` () =
 
     match result with
     | Ok _ -> Assert.True(false, "Expected timeout failure but got success")
-    | Error error -> Assert.Contains($"timed out after {timeout} seconds", error)
+    | Error error -> Assert.Contains("timed out after 1 seconds", error)
 
 [<Fact>]
 let ``Test requestUrls skips invalid URLs in log file`` () =
