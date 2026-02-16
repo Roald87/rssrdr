@@ -85,8 +85,8 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Uri) =
 
     match cacheModified, nextAttempt with
     | None, None -> fetchAndReadPage client uri cacheModified cachePath
-    | _, Some d when d < DateTimeOffset.Now -> fetchAndReadPage client uri cacheModified cachePath
-    | Some d, None when (DateTimeOffset.Now - d).TotalHours > cacheConfig.ExpirationHours ->
+    | _, Some d when (d < DateTimeOffset.Now) -> fetchAndReadPage client uri cacheModified cachePath
+    | Some d, None when (DateTimeOffset.Now - d) > cacheConfig.Expiration ->
         fetchAndReadPage client uri cacheModified cachePath
     | _, Some d ->
         let waitTime = (d - DateTimeOffset.Now).TotalHours

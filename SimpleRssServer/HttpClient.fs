@@ -11,11 +11,11 @@ let fetchUrlAsync
     (logger: ILogger)
     (uri: Uri)
     (lastModified: DateTimeOffset option)
-    (timeoutSeconds: float)
+    (timeout: TimeSpan)
     =
     async {
         try
-            use cts = new Threading.CancellationTokenSource(TimeSpan.FromSeconds timeoutSeconds)
+            use cts = new Threading.CancellationTokenSource(timeout)
 
             let request = new HttpRequestMessage(HttpMethod.Get, uri)
             let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
@@ -42,7 +42,9 @@ let fetchUrlAsync
                 return Error errorMessage
         with
         | :? Threading.Tasks.TaskCanceledException ->
-            let warningMessage = $"Request to {uri} timed out after {timeoutSeconds} seconds"
+            let warningMessage =
+                $"Request to {uri} timed out after {timeout.TotalSeconds} seconds"
+
             logger.LogWarning warningMessage
             return Error warningMessage
         | ex ->

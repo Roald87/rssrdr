@@ -23,11 +23,11 @@ open TestHelpers
 
 let cacheConfig =
     { Dir = Directory.GetCurrentDirectory()
-      ExpirationHours = 1.0 }
+      Expiration = TimeSpan.FromHours 1.0 }
 
 let createOutdatedCache (cachePath: string) (content: string) =
     File.WriteAllText(cachePath, content)
-    let cacheAge = DateTime.Now.AddHours -(2.0 * cacheConfig.ExpirationHours)
+    let cacheAge = DateTime.Now - 2.0 * cacheConfig.Expiration
     File.SetLastWriteTime(cachePath, cacheAge)
 
 type MockHttpResponseHandler(response: HttpResponseMessage) =
@@ -204,7 +204,7 @@ let ``Test getAsync with successful response`` () =
     let logger = NullLogger.Instance
 
     let result =
-        fetchUrlAsync client logger (Uri "http://example.com") (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync client logger (Uri "http://example.com") (Some DateTimeOffset.Now) (TimeSpan.FromSeconds 5.0)
         |> Async.RunSynchronously
 
     match result with
@@ -217,7 +217,12 @@ let ``Test getAsync with unsuccessful response on real page`` () =
     let logger = NullLogger.Instance
 
     let response =
-        fetchUrlAsync client logger (Uri "https://thisurldoesntexistforsureordoesit.com") (Some DateTimeOffset.Now) 5.0
+        fetchUrlAsync
+            client
+            logger
+            (Uri "https://thisurldoesntexistforsureordoesit.com")
+            (Some DateTimeOffset.Now)
+            (TimeSpan.FromSeconds 5.0)
         |> Async.RunSynchronously
 
     match response with
@@ -234,7 +239,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
 
     // Case 1: When If-Modified-Since is equal to lastModifiedDate
     let result1 =
-        fetchUrlAsync client logger url (Some lastModifiedDate) 5
+        fetchUrlAsync client logger url (Some lastModifiedDate) (TimeSpan.FromSeconds 5.0)
         |> Async.RunSynchronously
 
     match result1 with
@@ -245,14 +250,17 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
     let earlierDate = lastModifiedDate.AddDays -1.0
 
     let result2 =
-        fetchUrlAsync client logger url (Some earlierDate) 5 |> Async.RunSynchronously
+        fetchUrlAsync client logger url (Some earlierDate) (TimeSpan.FromSeconds 5.0)
+        |> Async.RunSynchronously
 
     match result2 with
     | Ok content -> Assert.Equal("Content has changed since the last modification date", content)
     | Error error -> failwithf "Expected success, but got failure: %s" error
 
     // Case 3: When If-Modified-Since is not provided
-    let result3 = fetchUrlAsync client logger url None 5 |> Async.RunSynchronously
+    let result3 =
+        fetchUrlAsync client logger url None (TimeSpan.FromSeconds 5.0)
+        |> Async.RunSynchronously
 
     match result3 with
     | Ok content -> Assert.Equal("Content has changed since the last modification date", content)
@@ -299,7 +307,7 @@ let ``Test fetchWithCache with non expired cache`` () =
 
     // Write the expected content to the file and set its last write time to less than 1 hour ago
     File.WriteAllText(filePath, expectedContent)
-    let cacheAge = DateTime.Now.AddMinutes -(cacheConfig.ExpirationHours * 0.5)
+    let cacheAge = DateTime.Now - cacheConfig.Expiration * 0.5
     File.SetLastWriteTime(filePath, cacheAge)
 
     let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
@@ -349,7 +357,7 @@ let ``Test fetchWithCache with expired cache and 304 response`` () =
 
     // Write the cached content to the file and set its last write time to more than 1 hour ago
     File.WriteAllText(filePath, cachedContent)
-    let oldWriteTime = DateTime.Now.AddHours -(2.0 * cacheConfig.ExpirationHours)
+    let oldWriteTime = DateTime.Now - 2.0 * cacheConfig.Expiration
     File.SetLastWriteTime(filePath, oldWriteTime)
 
     let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
@@ -531,8 +539,8 @@ let ``Test Html encoding of special characters`` () =
 
 [<Fact>]
 let ``GetAsync returns timeout error when request takes too long`` () =
-    let timeout = 1.0
-    let delay = TimeSpan.FromSeconds(timeout + 0.2) // Longer than the 5 second timeout
+    let timeout = TimeSpan.FromSeconds 1.0
+    let delay = TimeSpan.FromSeconds(timeout.TotalSeconds + 0.2) // Longer than the timeout
     let handler = new DelayedResponseHandler(delay)
     let client = new HttpClient(handler)
     let logger = NullLogger.Instance
@@ -543,7 +551,7 @@ let ``GetAsync returns timeout error when request takes too long`` () =
 
     match result with
     | Ok _ -> Assert.True(false, "Expected timeout failure but got success")
-    | Error error -> Assert.Contains($"timed out after {timeout} seconds", error)
+    | Error error -> Assert.Contains("timed out after 1 seconds", error)
 
 [<Fact>]
 let ``Test requestUrls skips invalid URLs in log file`` () =

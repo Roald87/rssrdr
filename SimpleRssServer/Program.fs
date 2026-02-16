@@ -1,4 +1,5 @@
 ﻿open Microsoft.Extensions.Logging
+open System
 open System.IO
 open System.Net
 open System.Text
@@ -11,8 +12,6 @@ open SimpleRssServer.Logging
 open SimpleRssServer.Request
 open SimpleRssServer.RequestLog
 open SimpleRssServer.RssParser
-
-type Millisecond = Millisecond of int
 
 type FeedOrder =
     | Chronological
@@ -71,7 +70,7 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
         context.Response.OutputStream.Close()
     }
 
-let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.CacheConfig) (period: Millisecond) =
+let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.CacheConfig) =
     async {
         while true do
             let urls = readRequestLog RequestLogPath
@@ -80,18 +79,16 @@ let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.Cache
                 logger.LogDebug $"Periodically updating {urls.Length} RSS feeds."
                 fetchAllRssFeeds client cacheConfig urls |> ignore
 
-            let (Millisecond t) = period
-            do! Async.Sleep t
+            do! Async.Sleep cacheConfig.Expiration
     }
 
-let clearCachePeriodically cacheDir retention (period: Millisecond) =
+let clearCachePeriodically cacheDir retention (period: TimeSpan) =
     async {
         while true do
             logger.LogDebug "Clearing expired cache files (older than 7 days)."
             clearExpiredCache cacheDir retention
 
-            let (Millisecond t) = period
-            do! Async.Sleep t
+            do! Async.Sleep period
     }
 
 let startServer (cacheConfig: SimpleRssServer.Config.CacheConfig) (hosts: string list) =
@@ -110,13 +107,10 @@ let startServer (cacheConfig: SimpleRssServer.Config.CacheConfig) (hosts: string
             return! loop ()
         }
 
-    let cacheExpirationPeriod =
-        Millisecond(cacheConfig.ExpirationHours * 1000.0 * 60.0 * 60.0 |> int)
-
-    Async.Start(updateRssFeedsPeriodically httpClient cacheConfig cacheExpirationPeriod)
+    Async.Start(updateRssFeedsPeriodically httpClient cacheConfig)
 
     // Run cache cleanup once per day (24 hours = 86400000 ms)
-    let cacheCleanupPeriod = Millisecond(24 * 60 * 60 * 1000)
+    let cacheCleanupPeriod = TimeSpan.FromDays 1.0
     Async.Start(clearCachePeriodically cacheConfig.Dir CacheRetention cacheCleanupPeriod)
 
     loop ()
