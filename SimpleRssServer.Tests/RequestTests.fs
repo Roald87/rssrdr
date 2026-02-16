@@ -64,9 +64,10 @@ type DelayedResponseHandler(delay: TimeSpan) =
 
     override _.SendAsync(request, cancellationToken) =
         async {
-            do! Async.Sleep(int delay.TotalMilliseconds)
+            do! Task.Delay(delay, cancellationToken) |> Async.AwaitTask
+
             let response = new HttpResponseMessage(HttpStatusCode.OK)
-            response.Content <- new StringContent("Delayed response")
+            response.Content <- new StringContent "Delayed response"
             return response
         }
         |> Async.StartAsTask
