@@ -23,8 +23,8 @@
     <Content Include="site/*">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
     <PackageReference Include="Roald87.FeedReader" Version="2.1.0" />
   </ItemGroup>
 </Project>
