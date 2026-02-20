@@ -195,8 +195,12 @@ let ``Test getRssUrls adds https if missing`` () =
 
 [<Fact>]
 let ``Test convertUrlToFilename`` () =
-    Assert.Equal("https_abc_com_test", convertUrlToValidFilename (Uri "https://abc.com/test"))
-    Assert.Equal("https_abc_com_test_rss_blabla", convertUrlToValidFilename (Uri "https://abc.com/test?rss=blabla"))
+    Assert.Equal(Filename "https_abc_com_test", convertUrlToValidFilename (Uri "https://abc.com/test"))
+
+    Assert.Equal(
+        Filename "https_abc_com_test_rss_blabla",
+        convertUrlToValidFilename (Uri "https://abc.com/test?rss=blabla")
+    )
 
 [<Fact>]
 let ``Test getAsync with successful response`` () =

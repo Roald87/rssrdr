@@ -11,9 +11,16 @@ open SimpleRssServer.HttpClient
 open SimpleRssServer.Cache
 open SimpleRssServer.Config
 
-let convertUrlToValidFilename (uri: Uri) : string =
+type Filename = Filename of string
+
+type Path with
+    static member Combine(path1: string, filename: Filename) =
+        let (Filename s) = filename
+        Path.Combine(path1, s)
+
+let convertUrlToValidFilename (uri: Uri) =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
-    replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_")
+    replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_") |> Filename
 
 let getRssUrls (context: string) : Result<Uri, string> array =
     context
