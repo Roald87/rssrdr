@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="DomainPrimitiveTypesTests.fs" />
     <Compile Include="TestHelpers.fs" />
     <Compile Include="Roald87FeedReaderTests.fs" />
     <Compile Include="RssParserTests.fs" />
