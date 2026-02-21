@@ -10,40 +10,20 @@ open SimpleRssServer.Logging
 open SimpleRssServer.HttpClient
 open SimpleRssServer.Cache
 open SimpleRssServer.Config
+open SimpleRssServer.DomainPrimitiveTypes
 
-let convertUrlToValidFilename (uri: Uri) : string =
+let convertUrlToValidFilename (uri: Uri) =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
-    replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_")
+    replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_") |> Filename
 
-let getRssUrls (context: string) : Result<Uri, string> array =
+let getRssUrls (context: string) : Result<Uri, UriError> array =
     context
     |> HttpUtility.ParseQueryString
     |> fun query ->
         let rssValues = query.GetValues "rss"
 
-        let ensureScheme (s: string) =
-            if
-                s.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                || s.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-            then
-                s
-            else
-                $"https://{s}"
-
         if rssValues <> null && rssValues.Length > 0 then
-            rssValues
-            |> Array.map (fun s ->
-                let url = ensureScheme s
-
-                try
-                    let uri = Uri url
-
-                    if uri.Host.Contains "." then
-                        Ok uri
-                    else
-                        Error $"Invalid URI: '{s}' (Host must contain a dot)"
-                with :? UriFormatException as ex ->
-                    Error $"Invalid URI: '{s}' ({ex.Message})")
+            rssValues |> Array.map (fun s -> Uri.createWithHttps s)
         else
             [||]
 

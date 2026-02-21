@@ -12,6 +12,7 @@ open SimpleRssServer.Logging
 open SimpleRssServer.Request
 open SimpleRssServer.RequestLog
 open SimpleRssServer.RssParser
+open SimpleRssServer.DomainPrimitiveTypes
 
 type FeedOrder =
     | Chronological
@@ -20,10 +21,11 @@ type FeedOrder =
 let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
     let items = rssUris |> validUris |> fetchAllRssFeeds client cacheConfig
 
-    let invalidUris: Result<string, string>[] =
+    let invalidUris =
         rssUris
         |> Array.choose (function
-            | Error e -> Some(Error e)
+            | Error(HostNameMustContainDot e) -> Some(Error(InvalidUri.value e))
+            | Error(UriFormatException(e, _)) -> Some(Error(InvalidUri.value e))
             | Ok _ -> None)
 
     let allItems = Array.append items invalidUris |> Seq.collect (parseRss logger)
