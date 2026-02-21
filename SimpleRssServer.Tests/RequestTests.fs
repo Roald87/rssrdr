@@ -22,7 +22,10 @@ open SimpleRssServer.Cache
 open TestHelpers
 
 let cacheConfig =
-    { Dir = Directory.GetCurrentDirectory()
+    let tempDir = Path.Combine(Path.GetTempPath(), "rssrdr_test_cache")
+    Directory.CreateDirectory(tempDir) |> ignore
+
+    { Dir = tempDir
       Expiration = TimeSpan.FromHours 1.0 }
 
 let createOutdatedCache (cachePath: string) (content: string) =
@@ -315,7 +318,7 @@ let ``Test fetchWithCache with non expired cache`` () =
 
     match result with
     | Ok content -> Assert.Equal(expectedContent, content)
-    | Error _ -> Assert.True(false, "Expected success but got error.")
+    | Error msg -> Assert.True(false, $"Expected success but got error: {msg}")
 
     deleteFile filePath
 
