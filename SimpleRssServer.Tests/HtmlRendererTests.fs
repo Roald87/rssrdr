@@ -8,6 +8,7 @@ open Xunit
 
 open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.RssParser
+open SimpleRssServer.DomainPrimitiveTypes
 
 [<Fact>]
 let ``Test convertArticleToHtml encodes special characters`` () =
@@ -47,10 +48,14 @@ let ``Test landing page displays correct version number using XML parser`` () =
 let ``Test configPage handles valid and invalid URIs`` () =
     let validUri1 = Uri "https://example.com/feed1"
     let validUri2 = Uri "http://example.com/feed2"
-    let invalidUri1 = "invalid-uri"
-    let invalidUri2 = "not-a-url"
+    let invalidUri1 = InvalidUri.create "invalid-uri"
+    let invalidUri2 = InvalidUri.create "not-a-url"
 
-    let rssUrls = [| Ok validUri1; Ok validUri2; Error invalidUri1; Error invalidUri2 |]
+    let rssUrls =
+        [| Ok validUri1
+           Ok validUri2
+           Error(HostNameMustContainDot invalidUri1)
+           Error(HostNameMustContainDot invalidUri2) |]
 
     let resultHtml = configPage rssUrls |> string
 
@@ -72,6 +77,6 @@ let ``Test configPage handles valid and invalid URIs`` () =
     Assert.Equal(expectedValidUris, textareaValue)
 
     // Check both invalid URIs in invalid-uris div
-    Assert.Contains(invalidUri1, resultHtml)
-    Assert.Contains(invalidUri2, resultHtml)
+    Assert.Contains(InvalidUri.value invalidUri1, resultHtml)
+    Assert.Contains(InvalidUri.value invalidUri2, resultHtml)
     Assert.Contains("<div class='invalid-uris'>", resultHtml)

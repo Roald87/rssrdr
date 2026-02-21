@@ -19,6 +19,7 @@ open SimpleRssServer.RequestLog
 open SimpleRssServer.HttpClient
 open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.Cache
+open SimpleRssServer.DomainPrimitiveTypes
 open TestHelpers
 
 let cacheConfig =
@@ -145,22 +146,22 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
 let ``Test getRssUrls`` () =
     let result = getRssUrls "?rss=https://abs.com/test"
 
-    Assert.Equal<Result<Uri, string>[]>([| Ok(Uri "https://abs.com/test") |], result)
+    Assert.Equal<Result<Uri, UriError>[]>([| Ok(Uri "https://abs.com/test") |], result)
 
 [<Fact>]
 let ``Test getRssUrls with two URLs`` () =
     let result = getRssUrls "?rss=https://abs.com/test1&rss=https://abs.com/test2"
 
-    let expected: Result<Uri, string>[] =
+    let expected =
         [| Ok(Uri "https://abs.com/test1"); Ok(Uri "https://abs.com/test2") |]
 
-    Assert.Equal<Result<Uri, string>[]>(expected, result)
+    Assert.Equal<Result<Uri, UriError>[]>(expected, result)
 
 [<Fact>]
 let ``Test getRssUrls with empty string`` () =
     let result = getRssUrls ""
 
-    Assert.Equal<Result<Uri, string>[]>([||], result)
+    Assert.Equal<Result<Uri, UriError>[]>([||], result)
 
 [<Fact>]
 let ``Test getRssUrls with invalid URL`` () =
@@ -168,8 +169,8 @@ let ``Test getRssUrls with invalid URL`` () =
     Assert.Equal(1, result.Length)
 
     match result.[0] with
-    | Error msg -> Assert.Contains("invalid-url", msg)
-    | Ok _ -> Assert.True(false, "Expected Error, got Ok")
+    | Error(HostNameMustContainDot msg) -> Assert.Contains("invalid-url", InvalidUri.value msg)
+    | _ -> Assert.True(false, "Expected Error HostNameMustContainDot")
 
 [<Fact>]
 let ``Test getRssUrls with valid and invalid URLs`` () =
@@ -177,8 +178,8 @@ let ``Test getRssUrls with valid and invalid URLs`` () =
     Assert.Equal(2, result.Length)
 
     match result.[0] with
-    | Error msg -> Assert.Contains("invalid-url", msg)
-    | Ok _ -> Assert.True(false, "Expected Error, got Ok")
+    | Error(HostNameMustContainDot msg) -> Assert.Contains("invalid-url", InvalidUri.value msg)
+    | _ -> Assert.True(false, "Expected Error HostNameMustContainDot")
 
     match result.[1] with
     | Ok uri -> Assert.Equal(Uri "https://valid-url.com", uri)
@@ -191,7 +192,7 @@ let ``Test getRssUrls adds https if missing`` () =
     let expected =
         [| Ok(Uri "https://example.com/feed"); Ok(Uri "http://example.com/feed2") |]
 
-    Assert.Equal<Result<Uri, string>[]>(expected, result)
+    Assert.Equal<Result<Uri, UriError>[]>(expected, result)
 
 [<Fact>]
 let ``Test convertUrlToFilename`` () =

@@ -6,6 +6,7 @@ open System.Net
 
 open Helper
 open RssParser
+open DomainPrimitiveTypes
 
 type Html =
     | Html of string
@@ -90,7 +91,7 @@ let randomPage query (rssItems: Article seq) : Html =
 
     header + body + shuffledFeeds + footer
 
-let configPage (rssUrls: Result<Uri, string> array) : Html =
+let configPage (rssUrls: Result<Uri, UriError> array) : Html =
     let body =
         """
     <body>

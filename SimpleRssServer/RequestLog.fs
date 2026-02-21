@@ -5,8 +5,9 @@ open System.IO
 open System.Globalization
 
 open SimpleRssServer.Helper
+open SimpleRssServer.DomainPrimitiveTypes
 
-let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri, string> array) =
+let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri, UriError> array) =
     let currentDate = DateTime.Now
 
     let currentDateString =
