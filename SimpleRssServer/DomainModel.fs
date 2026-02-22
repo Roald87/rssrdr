@@ -11,6 +11,7 @@ type DomainMessage =
     | UriFormatException of InvalidUri._T * Exception
 
     // Rss parsing errors
+    // TODO consider adding the URI to these errors as well, to be able to provide more specific error messages in the feed
     | InvalidRssFeedFormat of Exception
 
     // Http errors
