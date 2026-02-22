@@ -7,7 +7,7 @@ open System.Globalization
 open SimpleRssServer.Helper
 open SimpleRssServer.DomainPrimitiveTypes
 
-let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri, UriError> array) =
+let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Result<Uri, UriError> array) =
     let currentDate = DateTime.Now
 
     let currentDateString =
@@ -19,8 +19,8 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri,
         |> Array.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
 
     let existingEntries =
-        if File.Exists filename then
-            File.ReadAllLines filename
+        if File.Exists requestLogPath then
+            File.ReadAllLines requestLogPath
             |> Array.filter (fun line ->
                 let datePart = line.Split(' ', 2)[0]
 
@@ -32,9 +32,9 @@ let updateRequestLog (filename: string) (retention: TimeSpan) (uris: Result<Uri,
             [||]
 
     let updatedEntries = Array.append existingEntries logEntries
-    File.WriteAllLines(filename, updatedEntries)
+    File.WriteAllLines(requestLogPath, updatedEntries)
 
-let readRequestLog logPath =
+let readRequestLog (logPath: OsPath) =
     if File.Exists logPath then
         let expectedColumns = 2
 

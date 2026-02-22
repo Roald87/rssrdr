@@ -27,10 +27,10 @@ let cacheConfig =
     let tempDir = Path.Combine(Path.GetTempPath(), "rssrdr_test_cache")
     Directory.CreateDirectory(tempDir) |> ignore
 
-    { Dir = tempDir
+    { Dir = OsPath(tempDir)
       Expiration = TimeSpan.FromHours 1.0 }
 
-let createOutdatedCache (cachePath: string) (content: string) =
+let createOutdatedCache (cachePath: OsPath) (content: string) =
     File.WriteAllText(cachePath, content)
     let cacheAge = DateTime.Now - 2.0 * cacheConfig.Expiration
     File.SetLastWriteTime(cachePath, cacheAge)
@@ -85,7 +85,7 @@ let mockClientThrowsWhenCalled =
 
 [<Fact>]
 let ``Test requestUrls returns two URLs from request-log.txt`` () =
-    let logFilePath = "data/request-log.txt"
+    let logFilePath = OsPath "data/request-log.txt"
 
     let urls = readRequestLog logFilePath
 
@@ -95,7 +95,7 @@ let ``Test requestUrls returns two URLs from request-log.txt`` () =
 
 [<Fact>]
 let ``Test updateRequestLog removes entries older than retention period`` () =
-    let filename = "test_log_retention.txt"
+    let filename = OsPath "test_log_retention.txt"
     let retention = TimeSpan.FromDays 7.0
 
     let oldDate =
@@ -121,7 +121,7 @@ let ``Test updateRequestLog removes entries older than retention period`` () =
 
 [<Fact>]
 let ``Test updateRequestLog creates file and appends strings with datetime`` () =
-    let filename = "test_log.txt"
+    let filename = OsPath "test_log.txt"
 
     let logEntries =
         [| Ok(Uri "https://Entry1.com")
@@ -569,7 +569,7 @@ let ``GetAsync returns timeout error when request takes too long`` () =
 
 [<Fact>]
 let ``Test requestUrls skips invalid URLs in log file`` () =
-    let filename = "test_invalid_urls.txt"
+    let filename = OsPath "test_invalid_urls.txt"
 
     let lines =
         [| "2025-06-23 https://valid-url.com/feed1"
