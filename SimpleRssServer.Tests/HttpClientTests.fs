@@ -9,7 +9,7 @@ open System.Threading.Tasks
 open Xunit
 
 open SimpleRssServer.HttpClient
-open SimpleRssServer.Helper
+open SimpleRssServer.DomainModel
 
 type MockHttpResponseHandler(response: HttpResponseMessage) =
     inherit HttpMessageHandler()
@@ -31,7 +31,7 @@ let ``Test fetchUrlAsync with successful response`` () =
 
     match result with
     | Ok result -> Assert.Equal(expectedContent, result)
-    | Error error -> Assert.True(false, error)
+    | Error error -> failwithf $"Expected Success but got Failure: {error}"
 
 [<Fact>]
 let ``Test fetchUrlAsync with unsuccessful response`` () =
@@ -48,5 +48,6 @@ let ``Test fetchUrlAsync with unsuccessful response`` () =
         |> Async.RunSynchronously
 
     match response with
-    | Ok _ -> Assert.False(true, "Expected Failure but got Success")
-    | Error errorMsg -> Assert.Contains("Exception", errorMsg)
+    | Error(HttpException(_, _)) -> Assert.True(true, "timed out")
+    | Error error -> failwithf $"Got unexpected error: {error}"
+    | Ok _ -> failwithf "Expected Error but got OK."

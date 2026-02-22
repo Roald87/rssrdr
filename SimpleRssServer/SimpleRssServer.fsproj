@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="DomainPrimitiveTypes.fs" />
+    <Compile Include="DomainModel.fs" />
     <Compile Include="Config.fs" />
     <Compile Include="Helper.fs" />
     <Compile Include="Logging.fs" />

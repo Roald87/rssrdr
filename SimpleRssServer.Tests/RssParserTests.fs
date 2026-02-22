@@ -6,6 +6,7 @@ open Microsoft.Extensions.Logging.Abstractions
 open Xunit
 
 open SimpleRssServer.RssParser
+open SimpleRssServer.DomainModel
 
 [<Fact>]
 let ``Test parseRss with non-valid RSS feed`` () =
@@ -172,14 +173,17 @@ let ``Test parseRss with nature.rss`` () =
 
 [<Fact>]
 let ``Test parseRss with Failure feedContent`` () =
-    let errorMessage = "An error occurred while fetching the feed."
-    let result = parseRss NullLogger.Instance (Error errorMessage)
+    let errorMessage =
+        $"Previous request(s) to https://example.com/ failed. You can retry in 1.5 hours."
+
+    let result =
+        parseRss NullLogger.Instance (Error(HttpRequestFailed(Uri "https://example.com", TimeSpan.FromHours 1.5)))
 
     let expected =
         { PostDate = Some DateTime.Now
           Title = "Error"
-          Url = ""
-          BaseUrl = ""
+          Url = "https://example.com/"
+          BaseUrl = "example.com"
           Text = errorMessage }
 
     Assert.Single result |> ignore
