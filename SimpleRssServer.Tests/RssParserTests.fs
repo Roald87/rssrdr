@@ -237,7 +237,7 @@ let ``Test get content for article text if description is empty`` () =
 [<Fact>]
 let ``Test read from cache if available`` () =
     let cachedContent = File.ReadAllText "data/roaldinch.xml"
-    let uri = Uri "https://example.com"
+    let uri = Uri "https://roaldin.ch"
     let waitTime = TimeSpan.FromHours 1.5
 
     let result =
@@ -248,8 +248,8 @@ let ``Test read from cache if available`` () =
     Assert.Equal(expectedCachedArticles.Length + 1, result.Length)
     let actualError = List.last result
     Assert.Equal("Error", actualError.Title)
-    Assert.Equal("https://example.com/", actualError.Url)
-    Assert.Equal("example.com", actualError.BaseUrl)
+    Assert.Equal("https://roaldin.ch/", actualError.Url)
+    Assert.Equal("roaldin.ch", actualError.BaseUrl)
     Assert.True((DateTime.Now - actualError.PostDate.Value).TotalSeconds < 1.0)
 
     // Check the rest are the cached articles
