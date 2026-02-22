@@ -15,7 +15,8 @@ type DomainMessage =
     | InvalidRssFeedFormat of Exception
 
     // Http errors
-    | HttpRequestFailed of Uri * TimeSpan
+    | PreviousHttpRequestFailed of Uri * TimeSpan
+    | PreviousHttpRequestFailedButPageCached of Uri * TimeSpan * string
     | HttpRequestTimedOut of Uri * TimeSpan
     | HttpRequestNonSuccessStatus of Uri * HttpStatusCode
     | HttpException of Uri * Exception

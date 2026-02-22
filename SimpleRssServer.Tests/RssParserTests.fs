@@ -1,12 +1,23 @@
 module SimpleRssServer.Tests.RssParser
 
-open System
 open Microsoft.Extensions.Logging.Abstractions
-
+open System
+open System.IO
 open Xunit
 
-open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
+open SimpleRssServer.RssParser
+
+let parseRssFromFile logger fileName =
+    try
+        let content = File.ReadAllText fileName |> Ok
+        parseRss logger content
+    with ex ->
+        [ { PostDate = Some DateTime.Now
+            Title = "Error"
+            Url = fileName
+            BaseUrl = fileName
+            Text = $"{ex.GetType().Name} {ex.Message}" } ]
 
 [<Fact>]
 let ``Test parseRss with non-valid RSS feed`` () =
@@ -26,7 +37,7 @@ let ``Test parseRss with non-valid RSS feed`` () =
     Assert.Single result |> ignore
     let actual = List.head result
     Assert.Equal(expected.Title, actual.Title)
-    Assert.Equal(expected.Text, actual.Text)
+    Assert.StartsWith("Ensure you entered the correct RSS feed address", actual.Text)
     Assert.Equal(expected.Url, actual.Url)
     Assert.Equal(expected.BaseUrl, actual.BaseUrl)
     Assert.True((expected.PostDate.Value - actual.PostDate.Value).TotalSeconds < 1.0)
@@ -174,23 +185,22 @@ let ``Test parseRss with nature.rss`` () =
 
 [<Fact>]
 let ``Test parseRss with Failure feedContent`` () =
-    let errorMessage =
-        "The example.com RSS feed seems to be offline. I'll retry in 1.5 hours."
-
     let result =
-        parseRss NullLogger.Instance (Error(HttpRequestFailed(Uri "https://example.com", TimeSpan.FromHours 1.5)))
+        parseRss
+            NullLogger.Instance
+            (Error(PreviousHttpRequestFailed(Uri "https://example.com", TimeSpan.FromHours 1.5)))
 
     let expected =
         { PostDate = Some DateTime.Now
           Title = "Error"
           Url = "https://example.com/"
           BaseUrl = "example.com"
-          Text = errorMessage }
+          Text = "The example.com RSS feed seems to be offline. I'll retry in 1.5 hours." }
 
     Assert.Single result |> ignore
     let actual = List.head result
     Assert.Equal(expected.Title, actual.Title)
-    Assert.Equal(expected.Text, actual.Text)
+    Assert.StartsWith("The example.com RSS feed seems to be offline", actual.Text)
     Assert.Equal(expected.Url, actual.Url)
     Assert.Equal(expected.BaseUrl, actual.BaseUrl)
     Assert.True((expected.PostDate.Value - actual.PostDate.Value).TotalSeconds < 1.0)
@@ -220,3 +230,32 @@ let ``Test get content for article text if description is empty`` () =
         + "..."
 
     Assert.Equal(expectedText, actualFirst.Text)
+
+[<Fact>]
+let ``Test read from cache if available`` () =
+    let cachedContent = File.ReadAllText "data/roaldinch.xml"
+    let uri = Uri "https://roaldin.ch"
+    let waitTime = TimeSpan.FromHours 1.5
+
+    let result =
+        parseRss NullLogger.Instance (Error(PreviousHttpRequestFailedButPageCached(uri, waitTime, cachedContent)))
+
+    let expectedCachedArticles = parseRss NullLogger.Instance (Ok cachedContent)
+
+    Assert.Equal(expectedCachedArticles.Length + 1, result.Length)
+    let actualError = List.last result
+    Assert.Equal("Error", actualError.Title)
+    Assert.Equal("https://roaldin.ch/", actualError.Url)
+    Assert.Equal("roaldin.ch", actualError.BaseUrl)
+    Assert.True((DateTime.Now - actualError.PostDate.Value).TotalSeconds < 1.0)
+
+    // Check the rest are the cached articles
+    let actualCached = List.take expectedCachedArticles.Length result
+    Assert.Equal(expectedCachedArticles.Length, actualCached.Length)
+
+    List.zip expectedCachedArticles actualCached
+    |> List.iter (fun (exp, act) ->
+        Assert.Equal(exp.Title, act.Title)
+        Assert.Equal(exp.Url, act.Url)
+        Assert.Equal(exp.BaseUrl, act.BaseUrl)
+        Assert.Equal(exp.Text, act.Text))

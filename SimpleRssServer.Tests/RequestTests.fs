@@ -445,7 +445,7 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed and
 
     // Assert
     match result with
-    | Error(HttpRequestFailed(_, _)) -> Assert.True(true, "Got expected error")
+    | Error(PreviousHttpRequestFailedButPageCached(_, _, _)) -> Assert.True(true, "Got expected error")
     | Error error -> failwithf $"Got unexpected error: {error}"
     | Ok _ -> failwithf "Should return an error due to backoff period"
 
@@ -519,7 +519,7 @@ let ``Test fetchWithCache returns error with expired cache and cooldown time whe
 
     // Assert
     match result with
-    | Error(HttpRequestFailed(_, _)) -> Assert.True(true, "Got expected error")
+    | Error(PreviousHttpRequestFailedButPageCached(_, _, _)) -> Assert.True(true, "Got expected error")
     | Error error -> failwithf $"Got unexpected error: {error}"
     | Ok _ -> failwithf "Expected error message with cooldown time but got success"
 
