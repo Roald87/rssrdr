@@ -66,10 +66,18 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Uri) =
     | _, Some d when (d < DateTimeOffset.Now) -> fetchAndReadPage client uri cacheModified cachePath
     | Some d, None when (DateTimeOffset.Now - d) > cacheConfig.Expiration ->
         fetchAndReadPage client uri cacheModified cachePath
+    | Some _, Some _ ->
+        let waitTime =
+            TimeSpan.FromHours (nextAttempt.Value - DateTimeOffset.Now).TotalHours
+
+        let cachedPage: string =
+            readCache cachePath |> Async.RunSynchronously |> Option.defaultValue ""
+
+        async { return Error(PreviousHttpRequestFailedButPageCached(uri, waitTime, cachedPage)) }
     | _, Some d ->
         let waitTime = TimeSpan.FromHours (d - DateTimeOffset.Now).TotalHours
-        async { return Error(HttpRequestFailed(uri, waitTime)) }
-    | Some d, None ->
+        async { return Error(PreviousHttpRequestFailed(uri, waitTime)) }
+    | Some _, None ->
         async {
             let! cache = readCache cachePath
 
@@ -83,5 +91,3 @@ let fetchAllRssFeeds client (cacheConfig: CacheConfig) (uris: Uri array) =
     |> Array.map (fetchUrlWithCacheAsync client cacheConfig)
     |> Async.Parallel
     |> Async.RunSynchronously
-
-let notEmpty (s: string) = not (String.IsNullOrWhiteSpace s)

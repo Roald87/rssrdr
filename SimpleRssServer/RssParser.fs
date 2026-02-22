@@ -3,11 +3,10 @@ module SimpleRssServer.RssParser
 open Microsoft.Extensions.Logging
 open Roald87.FeedReader
 open System
-open System.IO
 
-open Helper
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
+open SimpleRssServer.Helper
 
 type Article =
     { PostDate: DateTime option
@@ -30,58 +29,63 @@ let stripHtml (input: string) : string =
 let ARTICLE_DESCRIPTION_LENGTH = 255
 
 let createErrorFeed errorType =
-    let feedItem = new FeedItem()
-    feedItem.Title <- "Error"
-    feedItem.PublishingDate <- Nullable DateTime.Now
-    feedItem.Link <- ""
+    let errorItem = new FeedItem()
+    errorItem.Title <- "Error"
+    errorItem.PublishingDate <- Nullable DateTime.Now
+    errorItem.Link <- ""
 
     match errorType with
     | CacheReadFailed(uri, cachePath) ->
-        feedItem.Description <- $"Failed to read cached file from {cachePath} for {uri}."
-        feedItem.Link <- uri.AbsoluteUri
+        errorItem.Description <- $"Failed to read cached file from {cachePath} for {uri}."
+        errorItem.Link <- uri.AbsoluteUri
     | CacheReadFailedWithException(uri, cachePath, ex) ->
-        feedItem.Description <-
+        errorItem.Description <-
             $"Failed to read cached file from {cachePath} for {uri}. {ex.GetType().Name}: {ex.Message}"
 
-        feedItem.Link <- uri.AbsoluteUri
+        errorItem.Link <- uri.AbsoluteUri
     | UriHostNameMustContainDot u ->
-        feedItem.Description <-
+        errorItem.Description <-
             $"Ensure that you're using a valid address for this RSS feed. Invalid URI: {InvalidUri.value u}. Host name must contain a dot."
 
-        feedItem.Link <- InvalidUri.value u
+        errorItem.Link <- InvalidUri.value u
     | DomainMessage.UriFormatException(u, ex) ->
-        feedItem.Description <-
+        errorItem.Description <-
             $"Ensure that you're using a valid address for this RSS feed. Invalid URI format: {InvalidUri.value u}. {ex.GetType().Name}: {ex.Message}"
 
-        feedItem.Link <- InvalidUri.value u
-    | HttpRequestFailed(uri, waitTime) ->
-        feedItem.Description <-
-            $"The {uri.Host} RSS feed seems to be offline. I'll retry in {waitTime.TotalHours:F1} hours."
+        errorItem.Link <- InvalidUri.value u
+    | PreviousHttpRequestFailed(uri, waitTime) ->
+        errorItem.Description <-
+            $"The {uri.Host} RSS feed seems to be offline. Rretring in {waitTime.TotalHours:F1} hours."
 
-        feedItem.Link <- uri.AbsoluteUri
+        errorItem.Link <- uri.AbsoluteUri
+    | PreviousHttpRequestFailedButPageCached(uri, waitTime, _) ->
+        errorItem.Description <-
+            $"The {uri.Host} RSS feed seems to be offline. Retrying in {waitTime.TotalHours:F1} hours. There is a saved version of the feed, which may be outdated. It is shown below."
+
+        errorItem.Link <- uri.AbsoluteUri
     | InvalidRssFeedFormat ex ->
-        feedItem.Description <-
-            $"Ensure you entered the correct RSS feed address, I didn't recognize the format of this feed. Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
-    | HttpRequestTimedOut(uri, waitTime) ->
-        feedItem.Description <-
-            $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Request to {uri} timed out after {waitTime.TotalHours:F1} seconds."
+        errorItem.Description <-
+            $"Ensure you entered the correct RSS feed address, the format of this feed was not recognized. Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
+    | HttpRequestTimedOut(uri, timeOut) ->
+        errorItem.Description <-
+            $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Request to {uri} timed out after {timeOut.TotalSeconds:F1} seconds."
 
-        feedItem.Link <- uri.AbsoluteUri
+        errorItem.Link <- uri.AbsoluteUri
     | HttpException(uri, ex) ->
-        feedItem.Description <-
+        errorItem.Description <-
             $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Failed to get {uri}. {ex.GetType().Name}: {ex.Message}"
 
-        feedItem.Link <- uri.AbsoluteUri
+        errorItem.Link <- uri.AbsoluteUri
     | HttpRequestNonSuccessStatus(uri, status) ->
-        feedItem.Description <-
+        errorItem.Description <-
             $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Failed to get {uri}. Error: {status}."
 
-        feedItem.Link <- uri.AbsoluteUri
+        errorItem.Link <- uri.AbsoluteUri
 
-    let customFeed = new Feed()
-    customFeed.Items <- [| feedItem |]
+    let errorOnlyFeed = new Feed()
+    errorOnlyFeed.Items <- [| errorItem |]
 
-    customFeed
+    errorOnlyFeed
 
 let parseRss (logger: ILogger) (feedContent: Result<string, DomainMessage>) : Article list =
     let feed =
@@ -92,7 +96,15 @@ let parseRss (logger: ILogger) (feedContent: Result<string, DomainMessage>) : Ar
             with ex ->
                 logger.LogError $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
                 InvalidRssFeedFormat ex |> createErrorFeed
-        | Error error -> createErrorFeed error
+        | Error error ->
+            let errorFeed = createErrorFeed error
+
+            match feedContent with
+            | Error(PreviousHttpRequestFailedButPageCached(_, _, cachedContent)) ->
+                let cachedFeed = FeedReader.ReadFromString cachedContent
+                cachedFeed.Items.Add errorFeed.Items.[0]
+                cachedFeed
+            | _ -> errorFeed
 
     feed.Items
     |> Seq.map (fun entry ->
@@ -137,15 +149,3 @@ let parseRss (logger: ILogger) (feedContent: Result<string, DomainMessage>) : Ar
           BaseUrl = baseUrl
           Text = text })
     |> Seq.toList
-
-
-let parseRssFromFile logger fileName =
-    try
-        let content = File.ReadAllText fileName |> Ok
-        parseRss logger content
-    with ex ->
-        [ { PostDate = Some DateTime.Now
-            Title = "Error"
-            Url = fileName
-            BaseUrl = fileName
-            Text = $"{ex.GetType().Name} {ex.Message}" } ]

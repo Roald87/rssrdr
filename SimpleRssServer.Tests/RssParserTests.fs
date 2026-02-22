@@ -1,12 +1,23 @@
 module SimpleRssServer.Tests.RssParser
 
-open System
 open Microsoft.Extensions.Logging.Abstractions
-
+open System
+open System.IO
 open Xunit
 
-open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
+open SimpleRssServer.RssParser
+
+let parseRssFromFile logger fileName =
+    try
+        let content = File.ReadAllText fileName |> Ok
+        parseRss logger content
+    with ex ->
+        [ { PostDate = Some DateTime.Now
+            Title = "Error"
+            Url = fileName
+            BaseUrl = fileName
+            Text = $"{ex.GetType().Name} {ex.Message}" } ]
 
 [<Fact>]
 let ``Test parseRss with non-valid RSS feed`` () =
@@ -178,7 +189,9 @@ let ``Test parseRss with Failure feedContent`` () =
         "The example.com RSS feed seems to be offline. I'll retry in 1.5 hours."
 
     let result =
-        parseRss NullLogger.Instance (Error(HttpRequestFailed(Uri "https://example.com", TimeSpan.FromHours 1.5)))
+        parseRss
+            NullLogger.Instance
+            (Error(PreviousHttpRequestFailed(Uri "https://example.com", TimeSpan.FromHours 1.5)))
 
     let expected =
         { PostDate = Some DateTime.Now
@@ -220,3 +233,32 @@ let ``Test get content for article text if description is empty`` () =
         + "..."
 
     Assert.Equal(expectedText, actualFirst.Text)
+
+[<Fact>]
+let ``Test read from cache if available`` () =
+    let cachedContent = File.ReadAllText "data/roaldinch.xml"
+    let uri = Uri "https://example.com"
+    let waitTime = TimeSpan.FromHours 1.5
+
+    let result =
+        parseRss NullLogger.Instance (Error(PreviousHttpRequestFailedButPageCached(uri, waitTime, cachedContent)))
+
+    let expectedCachedArticles = parseRss NullLogger.Instance (Ok cachedContent)
+
+    Assert.Equal(expectedCachedArticles.Length + 1, result.Length)
+    let actualError = List.last result
+    Assert.Equal("Error", actualError.Title)
+    Assert.Equal("https://example.com/", actualError.Url)
+    Assert.Equal("example.com", actualError.BaseUrl)
+    Assert.True((DateTime.Now - actualError.PostDate.Value).TotalSeconds < 1.0)
+
+    // Check the rest are the cached articles
+    let actualCached = List.take expectedCachedArticles.Length result
+    Assert.Equal(expectedCachedArticles.Length, actualCached.Length)
+
+    List.zip expectedCachedArticles actualCached
+    |> List.iter (fun (exp, act) ->
+        Assert.Equal(exp.Title, act.Title)
+        Assert.Equal(exp.Url, act.Url)
+        Assert.Equal(exp.BaseUrl, act.BaseUrl)
+        Assert.Equal(exp.Text, act.Text))
