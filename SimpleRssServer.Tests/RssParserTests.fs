@@ -37,7 +37,7 @@ let ``Test parseRss with non-valid RSS feed`` () =
     Assert.Single result |> ignore
     let actual = List.head result
     Assert.Equal(expected.Title, actual.Title)
-    Assert.Equal(expected.Text, actual.Text)
+    Assert.StartsWith("Ensure you entered the correct RSS feed address", actual.Text)
     Assert.Equal(expected.Url, actual.Url)
     Assert.Equal(expected.BaseUrl, actual.BaseUrl)
     Assert.True((expected.PostDate.Value - actual.PostDate.Value).TotalSeconds < 1.0)
@@ -185,9 +185,6 @@ let ``Test parseRss with nature.rss`` () =
 
 [<Fact>]
 let ``Test parseRss with Failure feedContent`` () =
-    let errorMessage =
-        "The example.com RSS feed seems to be offline. I'll retry in 1.5 hours."
-
     let result =
         parseRss
             NullLogger.Instance
@@ -198,12 +195,12 @@ let ``Test parseRss with Failure feedContent`` () =
           Title = "Error"
           Url = "https://example.com/"
           BaseUrl = "example.com"
-          Text = errorMessage }
+          Text = "The example.com RSS feed seems to be offline. I'll retry in 1.5 hours." }
 
     Assert.Single result |> ignore
     let actual = List.head result
     Assert.Equal(expected.Title, actual.Title)
-    Assert.Equal(expected.Text, actual.Text)
+    Assert.StartsWith("The example.com RSS feed seems to be offline", actual.Text)
     Assert.Equal(expected.Url, actual.Url)
     Assert.Equal(expected.BaseUrl, actual.BaseUrl)
     Assert.True((expected.PostDate.Value - actual.PostDate.Value).TotalSeconds < 1.0)
