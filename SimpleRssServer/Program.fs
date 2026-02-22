@@ -85,7 +85,7 @@ let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.Cache
             do! Async.Sleep cacheConfig.Expiration
     }
 
-let clearCachePeriodically cacheDir retention (period: TimeSpan) =
+let clearCachePeriodically (cacheDir: OsPath) (retention: TimeSpan) (period: TimeSpan) =
     async {
         while true do
             logger.LogDebug "Clearing expired cache files (older than 7 days)."

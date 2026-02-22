@@ -7,10 +7,11 @@ open Xunit
 open SimpleRssServer.Cache
 open TestHelpers
 open System.Text.Json
+open SimpleRssServer.DomainPrimitiveTypes
 
 [<Fact>]
 let ``Test clearFailure deletes failure record`` () =
-    let filePath = "test_cache_file.txt"
+    let filePath = OsPath "test_cache_file.txt"
     let failurePath = failureFilePath filePath
 
     // Create a failure record
@@ -33,7 +34,7 @@ let ``Test clearFailure deletes failure record`` () =
 
 [<Fact>]
 let ``Test recordFailure tracks consecutive failures`` () =
-    let filePath = Path.GetRandomFileName()
+    let filePath = OsPath(Path.GetRandomFileName())
     let failurePath = failureFilePath filePath
 
     // Record first failure
@@ -57,7 +58,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
 
 [<Fact>]
 let ``Test get retry periods from failure file`` () =
-    let filePath = Path.GetRandomFileName()
+    let filePath = OsPath(Path.GetRandomFileName())
     let failurePath = failureFilePath filePath
 
     let failure1 =
@@ -91,7 +92,7 @@ let ``Test get retry periods from failure file`` () =
 
 [<Fact>]
 let ``Test shouldRetry with corrupted failure file`` () =
-    let filePath = Path.GetRandomFileName()
+    let filePath = OsPath(Path.GetRandomFileName())
     let failurePath = failureFilePath filePath
 
     // Create corrupted failure record
@@ -115,7 +116,7 @@ let ``Test getBackoffHours follows exponential pattern`` () =
 
 [<Fact>]
 let ``Test fileLastModifued returns age for existing file`` () =
-    let filePath = Path.GetRandomFileName()
+    let filePath = OsPath(Path.GetRandomFileName())
     File.WriteAllText(filePath, "Test content")
     let age = DateTime.Now.AddHours -2
     File.SetLastWriteTime(filePath, age)
@@ -128,7 +129,7 @@ let ``Test fileLastModifued returns age for existing file`` () =
 
 [<Fact>]
 let ``Test cacheAge returns None for non existing cache`` () =
-    let filePath = Path.GetRandomFileName()
+    let filePath = OsPath(Path.GetRandomFileName())
 
     let result = fileLastModified filePath
 
@@ -138,7 +139,7 @@ let ``Test cacheAge returns None for non existing cache`` () =
 
 [<Fact>]
 let ``Test clearExpiredCache removes files older than retention`` () =
-    let cacheDir = "test_cache_cleanup"
+    let cacheDir = OsPath("test_cache_cleanup")
     Directory.CreateDirectory cacheDir |> ignore
 
     let oldFile = Path.Combine(cacheDir, "old_cache")
@@ -162,11 +163,11 @@ let ``Test clearExpiredCache removes files older than retention`` () =
     Assert.True(File.Exists recentFile, "Expected recent cache file to be kept")
 
     // Cleanup
-    Directory.Delete(cacheDir, true)
+    Directory.DeleteRecursive cacheDir
 
 [<Fact>]
 let ``Test clearExpiredCache also removes failure files`` () =
-    let cacheDir = "test_cache_cleanup_failures"
+    let cacheDir = OsPath "test_cache_cleanup_failures"
     Directory.CreateDirectory cacheDir |> ignore
 
     let oldFile = Path.Combine(cacheDir, "old_cache")
@@ -194,11 +195,11 @@ let ``Test clearExpiredCache also removes failure files`` () =
     Assert.False(File.Exists failureFile, "Expected failure file to be deleted")
 
     // Cleanup
-    Directory.Delete(cacheDir, true)
+    Directory.DeleteRecursive cacheDir
 
 [<Fact>]
 let ``Test clearExpiredCache skips non-existent directory`` () =
-    let cacheDir = "non_existent_cache_dir"
+    let cacheDir = OsPath("non_existent_cache_dir")
     let retention = TimeSpan.FromDays 7.0
 
     // This should not throw an exception
@@ -207,7 +208,7 @@ let ``Test clearExpiredCache skips non-existent directory`` () =
 
 [<Fact>]
 let ``Test clearExpiredCache keeps empty directory`` () =
-    let cacheDir = "test_empty_cache"
+    let cacheDir = OsPath("test_empty_cache")
     Directory.CreateDirectory cacheDir |> ignore
 
     let retention = TimeSpan.FromDays 7.0
@@ -219,4 +220,4 @@ let ``Test clearExpiredCache keeps empty directory`` () =
     Assert.True(Directory.Exists cacheDir, "Expected empty cache directory to still exist")
 
     // Cleanup
-    Directory.Delete(cacheDir, true)
+    Directory.DeleteRecursive cacheDir

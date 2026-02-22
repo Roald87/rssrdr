@@ -5,12 +5,13 @@ open System.IO
 open System.Globalization
 open Xunit
 
+open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.RequestLog
 open TestHelpers
 
 [<Fact>]
 let ``Test updateRequestLog removes old entries`` () =
-    let filename = "test_log_retention.txt"
+    let filename = OsPath "test_log_retention.txt"
     let retention = TimeSpan.FromDays 7.0
 
     let oldDate =

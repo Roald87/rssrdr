@@ -22,6 +22,5 @@ type DomainMessage =
     | HttpException of Uri * Exception
 
     // Cache errors
-    // TODO introduce a Path like type
-    | CacheReadFailed of Uri * string
-    | CacheReadFailedWithException of Uri * string * Exception
+    | CacheReadFailed of Uri * OsPath
+    | CacheReadFailedWithException of Uri * OsPath * Exception

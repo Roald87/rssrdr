@@ -5,24 +5,25 @@ open System.IO
 open System.Text.Json
 open SimpleRssServer.Logging
 open Microsoft.Extensions.Logging
+open DomainPrimitiveTypes
 
 type FetchFailure =
     { LastFailure: DateTimeOffset
       ConsecutiveFailures: int }
 
-let failureFilePath cachePath = cachePath + ".failures"
+let failureFilePath (cachePath: OsPath) = cachePath + ".failures"
 
 let getBackoffHours failures =
     // Exponential backoff: 1hr, 2hrs, 4hrs, 8hrs, max 24hrs
     min 24.0 (Math.Pow(2.0, float (failures - 1)))
 
-let fileLastModified (path: string) =
+let fileLastModified (path: OsPath) =
     if File.Exists path then
         File.GetLastWriteTime path |> DateTimeOffset |> Some
     else
         None
 
-let readCache (cachePath: string) =
+let readCache (cachePath: OsPath) =
     async {
         if File.Exists cachePath then
             let! content = File.ReadAllTextAsync cachePath |> Async.AwaitTask
@@ -31,27 +32,27 @@ let readCache (cachePath: string) =
             return None
     }
 
-let createDirectoryForPath (path: string) =
-    let dir = Path.GetDirectoryName(path)
+let createDirectoryForPath (path: OsPath) =
+    let (OsPath dir) = Path.GetDirectoryName path
 
-    if not (String.IsNullOrEmpty(dir)) then
-        Directory.CreateDirectory(dir) |> ignore
+    if not (String.IsNullOrEmpty dir) then
+        Directory.CreateDirectory dir |> ignore
 
-let writeCache (cachePath: string) (content: string) =
+let writeCache cachePath (content: string) =
     async {
         createDirectoryForPath cachePath
         do! File.WriteAllTextAsync(cachePath, content) |> Async.AwaitTask
     }
 
-let clearFailure (cachePath: string) =
+let clearFailure cachePath =
     async {
         let failurePath = failureFilePath cachePath
 
-        if File.Exists(failurePath) then
-            File.Delete(failurePath)
+        if File.Exists failurePath then
+            File.Delete failurePath
     }
 
-let recordFailure (cachePath: string) =
+let recordFailure cachePath =
     async {
         let failurePath = failureFilePath cachePath
         createDirectoryForPath failurePath
@@ -75,7 +76,7 @@ let recordFailure (cachePath: string) =
         do! File.WriteAllTextAsync(failurePath, json) |> Async.AwaitTask
     }
 
-let readFailure (cachePath: string) =
+let readFailure cachePath =
     let path = failureFilePath cachePath
 
     if File.Exists(path) then
@@ -87,14 +88,14 @@ let readFailure (cachePath: string) =
     else
         None
 
-let nextRetry (cachePath: string) =
+let nextRetry cachePath =
     match readFailure cachePath with
     | None -> None // No failures recorded or can't read failure file
     | Some failure ->
         let backoffHours = getBackoffHours failure.ConsecutiveFailures
         Some(failure.LastFailure.AddHours backoffHours)
 
-let clearExpiredCache (cacheDir: string) (retention: TimeSpan) =
+let clearExpiredCache (cacheDir: OsPath) (retention: TimeSpan) =
     if not (Directory.Exists cacheDir) then
         logger.LogWarning("Cache directory {Dir} does not exist", cacheDir)
     else
