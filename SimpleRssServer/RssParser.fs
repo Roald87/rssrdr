@@ -55,7 +55,7 @@ let createErrorFeed errorType =
         errorItem.Link <- InvalidUri.value u
     | PreviousHttpRequestFailed(uri, waitTime) ->
         errorItem.Description <-
-            $"The {uri.Host} RSS feed seems to be offline. Rretring in {waitTime.TotalHours:F1} hours."
+            $"The {uri.Host} RSS feed seems to be offline. Retrying in {waitTime.TotalHours:F1} hours."
 
         errorItem.Link <- uri.AbsoluteUri
     | PreviousHttpRequestFailedButPageCached(uri, waitTime, _) ->
