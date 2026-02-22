@@ -21,6 +21,7 @@ open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.Cache
 open SimpleRssServer.DomainPrimitiveTypes
 open TestHelpers
+open SimpleRssServer.DomainModel
 
 let cacheConfig =
     let tempDir = Path.Combine(Path.GetTempPath(), "rssrdr_test_cache")
@@ -173,7 +174,7 @@ let ``Test getRssUrls with invalid URL`` () =
 
     match result.[0] with
     | Error(HostNameMustContainDot msg) -> Assert.Contains("invalid-url", InvalidUri.value msg)
-    | _ -> Assert.True(false, "Expected Error HostNameMustContainDot")
+    | _ -> failwithf "Expected Error HostNameMustContainDot"
 
 [<Fact>]
 let ``Test getRssUrls with valid and invalid URLs`` () =
@@ -182,11 +183,11 @@ let ``Test getRssUrls with valid and invalid URLs`` () =
 
     match result.[0] with
     | Error(HostNameMustContainDot msg) -> Assert.Contains("invalid-url", InvalidUri.value msg)
-    | _ -> Assert.True(false, "Expected Error HostNameMustContainDot")
+    | _ -> failwithf "Expected Error HostNameMustContainDot"
 
     match result.[1] with
     | Ok uri -> Assert.Equal(Uri "https://valid-url.com", uri)
-    | Error _ -> Assert.True(false, "Expected Ok, got Error")
+    | Error error -> failwithf $"Expected Ok, got Error: {error}"
 
 [<Fact>]
 let ``Test getRssUrls adds https if missing`` () =
@@ -218,7 +219,7 @@ let ``Test getAsync with successful response`` () =
 
     match result with
     | Ok result -> Assert.Equal(expectedContent, result)
-    | Error error -> Assert.True(false, error)
+    | Error error -> failwithf $"Expected OK but got Error: {error}"
 
 [<Fact>]
 let ``Test getAsync with unsuccessful response on real page`` () =
@@ -235,8 +236,9 @@ let ``Test getAsync with unsuccessful response on real page`` () =
         |> Async.RunSynchronously
 
     match response with
-    | Ok _ -> Assert.False(true, "Expected Failure but got Success")
-    | Error errorMsg -> Assert.Contains("Exception", errorMsg)
+    | Error(HttpException(_, _)) -> Assert.True(true, "Got expected error")
+    | Ok _ -> failwithf "Expected Failure but got Success"
+    | Error errorMsg -> failwithf $"Got unexpected error: {errorMsg}"
 
 [<Fact>]
 let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
@@ -253,7 +255,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
 
     match result1 with
     | Ok content -> Assert.Equal("No changes", content)
-    | Error error -> failwithf "Expected success, but got failure: %s" error
+    | Error error -> failwithf $"Expected success, but got failure: {error}"
 
     // Case 2: When If-Modified-Since is before lastModifiedDate
     let earlierDate = lastModifiedDate.AddDays -1.0
@@ -264,7 +266,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
 
     match result2 with
     | Ok content -> Assert.Equal("Content has changed since the last modification date", content)
-    | Error error -> failwithf "Expected success, but got failure: %s" error
+    | Error error -> failwithf $"Expected success, but got failure: {error}"
 
     // Case 3: When If-Modified-Since is not provided
     let result3 =
@@ -273,7 +275,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
 
     match result3 with
     | Ok content -> Assert.Equal("Content has changed since the last modification date", content)
-    | Error error -> failwithf "Expected success, but got failure: %s" error
+    | Error error -> failwithf $"Expected success, but got failure: {error}"
 
 [<Fact>]
 let ``Test fetchWithCache with no cache`` () =
@@ -295,7 +297,7 @@ let ``Test fetchWithCache with no cache`` () =
         Assert.True(File.Exists filePath, "Expected file to be created")
         let fileContent = File.ReadAllText filePath
         Assert.Equal(expectedContent, fileContent)
-    | Error error -> Assert.True(false, error)
+    | Error error -> failwithf $"Expected success but got error: {error}"
 
     deleteFile filePath
 
@@ -323,7 +325,7 @@ let ``Test fetchWithCache with non expired cache`` () =
 
     match result with
     | Ok content -> Assert.Equal(expectedContent, content)
-    | Error msg -> Assert.True(false, $"Expected success but got error: {msg}")
+    | Error error -> failwithf $"Expected success but got error: {error}"
 
     deleteFile filePath
 
@@ -347,7 +349,7 @@ let ``Test fetchWithCache with expired cache`` () =
         Assert.Equal(newContent, content)
         let fileContent = File.ReadAllText filePath
         Assert.Equal(newContent, fileContent)
-    | Error error -> Assert.True(false, error)
+    | Error error -> failwithf $"Expected success but got error: {error}"
 
     deleteFile filePath
 
@@ -376,7 +378,7 @@ let ``Test fetchWithCache with expired cache and 304 response`` () =
         Assert.Equal(cachedContent, content)
         let newWriteTime = File.GetLastWriteTime filePath
         Assert.True(newWriteTime > oldWriteTime, "Expected file write time to be updated")
-    | Error error -> Assert.True(false, error)
+    | Error error -> failwithf $"Expected success but got error: {error}"
 
     deleteFile filePath
 
@@ -411,7 +413,7 @@ let ``Test fetchWithCache with expired cache and 304 NotModified should clear fa
     | Ok content ->
         Assert.Equal(cachedContent, content)
         Assert.False(File.Exists failurePath, "Expected failure record to be removed after successful fetch")
-    | Error error -> Assert.True(false, error)
+    | Error error -> failwithf $"Expected success but got error: {error}"
 
     deleteFile filePath
     deleteFile failurePath
@@ -443,8 +445,9 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed and
 
     // Assert
     match result with
-    | Ok content -> Assert.False(true, "Should return an error due to backoff period")
-    | Error error -> Assert.Equal(error, $"Previous request(s) to {url} failed. You can retry in 1.5 hours.")
+    | Error(HttpRequestFailed(_, _)) -> Assert.True(true, "Got expected error")
+    | Error error -> failwithf $"Got unexpected error: {error}"
+    | Ok _ -> failwithf "Should return an error due to backoff period"
 
     // Cleanup
     deleteFile filePath
@@ -483,7 +486,7 @@ let ``Test fetchWithCache attempts retry when backoff period has passed and cach
         Assert.Equal(newContent, content)
         // Failure record should be deleted after successful fetch
         Assert.False(File.Exists failurePath, "Expected failure record to be cleared after successful fetch")
-    | Error error -> Assert.True(false, $"Expected success with new content but got error: {error}")
+    | Error error -> failwithf $"Expected success with new content but got error: {error}"
 
     // Cleanup
     deleteFile filePath
@@ -516,8 +519,9 @@ let ``Test fetchWithCache returns error with expired cache and cooldown time whe
 
     // Assert
     match result with
-    | Error error -> Assert.Contains($"Previous request(s) to {url} failed. You can retry in 1.5 hours.", error)
-    | Ok _ -> Assert.True(false, "Expected error message with cooldown time but got success")
+    | Error(HttpRequestFailed(_, _)) -> Assert.True(true, "Got expected error")
+    | Error error -> failwithf $"Got unexpected error: {error}"
+    | Ok _ -> failwithf "Expected error message with cooldown time but got success"
 
     // Cleanup
     deleteFile filePath
@@ -559,8 +563,9 @@ let ``GetAsync returns timeout error when request takes too long`` () =
         |> Async.RunSynchronously
 
     match result with
-    | Ok _ -> Assert.True(false, "Expected timeout failure but got success")
-    | Error error -> Assert.Contains("timed out after 1 seconds", error)
+    | Error(HttpRequestTimedOut(_, _)) -> Assert.True(true, "Got expected timeout error")
+    | Error error -> failwithf $"Got unexpected error: {error}"
+    | Ok _ -> failwithf "Expected timeout failure but got success"
 
 [<Fact>]
 let ``Test requestUrls skips invalid URLs in log file`` () =
@@ -589,4 +594,4 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
     Assert.Contains(Uri "https://valid-url.com/feed2", urls)
     Assert.DoesNotContain(Uri "ftp://unsupported-protocol.com/feed3", urls)
     Assert.Equal(2, Array.length urls)
-    File.Delete(filename)
+    File.Delete filename

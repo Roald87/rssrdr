@@ -11,6 +11,7 @@ open SimpleRssServer.HttpClient
 open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.DomainPrimitiveTypes
+open SimpleRssServer.DomainModel
 
 let convertUrlToValidFilename (uri: Uri) =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
@@ -41,12 +42,9 @@ let fetchAndReadPage client (uri: Uri) cacheModified cachePath =
                 do! clearFailure cachePath
                 return Ok content.Value
             with ex ->
-                let errorMessage =
-                    $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
-
-                logger.LogError errorMessage
+                logger.LogError $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
                 do! recordFailure cachePath
-                return Error errorMessage
+                return Error(CacheReadFailedWithException(uri, cachePath, ex))
         | Ok content ->
             do! writeCache cachePath content
             do! clearFailure cachePath
@@ -69,15 +67,15 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Uri) =
     | Some d, None when (DateTimeOffset.Now - d) > cacheConfig.Expiration ->
         fetchAndReadPage client uri cacheModified cachePath
     | _, Some d ->
-        let waitTime = (d - DateTimeOffset.Now).TotalHours
-        async { return Error $"Previous request(s) to {uri} failed. You can retry in {waitTime:F1} hours." }
+        let waitTime = TimeSpan.FromHours (d - DateTimeOffset.Now).TotalHours
+        async { return Error(HttpRequestFailed(uri, waitTime)) }
     | Some d, None ->
         async {
             let! cache = readCache cachePath
 
             match cache with
             | Some page -> return Ok page
-            | None -> return Error "Something went wrong with reading the page of {uri} from cache."
+            | None -> return Error(CacheReadFailed(uri, cachePath))
         }
 
 let fetchAllRssFeeds client (cacheConfig: CacheConfig) (uris: Uri array) =

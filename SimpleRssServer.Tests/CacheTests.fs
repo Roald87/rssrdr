@@ -71,7 +71,7 @@ let ``Test get retry periods from failure file`` () =
 
     match result with
     | Some d -> Assert.True(d > DateTimeOffset.Now, "Backoff period should not have passed yet")
-    | None -> Assert.False(true, "No .faillure file found")
+    | None -> failwithf "No .faillure file found"
 
     let failure2 =
         { LastFailure = DateTimeOffset.Now.AddHours(-2.0)
@@ -84,7 +84,7 @@ let ``Test get retry periods from failure file`` () =
 
     match result with
     | Some d -> Assert.True(d < DateTimeOffset.Now, "Backoff period should have passed")
-    | None -> Assert.False(true, "No .faillure file found")
+    | None -> failwithf "No .faillure file found"
 
     // Cleanup
     deleteFile failurePath

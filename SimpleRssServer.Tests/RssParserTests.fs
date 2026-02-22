@@ -6,6 +6,7 @@ open Microsoft.Extensions.Logging.Abstractions
 open Xunit
 
 open SimpleRssServer.RssParser
+open SimpleRssServer.DomainModel
 
 [<Fact>]
 let ``Test parseRss with non-valid RSS feed`` () =
@@ -19,7 +20,8 @@ let ``Test parseRss with non-valid RSS feed`` () =
           Title = "Error"
           Url = ""
           BaseUrl = ""
-          Text = "Invalid RSS feed format. FeedTypeNotSupportedException: unknown feed type html" }
+          Text =
+            $"Ensure you entered the correct RSS feed address, I didn't recognize the format of this feed. Invalid RSS feed format. FeedTypeNotSupportedException: unknown feed type html" }
 
     Assert.Single result |> ignore
     let actual = List.head result
@@ -172,14 +174,17 @@ let ``Test parseRss with nature.rss`` () =
 
 [<Fact>]
 let ``Test parseRss with Failure feedContent`` () =
-    let errorMessage = "An error occurred while fetching the feed."
-    let result = parseRss NullLogger.Instance (Error errorMessage)
+    let errorMessage =
+        "The example.com RSS feed seems to be offline. I'll retry in 1.5 hours."
+
+    let result =
+        parseRss NullLogger.Instance (Error(HttpRequestFailed(Uri "https://example.com", TimeSpan.FromHours 1.5)))
 
     let expected =
         { PostDate = Some DateTime.Now
           Title = "Error"
-          Url = ""
-          BaseUrl = ""
+          Url = "https://example.com/"
+          BaseUrl = "example.com"
           Text = errorMessage }
 
     Assert.Single result |> ignore

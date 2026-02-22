@@ -6,6 +6,8 @@ open System
 open System.IO
 
 open Helper
+open SimpleRssServer.DomainModel
+open SimpleRssServer.DomainPrimitiveTypes
 
 type Article =
     { PostDate: DateTime option
@@ -27,28 +29,69 @@ let stripHtml (input: string) : string =
 
 let ARTICLE_DESCRIPTION_LENGTH = 255
 
-let createErrorFeed errorMessage =
+let createErrorFeed errorType =
     let feedItem = new FeedItem()
     feedItem.Title <- "Error"
     feedItem.PublishingDate <- Nullable DateTime.Now
-    feedItem.Description <- errorMessage
     feedItem.Link <- ""
+
+    match errorType with
+    | CacheReadFailed(uri, cachePath) ->
+        feedItem.Description <- $"Failed to read cached file from {cachePath} for {uri}."
+        feedItem.Link <- uri.AbsoluteUri
+    | CacheReadFailedWithException(uri, cachePath, ex) ->
+        feedItem.Description <-
+            $"Failed to read cached file from {cachePath} for {uri}. {ex.GetType().Name}: {ex.Message}"
+
+        feedItem.Link <- uri.AbsoluteUri
+    | UriHostNameMustContainDot u ->
+        feedItem.Description <-
+            $"Ensure that you're using a valid address for this RSS feed. Invalid URI: {InvalidUri.value u}. Host name must contain a dot."
+
+        feedItem.Link <- InvalidUri.value u
+    | DomainMessage.UriFormatException(u, ex) ->
+        feedItem.Description <-
+            $"Ensure that you're using a valid address for this RSS feed. Invalid URI format: {InvalidUri.value u}. {ex.GetType().Name}: {ex.Message}"
+
+        feedItem.Link <- InvalidUri.value u
+    | HttpRequestFailed(uri, waitTime) ->
+        feedItem.Description <-
+            $"The {uri.Host} RSS feed seems to be offline. I'll retry in {waitTime.TotalHours:F1} hours."
+
+        feedItem.Link <- uri.AbsoluteUri
+    | InvalidRssFeedFormat ex ->
+        feedItem.Description <-
+            $"Ensure you entered the correct RSS feed address, I didn't recognize the format of this feed. Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
+    | HttpRequestTimedOut(uri, waitTime) ->
+        feedItem.Description <-
+            $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Request to {uri} timed out after {waitTime.TotalHours:F1} seconds."
+
+        feedItem.Link <- uri.AbsoluteUri
+    | HttpException(uri, ex) ->
+        feedItem.Description <-
+            $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Failed to get {uri}. {ex.GetType().Name}: {ex.Message}"
+
+        feedItem.Link <- uri.AbsoluteUri
+    | HttpRequestNonSuccessStatus(uri, status) ->
+        feedItem.Description <-
+            $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Failed to get {uri}. Error: {status}."
+
+        feedItem.Link <- uri.AbsoluteUri
 
     let customFeed = new Feed()
     customFeed.Items <- [| feedItem |]
 
     customFeed
 
-let parseRss (logger: ILogger) (feedContent: Result<string, string>) : Article list =
+let parseRss (logger: ILogger) (feedContent: Result<string, DomainMessage>) : Article list =
     let feed =
         match feedContent with
         | Ok content ->
             try
                 FeedReader.ReadFromString content
             with ex ->
-                let errorMessage = $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
-                logger.LogError errorMessage
-                createErrorFeed errorMessage
+                logger.LogError $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
+                InvalidRssFeedFormat ex |> createErrorFeed
         | Error error -> createErrorFeed error
 
     feed.Items
