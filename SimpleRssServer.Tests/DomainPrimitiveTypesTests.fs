@@ -19,7 +19,7 @@ let ``Uri.create should return Error for valid URI without dot in host`` () =
     let result = Uri.create input
 
     match result with
-    | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", InvalidUri.value invalid)
+    | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", invalid.value)
     | Ok _ -> failwithf "Expected Error but got Ok"
     | Error error -> failwithf $"Expected HostNameMustContainDot error but got {error}"
 
@@ -29,7 +29,7 @@ let ``Uri.create should return Error for invalid URI format`` () =
     let result = Uri.create input
 
     match result with
-    | Error(UriFormatException(invalid, _)) -> Assert.Equal("not a uri", InvalidUri.value invalid)
+    | Error(UriFormatException(invalid, _)) -> Assert.Equal("not a uri", invalid.value)
     | Ok _ -> failwithf "Expected Error but got Ok"
     | Error error -> failwithf $"Expected UriFormatException error but got {error}"
 
@@ -66,6 +66,6 @@ let ``Uri.createWithHttps should return Error for invalid host`` () =
     let result = Uri.createWithHttps input
 
     match result with
-    | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", InvalidUri.value invalid)
+    | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", invalid.value)
     | Ok _ -> failwithf "Expected Error but got Ok"
     | Error error -> failwithf $"Expected HostNameMustContainDot error but got {error}"

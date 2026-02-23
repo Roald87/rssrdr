@@ -173,7 +173,7 @@ let ``Test getRssUrls with invalid URL`` () =
     Assert.Equal(1, result.Length)
 
     match result.[0] with
-    | Error(HostNameMustContainDot msg) -> Assert.Contains("invalid-url", InvalidUri.value msg)
+    | Error(HostNameMustContainDot url) -> Assert.Contains("invalid-url", url.value)
     | _ -> failwithf "Expected Error HostNameMustContainDot"
 
 [<Fact>]
@@ -182,7 +182,7 @@ let ``Test getRssUrls with valid and invalid URLs`` () =
     Assert.Equal(2, result.Length)
 
     match result.[0] with
-    | Error(HostNameMustContainDot msg) -> Assert.Contains("invalid-url", InvalidUri.value msg)
+    | Error(HostNameMustContainDot url) -> Assert.Contains("invalid-url", url.value)
     | _ -> failwithf "Expected Error HostNameMustContainDot"
 
     match result.[1] with

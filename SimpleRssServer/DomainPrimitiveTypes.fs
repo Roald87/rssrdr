@@ -3,16 +3,18 @@ module SimpleRssServer.DomainPrimitiveTypes
 open System
 open System.IO
 
-module InvalidUri =
-    type _T = InvalidUri of string
+type InvalidUri =
+    | InvalidUri of string
 
-    let create (s: string) = InvalidUri s
+    static member create(s: string) = InvalidUri s
 
-    let value (InvalidUri u) = u
+    member this.value =
+        let (InvalidUri s) = this
+        s
 
 type UriError =
-    | HostNameMustContainDot of InvalidUri._T
-    | UriFormatException of InvalidUri._T * Exception
+    | HostNameMustContainDot of InvalidUri
+    | UriFormatException of InvalidUri * Exception
 
 type Uri with
     static member create(s: string) =
