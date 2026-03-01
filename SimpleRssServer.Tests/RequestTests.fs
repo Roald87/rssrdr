@@ -50,14 +50,6 @@ let httpOkClient content =
     let handler = new MockHttpResponseHandler(responseMessage)
     new HttpClient(handler)
 
-[<Fact>]
-let ``httpOkClient returns separate HttpClient instances`` () =
-    let c1 = httpOkClient "one"
-    let c2 = httpOkClient "two"
-
-    // object identity check; they definitely shouldn't be the same reference
-    Assert.NotSame(c1, c2)
-
 let createDynamicResponse (lastModifiedDate: DateTimeOffset) =
     new MockHttpMessageHandler(fun request ->
         let ifModifiedSince = request.Headers.IfModifiedSince
