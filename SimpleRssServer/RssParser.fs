@@ -45,14 +45,14 @@ let createErrorFeed errorType =
         errorItem.Link <- uri.AbsoluteUri
     | UriHostNameMustContainDot u ->
         errorItem.Description <-
-            $"Ensure that you're using a valid address for this RSS feed. Invalid URI: {InvalidUri.value u}. Host name must contain a dot."
+            $"Ensure that you're using a valid address for this RSS feed. Invalid URI: {u.value}. Host name must contain a dot."
 
-        errorItem.Link <- InvalidUri.value u
+        errorItem.Link <- u.value
     | DomainMessage.UriFormatException(u, ex) ->
         errorItem.Description <-
-            $"Ensure that you're using a valid address for this RSS feed. Invalid URI format: {InvalidUri.value u}. {ex.GetType().Name}: {ex.Message}"
+            $"Ensure that you're using a valid address for this RSS feed. Invalid URI format: {u.value}. {ex.GetType().Name}: {ex.Message}"
 
-        errorItem.Link <- InvalidUri.value u
+        errorItem.Link <- u.value
     | PreviousHttpRequestFailed(uri, waitTime) ->
         errorItem.Description <-
             $"The {uri.Host} RSS feed seems to be offline. Retrying in {waitTime.TotalHours:F1} hours."

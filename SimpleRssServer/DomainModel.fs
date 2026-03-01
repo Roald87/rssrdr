@@ -7,8 +7,8 @@ open System.Net
 
 type DomainMessage =
     // Uri errors
-    | UriHostNameMustContainDot of InvalidUri._T
-    | UriFormatException of InvalidUri._T * Exception
+    | UriHostNameMustContainDot of InvalidUri
+    | UriFormatException of InvalidUri * Exception
 
     // Rss parsing errors
     // TODO consider adding the URI to these errors as well, to be able to provide more specific error messages in the feed

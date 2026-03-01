@@ -77,6 +77,6 @@ let ``Test configPage handles valid and invalid URIs`` () =
     Assert.Equal(expectedValidUris, textareaValue)
 
     // Check both invalid URIs in invalid-uris div
-    Assert.Contains(InvalidUri.value invalidUri1, resultHtml)
-    Assert.Contains(InvalidUri.value invalidUri2, resultHtml)
+    Assert.Contains(invalidUri1.value, resultHtml)
+    Assert.Contains(invalidUri2.value, resultHtml)
     Assert.Contains("<div class='invalid-uris'>", resultHtml)
