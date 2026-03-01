@@ -25,7 +25,7 @@ type DomainMessage =
     | CacheReadFailed of Uri * OsPath
     | CacheReadFailedWithException of Uri * OsPath * Exception
 
-    member this.UriOption =
+    member this.Uri =
         match this with
         | UriHostNameMustContainDot invalid -> Some invalid.value
         | UriFormatException(invalid, _) -> Some invalid.value

@@ -293,7 +293,8 @@ let ``Test fetchWithCache with no cache`` () =
     // Ensure the file does not exist before the test
     deleteFile filePath
 
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
     | Ok _ ->
@@ -324,7 +325,8 @@ let ``Test fetchWithCache with non expired cache`` () =
     let cacheAge = DateTime.Now - cacheConfig.Expiration * 0.5
     File.SetLastWriteTime(filePath, cacheAge)
 
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
     | Ok content -> Assert.Equal(expectedContent, content)
@@ -345,7 +347,8 @@ let ``Test fetchWithCache with expired cache`` () =
 
     createOutdatedCache filePath cachedContent
 
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
     | Ok content ->
@@ -374,7 +377,8 @@ let ``Test fetchWithCache with expired cache and 304 response`` () =
     let oldWriteTime = DateTime.Now - 2.0 * cacheConfig.Expiration
     File.SetLastWriteTime(filePath, oldWriteTime)
 
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
     | Ok content ->
@@ -410,7 +414,8 @@ let ``Test fetchWithCache with expired cache and 304 NotModified should clear fa
     let handler = new MockHttpResponseHandler(responseMessage)
     let client = new HttpClient(handler)
 
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
     | Ok content ->
@@ -443,7 +448,7 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed and
 
     // Act
     let result =
-        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig url
+        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (Ok url)
         |> Async.RunSynchronously
 
     // Assert
@@ -481,7 +486,8 @@ let ``Test fetchWithCache attempts retry when backoff period has passed and cach
     File.WriteAllText(failurePath, json)
 
     // Act
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     // Assert - should have attempted HTTP request and got new content
     match result with
@@ -517,7 +523,7 @@ let ``Test fetchWithCache returns error with expired cache and cooldown time whe
 
     // Act
     let result =
-        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig url
+        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (Ok url)
         |> Async.RunSynchronously
 
     // Assert

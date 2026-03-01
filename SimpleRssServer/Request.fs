@@ -54,39 +54,45 @@ let fetchAndReadPage client (uri: Uri) cacheModified cachePath =
             return page
     }
 
-let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Uri) =
-    let cacheFilename = convertUrlToValidFilename uri
-    let cachePath = Path.Combine(cacheConfig.Dir, cacheFilename)
-    let cacheModified = fileLastModified cachePath
+let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, UriError>) =
+    match uri with
+    | Ok u ->
+        let cacheFilename = convertUrlToValidFilename u
+        let cachePath = Path.Combine(cacheConfig.Dir, cacheFilename)
+        let cacheModified = fileLastModified cachePath
 
-    let nextAttempt = nextRetry cachePath
+        let nextAttempt = nextRetry cachePath
 
-    match cacheModified, nextAttempt with
-    | None, None -> fetchAndReadPage client uri cacheModified cachePath
-    | _, Some d when (d < DateTimeOffset.Now) -> fetchAndReadPage client uri cacheModified cachePath
-    | Some d, None when (DateTimeOffset.Now - d) > cacheConfig.Expiration ->
-        fetchAndReadPage client uri cacheModified cachePath
-    | Some _, Some _ ->
-        let waitTime =
-            TimeSpan.FromHours (nextAttempt.Value - DateTimeOffset.Now).TotalHours
+        match cacheModified, nextAttempt with
+        | None, None -> fetchAndReadPage client u cacheModified cachePath
+        | _, Some d when (d < DateTimeOffset.Now) -> fetchAndReadPage client u cacheModified cachePath
+        | Some d, None when (DateTimeOffset.Now - d) > cacheConfig.Expiration ->
+            fetchAndReadPage client u cacheModified cachePath
+        | Some _, Some _ ->
+            let waitTime =
+                TimeSpan.FromHours (nextAttempt.Value - DateTimeOffset.Now).TotalHours
 
-        let cachedPage: string =
-            readCache cachePath |> Async.RunSynchronously |> Option.defaultValue ""
+            let cachedPage: string =
+                readCache cachePath |> Async.RunSynchronously |> Option.defaultValue ""
 
-        async { return Error(PreviousHttpRequestFailedButPageCached(uri, waitTime, cachedPage)) }
-    | _, Some d ->
-        let waitTime = TimeSpan.FromHours (d - DateTimeOffset.Now).TotalHours
-        async { return Error(PreviousHttpRequestFailed(uri, waitTime)) }
-    | Some _, None ->
-        async {
-            let! cache = readCache cachePath
+            async { return Error(PreviousHttpRequestFailedButPageCached(u, waitTime, cachedPage)) }
+        | _, Some d ->
+            let waitTime = TimeSpan.FromHours (d - DateTimeOffset.Now).TotalHours
+            async { return Error(PreviousHttpRequestFailed(u, waitTime)) }
+        | Some _, None ->
+            async {
+                let! cache = readCache cachePath
 
-            match cache with
-            | Some page -> return Ok page
-            | None -> return Error(CacheReadFailed(uri, cachePath))
-        }
+                match cache with
+                | Some page -> return Ok page
+                | None -> return Error(CacheReadFailed(u, cachePath))
+            }
+    | Error e ->
+        match e with
+        | UriError.HostNameMustContainDot e -> async { return Error(UriHostNameMustContainDot e) }
+        | UriError.UriFormatException(e, ex) -> async { return Error(UriFormatException(e, ex)) }
 
-let fetchAllRssFeeds client (cacheConfig: CacheConfig) (uris: Uri array) =
+let fetchAllRssFeeds client (cacheConfig: CacheConfig) (uris: Result<Uri, UriError> array) =
     uris
     |> Array.map (fetchUrlWithCacheAsync client cacheConfig)
     |> Async.Parallel
