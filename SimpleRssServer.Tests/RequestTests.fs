@@ -25,9 +25,9 @@ open SimpleRssServer.DomainModel
 
 let cacheConfig =
     let tempDir = Path.Combine(Path.GetTempPath(), "rssrdr_test_cache")
-    Directory.CreateDirectory(tempDir) |> ignore
+    Directory.CreateDirectory tempDir |> ignore
 
-    { Dir = OsPath(tempDir)
+    { Dir = OsPath tempDir
       Expiration = TimeSpan.FromHours 1.0 }
 
 let createOutdatedCache (cachePath: OsPath) (content: string) =
@@ -43,14 +43,20 @@ type MockHttpMessageHandler(sendAsyncImpl: HttpRequestMessage -> Task<HttpRespon
     inherit HttpMessageHandler()
     override _.SendAsync(request, cancellationToken) = sendAsyncImpl request
 
-let mockHttpClient (handler: HttpMessageHandler) = new HttpClient(handler)
-
 let httpOkClient content =
     let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
     responseMessage.Content <- new StringContent(content)
 
     let handler = new MockHttpResponseHandler(responseMessage)
     new HttpClient(handler)
+
+[<Fact>]
+let ``httpOkClient returns separate HttpClient instances`` () =
+    let c1 = httpOkClient "one"
+    let c2 = httpOkClient "two"
+
+    // object identity check; they definitely shouldn't be the same reference
+    Assert.NotSame(c1, c2)
 
 let createDynamicResponse (lastModifiedDate: DateTimeOffset) =
     new MockHttpMessageHandler(fun request ->
@@ -109,7 +115,7 @@ let ``Test updateRequestLog removes entries older than retention period`` () =
 
     File.WriteAllLines(filename, [ oldEntry; recentEntry ])
 
-    updateRequestLog filename retention [| Ok(Uri "http://newentry.nl") |]
+    updateRequestLog filename retention [| Uri "http://newentry.nl" |]
 
     let fileContent = File.ReadAllLines filename
 
@@ -124,9 +130,7 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     let filename = OsPath "test_log.txt"
 
     let logEntries =
-        [| Ok(Uri "https://Entry1.com")
-           Ok(Uri "http://Entry2.ch")
-           Ok(Uri "https://Entry3.nl") |]
+        [| Uri "https://Entry1.com"; Uri "http://Entry2.ch"; Uri "https://Entry3.nl" |]
 
     let retention = TimeSpan 1
 
@@ -141,7 +145,6 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     let currentDate = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
     logEntries
-    |> validUris
     |> Array.iter (fun entry -> Assert.Contains($"{currentDate} {entry.AbsoluteUri}", fileContent))
 
     deleteFile filename
@@ -245,7 +248,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
     // Arrange
     let url = Uri "http://example.com"
     let lastModifiedDate = DateTimeOffset(DateTime(2023, 1, 1))
-    let client = mockHttpClient (createDynamicResponse lastModifiedDate)
+    let client = new HttpClient(createDynamicResponse lastModifiedDate)
     let logger = NullLogger.Instance
 
     // Case 1: When If-Modified-Since is equal to lastModifiedDate

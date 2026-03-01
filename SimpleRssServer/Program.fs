@@ -22,6 +22,19 @@ type FeedOrder =
 let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
     let items = rssUris |> validUris |> fetchAllRssFeeds client cacheConfig
 
+    let okUris =
+        rssUris |> validUris |> Array.map (fun u -> u.AbsoluteUri) |> Set.ofArray
+
+    let failedResponse =
+        items
+        |> Seq.choose (function
+            | Ok _ -> None
+            | Error e -> e.UriOption)
+        |> Set.ofSeq
+
+    let successResponses =
+        Set.difference okUris failedResponse |> Set.toArray |> Array.map Uri
+
     let invalidUris =
         rssUris
         |> Array.choose (function
@@ -40,8 +53,8 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
     let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
 
     match order with
-    | Chronological -> homepage query allItems
-    | Random -> randomPage query allItems
+    | Chronological -> successResponses, homepage query allItems
+    | Random -> successResponses, randomPage query allItems
 
 let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContext) =
     async {
@@ -53,11 +66,15 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
             match context.Request.RawUrl with
             | Prefix "/config.html" _ -> configPage rssUris |> string
             | Prefix "/random?rss=" _ ->
-                updateRequestLog RequestLogPath RequestLogRetention rssUris
-                assembleRssFeeds logger Random client cacheConfig rssUris |> string
+                let okRequests, page = assembleRssFeeds logger Random client cacheConfig rssUris
+                updateRequestLog RequestLogPath RequestLogRetention okRequests
+                page |> string
             | Prefix "/?rss=" _ ->
-                updateRequestLog RequestLogPath RequestLogRetention rssUris
-                assembleRssFeeds logger Chronological client cacheConfig rssUris |> string
+                let okRequests, page =
+                    assembleRssFeeds logger Chronological client cacheConfig rssUris
+
+                updateRequestLog RequestLogPath RequestLogRetention okRequests
+                page |> string
             | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
             | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
             | _ -> landingPage |> string

@@ -7,16 +7,14 @@ open System.Globalization
 open SimpleRssServer.Helper
 open SimpleRssServer.DomainPrimitiveTypes
 
-let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Result<Uri, UriError> array) =
+let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri array) =
     let currentDate = DateTime.Now
 
     let currentDateString =
         currentDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
-    let logEntries =
-        uris
-        |> validUris
-        |> Array.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
+    let newEntries =
+        uris |> Array.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
 
     let existingEntries =
         if File.Exists requestLogPath then
@@ -31,7 +29,7 @@ let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Resul
         else
             [||]
 
-    let updatedEntries = Array.append existingEntries logEntries
+    let updatedEntries = Array.append existingEntries newEntries
     File.WriteAllLines(requestLogPath, updatedEntries)
 
 let readRequestLog (logPath: OsPath) =
