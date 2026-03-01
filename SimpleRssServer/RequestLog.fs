@@ -4,19 +4,16 @@ open System
 open System.IO
 open System.Globalization
 
-open SimpleRssServer.Helper
 open SimpleRssServer.DomainPrimitiveTypes
 
-let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Result<Uri, UriError> array) =
+let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri array) =
     let currentDate = DateTime.Now
 
     let currentDateString =
         currentDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
-    let logEntries =
-        uris
-        |> validUris
-        |> Array.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
+    let newEntries =
+        uris |> Array.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
 
     let existingEntries =
         if File.Exists requestLogPath then
@@ -31,7 +28,7 @@ let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Resul
         else
             [||]
 
-    let updatedEntries = Array.append existingEntries logEntries
+    let updatedEntries = Array.append existingEntries newEntries
     File.WriteAllLines(requestLogPath, updatedEntries)
 
 let readRequestLog (logPath: OsPath) =
@@ -41,16 +38,13 @@ let readRequestLog (logPath: OsPath) =
         File.ReadAllLines logPath
         |> Array.map (fun line -> line.Trim().Split(' ', expectedColumns))
         |> Array.filter (fun parts -> parts.Length = expectedColumns)
-        |> Array.choose (fun parts ->
-            try
-                let uri = Uri parts[1]
-
-                if uri.Scheme = "http" || uri.Scheme = "https" then
-                    Some uri
-                else
-                    None
-            with :? UriFormatException ->
-                None)
+        |> Array.map (fun parts -> parts[1])
         |> Array.distinct
+        |> Array.map Uri.create
+        |> Array.choose (fun x ->
+            match x with
+            | Error e -> None
+            | Ok u -> Some u)
+        |> Array.filter (fun x -> x.Scheme = Uri.UriSchemeHttp || x.Scheme = Uri.UriSchemeHttps)
     else
         [||]

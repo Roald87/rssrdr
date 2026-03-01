@@ -13,35 +13,37 @@ open SimpleRssServer.Request
 open SimpleRssServer.RequestLog
 open SimpleRssServer.RssParser
 open SimpleRssServer.DomainPrimitiveTypes
-open SimpleRssServer.DomainModel
 
 type FeedOrder =
     | Chronological
     | Random
 
 let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
-    let items = rssUris |> validUris |> fetchAllRssFeeds client cacheConfig
+    let rssFeeds = rssUris |> fetchAllRssFeeds client cacheConfig
 
-    let invalidUris =
-        rssUris
-        |> Array.choose (function
-            | Error(UriError.HostNameMustContainDot e) -> Some(Error(UriHostNameMustContainDot e))
-            | Error(UriError.UriFormatException(e, ex)) -> Some(Error(UriFormatException(e, ex)))
-            | Ok _ -> None)
+    let allValidUris = rssUris |> validUris |> Array.map (fun u -> u.AbsoluteUri)
 
-    let allItems = Array.append items invalidUris |> Seq.collect (parseRss logger)
+    let failedResponse =
+        rssFeeds
+        |> Seq.choose (function
+            | Ok _ -> None
+            | Error e -> e.Uri)
+        |> Set.ofSeq
 
-    let rssQuery =
-        rssUris
-        |> validUris
-        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
+    let successResponses =
+        Set.difference (Set allValidUris) failedResponse |> Set.toArray |> Array.map Uri
+
+    let query =
+        allValidUris
+        |> Array.map (fun s -> s.Replace("https://", ""))
         |> String.concat "&rss="
+        |> fun s -> if s.Length > 0 then $"?rss={s}" else s
 
-    let query = if rssQuery.Length > 0 then $"?rss={rssQuery}" else rssQuery
+    let allItems = rssFeeds |> Seq.collect (parseRss logger)
 
     match order with
-    | Chronological -> homepage query allItems
-    | Random -> randomPage query allItems
+    | Chronological -> successResponses, homepage query allItems
+    | Random -> successResponses, randomPage query allItems
 
 let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContext) =
     async {
@@ -53,11 +55,15 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
             match context.Request.RawUrl with
             | Prefix "/config.html" _ -> configPage rssUris |> string
             | Prefix "/random?rss=" _ ->
-                updateRequestLog RequestLogPath RequestLogRetention rssUris
-                assembleRssFeeds logger Random client cacheConfig rssUris |> string
+                let okRequests, page = assembleRssFeeds logger Random client cacheConfig rssUris
+                updateRequestLog RequestLogPath RequestLogRetention okRequests
+                page |> string
             | Prefix "/?rss=" _ ->
-                updateRequestLog RequestLogPath RequestLogRetention rssUris
-                assembleRssFeeds logger Chronological client cacheConfig rssUris |> string
+                let okRequests, page =
+                    assembleRssFeeds logger Chronological client cacheConfig rssUris
+
+                updateRequestLog RequestLogPath RequestLogRetention okRequests
+                page |> string
             | "/robots.txt" -> File.ReadAllText(Path.Combine("site", "robots.txt"))
             | "/sitemap.xml" -> File.ReadAllText(Path.Combine("site", "sitemap.xml"))
             | _ -> landingPage |> string
@@ -76,7 +82,7 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
 let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.CacheConfig) =
     async {
         while true do
-            let urls = readRequestLog RequestLogPath
+            let urls = readRequestLog RequestLogPath |> Array.map Ok
 
             if urls.Length > 0 then
                 logger.LogDebug $"Periodically updating {urls.Length} RSS feeds."

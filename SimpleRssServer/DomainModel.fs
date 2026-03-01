@@ -24,3 +24,16 @@ type DomainMessage =
     // Cache errors
     | CacheReadFailed of Uri * OsPath
     | CacheReadFailedWithException of Uri * OsPath * Exception
+
+    member this.Uri =
+        match this with
+        | UriHostNameMustContainDot invalid -> Some invalid.value
+        | UriFormatException(invalid, _) -> Some invalid.value
+        | PreviousHttpRequestFailed(uri, _) -> Some uri.AbsoluteUri
+        | PreviousHttpRequestFailedButPageCached(uri, _, _) -> Some uri.AbsoluteUri
+        | HttpRequestTimedOut(uri, _) -> Some uri.AbsoluteUri
+        | HttpRequestNonSuccessStatus(uri, _) -> Some uri.AbsoluteUri
+        | HttpException(uri, _) -> Some uri.AbsoluteUri
+        | InvalidRssFeedFormat _ -> None
+        | CacheReadFailed(uri, _) -> Some uri.AbsoluteUri
+        | CacheReadFailedWithException(uri, _, _) -> Some uri.AbsoluteUri

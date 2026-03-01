@@ -25,9 +25,9 @@ open SimpleRssServer.DomainModel
 
 let cacheConfig =
     let tempDir = Path.Combine(Path.GetTempPath(), "rssrdr_test_cache")
-    Directory.CreateDirectory(tempDir) |> ignore
+    Directory.CreateDirectory tempDir |> ignore
 
-    { Dir = OsPath(tempDir)
+    { Dir = OsPath tempDir
       Expiration = TimeSpan.FromHours 1.0 }
 
 let createOutdatedCache (cachePath: OsPath) (content: string) =
@@ -42,8 +42,6 @@ type MockHttpResponseHandler(response: HttpResponseMessage) =
 type MockHttpMessageHandler(sendAsyncImpl: HttpRequestMessage -> Task<HttpResponseMessage>) =
     inherit HttpMessageHandler()
     override _.SendAsync(request, cancellationToken) = sendAsyncImpl request
-
-let mockHttpClient (handler: HttpMessageHandler) = new HttpClient(handler)
 
 let httpOkClient content =
     let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
@@ -109,7 +107,7 @@ let ``Test updateRequestLog removes entries older than retention period`` () =
 
     File.WriteAllLines(filename, [ oldEntry; recentEntry ])
 
-    updateRequestLog filename retention [| Ok(Uri "http://newentry.nl") |]
+    updateRequestLog filename retention [| Uri "http://newentry.nl" |]
 
     let fileContent = File.ReadAllLines filename
 
@@ -124,9 +122,7 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     let filename = OsPath "test_log.txt"
 
     let logEntries =
-        [| Ok(Uri "https://Entry1.com")
-           Ok(Uri "http://Entry2.ch")
-           Ok(Uri "https://Entry3.nl") |]
+        [| Uri "https://Entry1.com"; Uri "http://Entry2.ch"; Uri "https://Entry3.nl" |]
 
     let retention = TimeSpan 1
 
@@ -141,7 +137,6 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     let currentDate = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
     logEntries
-    |> validUris
     |> Array.iter (fun entry -> Assert.Contains($"{currentDate} {entry.AbsoluteUri}", fileContent))
 
     deleteFile filename
@@ -245,7 +240,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
     // Arrange
     let url = Uri "http://example.com"
     let lastModifiedDate = DateTimeOffset(DateTime(2023, 1, 1))
-    let client = mockHttpClient (createDynamicResponse lastModifiedDate)
+    let client = new HttpClient(createDynamicResponse lastModifiedDate)
     let logger = NullLogger.Instance
 
     // Case 1: When If-Modified-Since is equal to lastModifiedDate
@@ -290,7 +285,8 @@ let ``Test fetchWithCache with no cache`` () =
     // Ensure the file does not exist before the test
     deleteFile filePath
 
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
     | Ok _ ->
@@ -321,7 +317,8 @@ let ``Test fetchWithCache with non expired cache`` () =
     let cacheAge = DateTime.Now - cacheConfig.Expiration * 0.5
     File.SetLastWriteTime(filePath, cacheAge)
 
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
     | Ok content -> Assert.Equal(expectedContent, content)
@@ -342,7 +339,8 @@ let ``Test fetchWithCache with expired cache`` () =
 
     createOutdatedCache filePath cachedContent
 
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
     | Ok content ->
@@ -371,7 +369,8 @@ let ``Test fetchWithCache with expired cache and 304 response`` () =
     let oldWriteTime = DateTime.Now - 2.0 * cacheConfig.Expiration
     File.SetLastWriteTime(filePath, oldWriteTime)
 
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
     | Ok content ->
@@ -407,7 +406,8 @@ let ``Test fetchWithCache with expired cache and 304 NotModified should clear fa
     let handler = new MockHttpResponseHandler(responseMessage)
     let client = new HttpClient(handler)
 
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
     | Ok content ->
@@ -440,7 +440,7 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed and
 
     // Act
     let result =
-        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig url
+        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (Ok url)
         |> Async.RunSynchronously
 
     // Assert
@@ -478,7 +478,8 @@ let ``Test fetchWithCache attempts retry when backoff period has passed and cach
     File.WriteAllText(failurePath, json)
 
     // Act
-    let result = fetchUrlWithCacheAsync client cacheConfig url |> Async.RunSynchronously
+    let result =
+        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     // Assert - should have attempted HTTP request and got new content
     match result with
@@ -514,7 +515,7 @@ let ``Test fetchWithCache returns error with expired cache and cooldown time whe
 
     // Act
     let result =
-        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig url
+        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (Ok url)
         |> Async.RunSynchronously
 
     // Assert
