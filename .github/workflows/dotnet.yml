@@ -28,3 +28,7 @@ jobs:
       run: dotnet build
     - name: Test
       run: dotnet test --no-build --verbosity normal
+    - name: Lint
+      run: |
+        dotnet tool install -g dotnet-fsharplint
+        dotnet fsharplint lint .\SimpleRssServer.sln
