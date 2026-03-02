@@ -41,7 +41,7 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     let result = page |> string
 
     // Assert
-    Assert.Contains($"<a href=\"config.html/\">config/</a>", result)
+    Assert.Contains("<a href=\"config.html/\">config/</a>", result)
 
 [<Fact>]
 let ``Test assembleRssFeeds includes config link with query and removes https prefix`` () =
@@ -55,7 +55,7 @@ let ``Test assembleRssFeeds includes config link with query and removes https pr
            $"https://example.com/feed{ids[1]}"
            $"http://example.com/feed{ids[2]}" |]
 
-    let rssUrls = urls |> Array.map Uri.create
+    let rssUrls = urls |> Array.map Uri.Create
 
     // Act
     let _, page =
@@ -74,7 +74,7 @@ let ``Test assembleRssFeeds returns successful URIs for happy path with two vali
     let client = httpOkClient ""
 
     let urls = guids 2 |> Array.map (fun id -> Uri $"https://example.com/feed{id}")
-    let rssUrls = urls |> Array.map (fun url -> Ok url)
+    let rssUrls = urls |> Array.map Ok
 
     // Act
     let successfulUris, _ =
@@ -101,10 +101,10 @@ let ``Test assembleRssFeeds returns only successful URIs for mix of invalid and 
     let client = httpClientWithResponses responses
 
     let rssUrls =
-        [| Uri.create "invalid"
-           Uri.create urls[0] // valid and success
-           Uri.create urls[1] // valid but fetch fails
-           Uri.create urls[2] |] // valid and success
+        [| Uri.Create "invalid"
+           Uri.Create urls[0] // valid and success
+           Uri.Create urls[1] // valid but fetch fails
+           Uri.Create urls[2] |] // valid and success
 
     // Act
     let successfulUris, _ =

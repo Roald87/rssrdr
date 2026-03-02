@@ -40,7 +40,7 @@ let readRequestLog (logPath: OsPath) =
         |> Array.filter (fun parts -> parts.Length = expectedColumns)
         |> Array.map (fun parts -> parts[1])
         |> Array.distinct
-        |> Array.map Uri.create
+        |> Array.map Uri.Create
         |> Array.choose (fun x ->
             match x with
             | Error e -> None

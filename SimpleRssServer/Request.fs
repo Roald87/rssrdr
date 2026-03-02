@@ -23,8 +23,8 @@ let getRssUrls (context: string) : Result<Uri, UriError> array =
     |> fun query ->
         let rssValues = query.GetValues "rss"
 
-        if rssValues <> null && rssValues.Length > 0 then
-            rssValues |> Array.map (fun s -> Uri.createWithHttps s)
+        if not (isNull rssValues) && rssValues.Length > 0 then
+            rssValues |> Array.map Uri.CreateWithHttps
         else
             [||]
 

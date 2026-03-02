@@ -7,6 +7,7 @@ open Xunit
 
 open SimpleRssServer.DomainModel
 open SimpleRssServer.RssParser
+open SimpleRssServer.Config
 
 let parseRssFromFile logger fileName =
     try
@@ -94,7 +95,7 @@ let ``Test parseRss with roaldinch.xml`` () =
             BaseUrl = "roaldin.ch"
             Text =
               "De eerste keer dat ik een kaartspel met Zwitsers speelde, ging er iets fout. Ik ging ervan uit dat we met de klok mee zouden spelen, maar dat bleek niet zo te zijn. De standaard richting hier is tegen de klok in. Het wordt ook wel “dr ohrfiige noch” genoemd. Dit betekent in de richting van een (rechtshandige) oorveeg. Op het werk was men verdeeld over de juiste volgorde. J. antwoordde dat het afhing of hij in Duitsland of Zwitserland speelde, S. zei dat hij in Oostenrijk de goede richting op speelde, met de klok mee, en A. uit Spanje dacht even na en kwam uit op tegen de klok in. In de rest van Europa is men ook niet eensgezind. Het hangt af van de regio, het land of het spel1. https://www.reddit.com/r/AskEurope/s/mIHUVNFwGH &#8617;"
-                  .Substring(0, ARTICLE_DESCRIPTION_LENGTH)
+                  .Substring(0, ArticleDescriptionLength)
               + "..." }
           { PostDate = Some(DateTime(2024, 6, 22, 0, 0, 0))
             Title = "Vrouwenemancipatie"
@@ -102,7 +103,7 @@ let ``Test parseRss with roaldinch.xml`` () =
             BaseUrl = "roaldin.ch"
             Text =
               "Hoe hier over vrouwen wordt gedacht lijkt soms een generatie achter te lopen vergeleken met Nederland. Een vriendin vertelde dat een vriendin van haar, A., naar Zwitserland was verhuisd. A. was werkloos en moest iets bij de gemeente aanvragen. Toen ze vertelde dat ze geen werk had, zei de ambtenaar niet ironisch: “Dat snap ik wel, u leeft lekker op het salaris van uw man.” Toegegeven, ze woonden ergens in een klein dorp. In een grote stad zal dit niet snel gebeuren. Ondanks de relatief hoge arbeidsparticipatie van vrouwen1, werden ze lang vooral gezien als huisvrouwen. Pas in 1971 kregen ze landelijk stemrecht en het duurde tot 1990 (!) tot ze ook in alle kantons lokaal stemrecht hadden2. Een klein voordeel hadden de vrouwen tot begin dit jaar wel: ze mochten met 64 met pensioen tegenover 65 voor mannen. Tot slot hebben ze geen dienstplicht. Al zijn er wel regelmatig discussies of dit moet veranderen. https://ourworldindata.org/female-labor-supply &#8617; https://nl.m.wikipedia.org/wiki/Vrouwenstemrecht_in_Zwitserland &#8617;"
-                  .Substring(0, ARTICLE_DESCRIPTION_LENGTH)
+                  .Substring(0, ArticleDescriptionLength)
               + "..." }
           { PostDate = Some(DateTime(2024, 6, 16, 0, 0, 0))
             Title = "Promoveren"
@@ -110,7 +111,7 @@ let ``Test parseRss with roaldinch.xml`` () =
             BaseUrl = "roaldin.ch"
             Text =
               "Recent had ik het genoegen om mijn eerste Zwitserse verdediging bij te wonen van een promovendus. Het viel me tegen hoe dit gevierd werd. Zelf ben ik in Groningen gepromoveerd en daar waren verschillende tradities en gewoonten. Zo kiest de promovendus twee paranimfen, een soort getuigen zoals bij huwelijken, die de promovendus helpen met allerlei zaken rondom de verdediging."
-                  .Substring(0, ARTICLE_DESCRIPTION_LENGTH)
+                  .Substring(0, ArticleDescriptionLength)
               + "..." } ]
 
     Assert.Equal(expected.Length, result.Length)
@@ -127,7 +128,7 @@ let ``Test parseRss with zoesklot.xml`` () =
           BaseUrl = "zoesklot.nl"
           Text =
             "Bij de kassa van de Jumbo ziet M. mij en ik kan niet meer vluchten naar een andere kassa. M., een magere vijftiger met donker achterovergekamd golvend haar; enkele tattoos, oorbel en kunstgebitje ken ik van de volkstuin. Als we oogcontact hebben dan word ik meegezogen in zijn persoonlijke wereld. “Het was zo druk man"
-                .Substring(0, ARTICLE_DESCRIPTION_LENGTH)
+                .Substring(0, ArticleDescriptionLength)
             + "..." }
 
     let expectedLast =
@@ -137,7 +138,7 @@ let ``Test parseRss with zoesklot.xml`` () =
           BaseUrl = "zoesklot.nl"
           Text =
             "Het was even groot nieuws in Nederland. Een wolf heeft een meisje gebeten. “De wolf beet haar zeer kort in de zij, maar beet niet door”, volgens de ouders. Het Landgoed Den Treek werd daarop deels afgesloten voor publiek. Om dit bericht in perspectief te plaatsen ging ik op zoek naar bijtincidenten van onze geliefde"
-                .Substring(0, ARTICLE_DESCRIPTION_LENGTH)
+                .Substring(0, ArticleDescriptionLength)
             + "..." }
 
     Assert.Equal(5, result.Length)
@@ -226,7 +227,7 @@ let ``Test get content for article text if description is empty`` () =
 
     let expectedText =
         "Yeah, it's another thing about feed readers. I don't blame you if you want to skip this one. A reader (that is, a person!) reached out earlier and asked me to look at a bug report for a feed reader. It seems they passed along some of the details from one of my ear"
-            .Substring(0, ARTICLE_DESCRIPTION_LENGTH)
+            .Substring(0, ArticleDescriptionLength)
         + "..."
 
     Assert.Equal(expectedText, actualFirst.Text)

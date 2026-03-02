@@ -6,9 +6,9 @@ open System.IO
 type InvalidUri =
     | InvalidUri of string
 
-    static member create(s: string) = InvalidUri s
+    static member Create(s: string) = InvalidUri s
 
-    member this.value =
+    member this.Value =
         let (InvalidUri s) = this
         s
 
@@ -17,18 +17,18 @@ type UriError =
     | UriFormatException of InvalidUri * Exception
 
 type Uri with
-    static member create(s: string) =
+    static member Create(s: string) =
         try
             let uri = Uri s
 
             if uri.Host.Contains "." then
                 Ok uri
             else
-                Error(HostNameMustContainDot(InvalidUri.create s))
+                Error(HostNameMustContainDot(InvalidUri.Create s))
         with :? UriFormatException as ex ->
-            Error(UriFormatException(InvalidUri.create s, ex))
+            Error(UriFormatException(InvalidUri.Create s, ex))
 
-    static member createWithHttps(s: string) =
+    static member CreateWithHttps(s: string) =
         let ensureScheme (s: string) =
             if
                 s.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
@@ -38,7 +38,7 @@ type Uri with
             else
                 $"https://{s}"
 
-        Uri.create (ensureScheme s)
+        Uri.Create(ensureScheme s)
 
 type Filename = Filename of string
 

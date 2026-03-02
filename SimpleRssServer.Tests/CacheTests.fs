@@ -19,7 +19,7 @@ let ``Test clearFailure deletes failure record`` () =
         { LastFailure = DateTimeOffset.Now
           ConsecutiveFailures = 2 }
 
-    let json = JsonSerializer.Serialize(failure)
+    let json = JsonSerializer.Serialize failure
     File.WriteAllText(failurePath, json)
 
     // Clear the failure record explicitly
@@ -72,20 +72,20 @@ let ``Test get retry periods from failure file`` () =
 
     match result with
     | Some d -> Assert.True(d > DateTimeOffset.Now, "Backoff period should not have passed yet")
-    | None -> failwithf "No .faillure file found"
+    | None -> failwithf $"No .faillure file found at {failurePath}"
 
     let failure2 =
-        { LastFailure = DateTimeOffset.Now.AddHours(-2.0)
+        { LastFailure = DateTimeOffset.Now.AddHours -2.0
           ConsecutiveFailures = 1 }
 
-    let json2 = JsonSerializer.Serialize(failure2)
+    let json2 = JsonSerializer.Serialize failure2
     File.WriteAllText(failurePath, json2)
 
     let result = nextRetry filePath
 
     match result with
     | Some d -> Assert.True(d < DateTimeOffset.Now, "Backoff period should have passed")
-    | None -> failwithf "No .faillure file found"
+    | None -> failwithf $"No .faillure file found at {failurePath}"
 
     // Cleanup
     deleteFile failurePath
@@ -139,7 +139,7 @@ let ``Test cacheAge returns None for non existing cache`` () =
 
 [<Fact>]
 let ``Test clearExpiredCache removes files older than retention`` () =
-    let cacheDir = OsPath("test_cache_cleanup")
+    let cacheDir = OsPath "test_cache_cleanup"
     Directory.CreateDirectory cacheDir |> ignore
 
     let oldFile = Path.Combine(cacheDir, "old_cache")
@@ -147,11 +147,11 @@ let ``Test clearExpiredCache removes files older than retention`` () =
 
     // Create old file (10 days old)
     File.WriteAllText(oldFile, "old content")
-    File.SetLastWriteTime(oldFile, DateTime.Now.AddDays(-10.0))
+    File.SetLastWriteTime(oldFile, DateTime.Now.AddDays -10.0)
 
     // Create recent file (3 days old)
     File.WriteAllText(recentFile, "recent content")
-    File.SetLastWriteTime(recentFile, DateTime.Now.AddDays(-3.0))
+    File.SetLastWriteTime(recentFile, DateTime.Now.AddDays -3.0)
 
     let retention = TimeSpan.FromDays 7.0
 
@@ -175,15 +175,15 @@ let ``Test clearExpiredCache also removes failure files`` () =
 
     // Create old cache file and its failure record
     File.WriteAllText(oldFile, "old content")
-    File.SetLastWriteTime(oldFile, DateTime.Now.AddDays(-10.0))
+    File.SetLastWriteTime(oldFile, DateTime.Now.AddDays -10.0)
 
     let failure =
-        { LastFailure = DateTimeOffset.Now.AddDays(-10.0)
+        { LastFailure = DateTimeOffset.Now.AddDays -10.0
           ConsecutiveFailures = 3 }
 
-    let json = JsonSerializer.Serialize(failure)
+    let json = JsonSerializer.Serialize failure
     File.WriteAllText(failureFile, json)
-    File.SetLastWriteTime(failureFile, DateTime.Now.AddDays(-10.0))
+    File.SetLastWriteTime(failureFile, DateTime.Now.AddDays -10.0)
 
     let retention = TimeSpan.FromDays 7.0
 
@@ -199,7 +199,7 @@ let ``Test clearExpiredCache also removes failure files`` () =
 
 [<Fact>]
 let ``Test clearExpiredCache skips non-existent directory`` () =
-    let cacheDir = OsPath("non_existent_cache_dir")
+    let cacheDir = OsPath "non_existent_cache_dir"
     let retention = TimeSpan.FromDays 7.0
 
     // This should not throw an exception
@@ -208,7 +208,7 @@ let ``Test clearExpiredCache skips non-existent directory`` () =
 
 [<Fact>]
 let ``Test clearExpiredCache keeps empty directory`` () =
-    let cacheDir = OsPath("test_empty_cache")
+    let cacheDir = OsPath "test_empty_cache"
     Directory.CreateDirectory cacheDir |> ignore
 
     let retention = TimeSpan.FromDays 7.0

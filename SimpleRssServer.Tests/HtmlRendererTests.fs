@@ -48,8 +48,8 @@ let ``Test landing page displays correct version number using XML parser`` () =
 let ``Test configPage handles valid and invalid URIs`` () =
     let validUri1 = Uri "https://example.com/feed1"
     let validUri2 = Uri "http://example.com/feed2"
-    let invalidUri1 = InvalidUri.create "invalid-uri"
-    let invalidUri2 = InvalidUri.create "not-a-url"
+    let invalidUri1 = InvalidUri.Create "invalid-uri"
+    let invalidUri2 = InvalidUri.Create "not-a-url"
 
     let rssUrls =
         [| Ok validUri1
@@ -77,6 +77,6 @@ let ``Test configPage handles valid and invalid URIs`` () =
     Assert.Equal(expectedValidUris, textareaValue)
 
     // Check both invalid URIs in invalid-uris div
-    Assert.Contains(invalidUri1.value, resultHtml)
-    Assert.Contains(invalidUri2.value, resultHtml)
+    Assert.Contains(invalidUri1.Value, resultHtml)
+    Assert.Contains(invalidUri2.Value, resultHtml)
     Assert.Contains("<div class='invalid-uris'>", resultHtml)

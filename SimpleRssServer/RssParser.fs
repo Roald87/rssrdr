@@ -6,6 +6,7 @@ open System
 
 open SimpleRssServer.DomainModel
 open SimpleRssServer.Helper
+open Config
 
 type Article =
     { PostDate: DateTime option
@@ -25,10 +26,8 @@ let stripHtml (input: string) : string =
         noHtml.Replace("\n", " ").Replace("\r", "").Trim()
         |> fun s -> removeRepeatingSpaces.Replace(s, " ")
 
-let ARTICLE_DESCRIPTION_LENGTH = 255
-
 let createErrorFeed errorType =
-    let errorItem = new FeedItem()
+    let errorItem = FeedItem()
     errorItem.Title <- "Error"
     errorItem.PublishingDate <- Nullable DateTime.Now
     errorItem.Link <- ""
@@ -44,14 +43,14 @@ let createErrorFeed errorType =
         errorItem.Link <- uri.AbsoluteUri
     | UriHostNameMustContainDot u ->
         errorItem.Description <-
-            $"Ensure that you're using a valid address for this RSS feed. Invalid URI: {u.value}. Host name must contain a dot."
+            $"Ensure that you're using a valid address for this RSS feed. Invalid URI: {u.Value}. Host name must contain a dot."
 
-        errorItem.Link <- u.value
+        errorItem.Link <- u.Value
     | DomainMessage.UriFormatException(u, ex) ->
         errorItem.Description <-
-            $"Ensure that you're using a valid address for this RSS feed. Invalid URI format: {u.value}. {ex.GetType().Name}: {ex.Message}"
+            $"Ensure that you're using a valid address for this RSS feed. Invalid URI format: {u.Value}. {ex.GetType().Name}: {ex.Message}"
 
-        errorItem.Link <- u.value
+        errorItem.Link <- u.Value
     | PreviousHttpRequestFailed(uri, waitTime) ->
         errorItem.Description <-
             $"The {uri.Host} RSS feed seems to be offline. Retrying in {waitTime.TotalHours:F1} hours."
@@ -81,7 +80,7 @@ let createErrorFeed errorType =
 
         errorItem.Link <- uri.AbsoluteUri
 
-    let errorOnlyFeed = new Feed()
+    let errorOnlyFeed = Feed()
     errorOnlyFeed.Items <- [| errorItem |]
 
     errorOnlyFeed
@@ -137,8 +136,8 @@ let parseRss (logger: ILogger) (feedContent: Result<string, DomainMessage>) : Ar
 
             let cleanedContent = content |> stripHtml
 
-            if cleanedContent.Length > ARTICLE_DESCRIPTION_LENGTH then
-                cleanedContent.Substring(0, ARTICLE_DESCRIPTION_LENGTH) + "..."
+            if cleanedContent.Length > ArticleDescriptionLength then
+                cleanedContent.Substring(0, ArticleDescriptionLength) + "..."
             else
                 cleanedContent
 
