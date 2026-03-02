@@ -17,7 +17,7 @@ let invalidUris (uris: Result<Uri, UriError> array) : string array =
     uris
     |> Array.choose (function
         | Ok _ -> None
-        | Error(HostNameMustContainDot invalidUri) -> Some invalidUri.value
-        | Error(UriFormatException(invalidUri, _)) -> Some invalidUri.value)
+        | Error(HostNameMustContainDot invalidUri) -> Some invalidUri.Value
+        | Error(UriFormatException(invalidUri, _)) -> Some invalidUri.Value)
 
 let isText (s: string) = not (String.IsNullOrWhiteSpace s)

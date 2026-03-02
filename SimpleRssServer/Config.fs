@@ -13,3 +13,5 @@ let RequestTimeout = TimeSpan.FromSeconds 5.0
 let RequestLogPath = OsPath "rss-cache/request-log.txt"
 let RequestLogRetention = TimeSpan.FromDays 7.0
 let CacheRetention = TimeSpan.FromDays 7.0
+
+let ArticleDescriptionLength = 255

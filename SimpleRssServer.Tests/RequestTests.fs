@@ -168,8 +168,8 @@ let ``Test getRssUrls with invalid URL`` () =
     Assert.Equal(1, result.Length)
 
     match result.[0] with
-    | Error(HostNameMustContainDot url) -> Assert.Contains("invalid-url", url.value)
-    | _ -> failwithf "Expected Error HostNameMustContainDot"
+    | Error(HostNameMustContainDot url) -> Assert.Contains("invalid-url", url.Value)
+    | x -> failwithf $"Expected Error HostNameMustContainDot, but got {x}"
 
 [<Fact>]
 let ``Test getRssUrls with valid and invalid URLs`` () =
@@ -177,8 +177,8 @@ let ``Test getRssUrls with valid and invalid URLs`` () =
     Assert.Equal(2, result.Length)
 
     match result.[0] with
-    | Error(HostNameMustContainDot url) -> Assert.Contains("invalid-url", url.value)
-    | _ -> failwithf "Expected Error HostNameMustContainDot"
+    | Error(HostNameMustContainDot url) -> Assert.Contains("invalid-url", url.Value)
+    | x -> failwithf $"Expected Error HostNameMustContainDot, but got {x}"
 
     match result.[1] with
     | Ok uri -> Assert.Equal(Uri "https://valid-url.com", uri)
@@ -231,8 +231,8 @@ let ``Test getAsync with unsuccessful response on real page`` () =
         |> Async.RunSynchronously
 
     match response with
-    | Error(HttpException(_, _)) -> Assert.True(true, "Got expected error")
-    | Ok _ -> failwithf "Expected Failure but got Success"
+    | Error(HttpException _) -> Assert.True(true, "Got expected error")
+    | Ok x -> failwithf $"Expected Failure but got Ok {x}"
     | Error errorMsg -> failwithf $"Got unexpected error: {errorMsg}"
 
 [<Fact>]
@@ -445,9 +445,9 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed and
 
     // Assert
     match result with
-    | Error(PreviousHttpRequestFailedButPageCached(_, _, _)) -> Assert.True(true, "Got expected error")
+    | Error(PreviousHttpRequestFailedButPageCached _) -> Assert.True(true, "Got expected error")
     | Error error -> failwithf $"Got unexpected error: {error}"
-    | Ok _ -> failwithf "Should return an error due to backoff period"
+    | Ok x -> failwithf $"Should return an error due to backoff period. Got {x}"
 
     // Cleanup
     deleteFile filePath
@@ -520,9 +520,9 @@ let ``Test fetchWithCache returns error with expired cache and cooldown time whe
 
     // Assert
     match result with
-    | Error(PreviousHttpRequestFailedButPageCached(_, _, _)) -> Assert.True(true, "Got expected error")
+    | Error(PreviousHttpRequestFailedButPageCached _) -> Assert.True(true, "Got expected error")
     | Error error -> failwithf $"Got unexpected error: {error}"
-    | Ok _ -> failwithf "Expected error message with cooldown time but got success"
+    | Ok x -> failwithf $"Expected error message with cooldown time but got Ok {x}"
 
     // Cleanup
     deleteFile filePath
@@ -564,9 +564,9 @@ let ``GetAsync returns timeout error when request takes too long`` () =
         |> Async.RunSynchronously
 
     match result with
-    | Error(HttpRequestTimedOut(_, _)) -> Assert.True(true, "Got expected timeout error")
+    | Error(HttpRequestTimedOut _) -> Assert.True(true, "Got expected timeout error")
     | Error error -> failwithf $"Got unexpected error: {error}"
-    | Ok _ -> failwithf "Expected timeout failure but got success"
+    | Ok x -> failwithf $"Expected timeout failure but got success {x}"
 
 [<Fact>]
 let ``Test requestUrls skips invalid URLs in log file`` () =

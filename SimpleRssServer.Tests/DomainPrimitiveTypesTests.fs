@@ -7,7 +7,7 @@ open SimpleRssServer.DomainPrimitiveTypes
 [<Fact>]
 let ``Uri.create should return Ok for valid URI with dot in host`` () =
     let input = "https://example.com"
-    let result = Uri.create input
+    let result = Uri.Create input
 
     match result with
     | Ok uri -> Assert.Equal("https://example.com/", uri.ToString())
@@ -16,27 +16,27 @@ let ``Uri.create should return Ok for valid URI with dot in host`` () =
 [<Fact>]
 let ``Uri.create should return Error for valid URI without dot in host`` () =
     let input = "https://localhost"
-    let result = Uri.create input
+    let result = Uri.Create input
 
     match result with
-    | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", invalid.value)
-    | Ok _ -> failwithf "Expected Error but got Ok"
+    | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", invalid.Value)
+    | Ok _ -> failwith "Expected Error but got Ok"
     | Error error -> failwithf $"Expected HostNameMustContainDot error but got {error}"
 
 [<Fact>]
 let ``Uri.create should return Error for invalid URI format`` () =
     let input = "not a uri"
-    let result = Uri.create input
+    let result = Uri.Create input
 
     match result with
-    | Error(UriFormatException(invalid, _)) -> Assert.Equal("not a uri", invalid.value)
-    | Ok _ -> failwithf "Expected Error but got Ok"
+    | Error(UriFormatException(invalid, _)) -> Assert.Equal("not a uri", invalid.Value)
+    | Ok x -> failwithf $"Expected Error but got Ok {x}"
     | Error error -> failwithf $"Expected UriFormatException error but got {error}"
 
 [<Fact>]
 let ``Uri.createWithHttps should add https to URL without scheme`` () =
     let input = "example.com"
-    let result = Uri.createWithHttps input
+    let result = Uri.CreateWithHttps input
 
     match result with
     | Ok uri -> Assert.Equal("https://example.com/", uri.ToString())
@@ -45,7 +45,7 @@ let ``Uri.createWithHttps should add https to URL without scheme`` () =
 [<Fact>]
 let ``Uri.createWithHttps should keep http scheme`` () =
     let input = "http://example.com"
-    let result = Uri.createWithHttps input
+    let result = Uri.CreateWithHttps input
 
     match result with
     | Ok uri -> Assert.Equal("http://example.com/", uri.ToString())
@@ -54,7 +54,7 @@ let ``Uri.createWithHttps should keep http scheme`` () =
 [<Fact>]
 let ``Uri.createWithHttps should keep https scheme`` () =
     let input = "https://example.com"
-    let result = Uri.createWithHttps input
+    let result = Uri.CreateWithHttps input
 
     match result with
     | Ok uri -> Assert.Equal("https://example.com/", uri.ToString())
@@ -63,9 +63,9 @@ let ``Uri.createWithHttps should keep https scheme`` () =
 [<Fact>]
 let ``Uri.createWithHttps should return Error for invalid host`` () =
     let input = "localhost"
-    let result = Uri.createWithHttps input
+    let result = Uri.CreateWithHttps input
 
     match result with
-    | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", invalid.value)
-    | Ok _ -> failwithf "Expected Error but got Ok"
+    | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", invalid.Value)
+    | Ok x -> failwith $"Expected Error but got Ok {x}"
     | Error error -> failwithf $"Expected HostNameMustContainDot error but got {error}"

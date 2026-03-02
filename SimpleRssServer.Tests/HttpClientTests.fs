@@ -48,6 +48,6 @@ let ``Test fetchUrlAsync with unsuccessful response`` () =
         |> Async.RunSynchronously
 
     match response with
-    | Error(HttpException(_, _)) -> Assert.True(true, "timed out")
+    | Error(HttpException _) -> Assert.True(true, "timed out")
     | Error error -> failwithf $"Got unexpected error: {error}"
-    | Ok _ -> failwithf "Expected Error but got OK."
+    | Ok x -> failwithf $"Expected Error but got OK {x}"
