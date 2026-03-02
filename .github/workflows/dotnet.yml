@@ -31,4 +31,5 @@ jobs:
     - name: Lint
       run: |
         dotnet tool install -g dotnet-fsharplint
+        dir
         dotnet fsharplint lint .\SimpleRssServer.sln
