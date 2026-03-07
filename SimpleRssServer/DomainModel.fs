@@ -11,8 +11,7 @@ type DomainMessage =
     | UriFormatException of InvalidUri * Exception
 
     // Rss parsing errors
-    // TODO consider adding the URI to these errors as well, to be able to provide more specific error messages in the feed
-    | InvalidRssFeedFormat of Exception
+    | InvalidRssFeedFormat of Uri * Exception
 
     // Http errors
     | PreviousHttpRequestFailed of Uri * TimeSpan
@@ -34,6 +33,6 @@ type DomainMessage =
         | HttpRequestTimedOut(uri, _) -> Some uri.AbsoluteUri
         | HttpRequestNonSuccessStatus(uri, _) -> Some uri.AbsoluteUri
         | HttpException(uri, _) -> Some uri.AbsoluteUri
-        | InvalidRssFeedFormat _ -> None
+        | InvalidRssFeedFormat(uri, _) -> Some uri.AbsoluteUri
         | CacheReadFailed(uri, _) -> Some uri.AbsoluteUri
         | CacheReadFailedWithException(uri, _, _) -> Some uri.AbsoluteUri

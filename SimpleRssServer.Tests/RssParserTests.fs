@@ -9,10 +9,10 @@ open SimpleRssServer.DomainModel
 open SimpleRssServer.RssParser
 open SimpleRssServer.Config
 
-let parseRssFromFile logger fileName =
+let parseRssFromFile logger uri fileName =
     try
-        let content = File.ReadAllText fileName |> Ok
-        parseRss logger content
+        let content = File.ReadAllText fileName
+        parseRss logger (Ok(content, uri))
     with ex ->
         [ { PostDate = Some DateTime.Now
             Title = "Error"
@@ -25,15 +25,16 @@ let ``Test parseRss with non-valid RSS feed`` () =
     let invalidContent =
         "<html><head><title>Not an RSS feed</title></head><body>This is a test.</body></html>"
 
-    let result = parseRss NullLogger.Instance (Ok invalidContent)
+    let uri = Uri "https://example.com"
+    let result = parseRss NullLogger.Instance (Ok(invalidContent, uri))
 
     let expected =
         { PostDate = Some DateTime.Now
           Title = "Error"
-          Url = ""
-          BaseUrl = ""
+          Url = "https://example.com/"
+          BaseUrl = "example.com"
           Text =
-            $"Ensure you entered the correct RSS feed address, I didn't recognize the format of this feed. Invalid RSS feed format. FeedTypeNotSupportedException: unknown feed type html" }
+            $"Ensure you entered the correct RSS feed address, the format of this feed was not recognized. Invalid RSS feed format for {uri}. FeedTypeNotSupportedException: unknown feed type html" }
 
     Assert.Single result |> ignore
     let actual = List.head result
@@ -44,7 +45,8 @@ let ``Test parseRss with non-valid RSS feed`` () =
     Assert.True((expected.PostDate.Value - actual.PostDate.Value).TotalSeconds < 1.0)
 
 let ``Test parseRss with roaldinch.xml`` () =
-    let result = parseRssFromFile NullLogger.Instance "data/roaldinch.xml"
+    let result =
+        parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/roaldinch.xml"
 
     let expected =
         [ { PostDate = Some(DateTime(2024, 8, 6, 0, 0, 0))
@@ -119,7 +121,8 @@ let ``Test parseRss with roaldinch.xml`` () =
 
 [<Fact>]
 let ``Test parseRss with zoesklot.xml`` () =
-    let result = parseRssFromFile NullLogger.Instance "data/zoesklot.xml"
+    let result =
+        parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/zoesklot.xml"
 
     let expectedFirst =
         { PostDate = Some(DateTime(2024, 8, 6, 13, 26, 32))
@@ -147,7 +150,8 @@ let ``Test parseRss with zoesklot.xml`` () =
 
 [<Fact>]
 let ``Test parseRss with nature.rss`` () =
-    let result = parseRssFromFile NullLogger.Instance "data/nature.rss"
+    let result =
+        parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/nature.rss"
 
     let expectedFirst =
         { PostDate = Some(DateTime(2024, 8, 19))
@@ -208,7 +212,8 @@ let ``Test parseRss with Failure feedContent`` () =
 
 [<Fact>]
 let ``Test parsing date if only update date is available`` () =
-    let result = parseRssFromFile NullLogger.Instance "data/rachel.xml"
+    let result =
+        parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/rachel.xml"
 
     let expectedFirst = Some(DateTime(2024, 8, 18, 23, 16, 27))
     let actualFirst = result |> List.head
@@ -221,7 +226,8 @@ let ``Test parsing date if only update date is available`` () =
 
 [<Fact>]
 let ``Test get content for article text if description is empty`` () =
-    let result = parseRssFromFile NullLogger.Instance "data/rachel.xml"
+    let result =
+        parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/rachel.xml"
 
     let actualFirst = result |> List.head
 
@@ -241,7 +247,7 @@ let ``Test read from cache if available`` () =
     let result =
         parseRss NullLogger.Instance (Error(PreviousHttpRequestFailedButPageCached(uri, waitTime, cachedContent)))
 
-    let expectedCachedArticles = parseRss NullLogger.Instance (Ok cachedContent)
+    let expectedCachedArticles = parseRss NullLogger.Instance (Ok(cachedContent, uri))
 
     Assert.Equal(expectedCachedArticles.Length + 1, result.Length)
     let actualError = List.last result

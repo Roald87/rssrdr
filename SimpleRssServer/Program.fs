@@ -39,7 +39,14 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
         |> String.concat "&rss="
         |> fun s -> if s.Length > 0 then $"?rss={s}" else s
 
-    let allItems = rssFeeds |> Seq.collect (parseRss logger)
+    let allItems =
+        Seq.zip rssUris rssFeeds
+        |> Seq.map (fun (uriResult, feedContent) ->
+            match uriResult, feedContent with
+            | Ok uri, Ok content -> Ok(content, uri)
+            | _, Error e -> Error e
+            | Error _, Ok _ -> failwith "unreachable: invalid URI produced Ok content")
+        |> Seq.collect (parseRss logger)
 
     match order with
     | Chronological -> successResponses, homepage query allItems
