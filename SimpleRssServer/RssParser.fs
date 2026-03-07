@@ -41,12 +41,12 @@ let createErrorFeed errorType =
             $"Failed to read cached file from {cachePath} for {uri}. {ex.GetType().Name}: {ex.Message}"
 
         errorItem.Link <- uri.AbsoluteUri
-    | UriHostNameMustContainDot u ->
+    | InvalidUriHostname u ->
         errorItem.Description <-
             $"Ensure that you're using a valid address for this RSS feed. Invalid URI: {u.Value}. Host name must contain a dot."
 
         errorItem.Link <- u.Value
-    | DomainMessage.UriFormatException(u, ex) ->
+    | InvalidUriFormat(u, ex) ->
         errorItem.Description <-
             $"Ensure that you're using a valid address for this RSS feed. Invalid URI format: {u.Value}. {ex.GetType().Name}: {ex.Message}"
 
