@@ -88,8 +88,8 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, U
             }
     | Error e ->
         match e with
-        | UriError.HostNameMustContainDot e -> async { return Error(UriHostNameMustContainDot e) }
-        | UriError.UriFormatException(e, ex) -> async { return Error(UriFormatException(e, ex)) }
+        | UriError.HostNameMustContainDot e -> async { return Error(InvalidUriHostname e) }
+        | UriError.UriFormatException(e, ex) -> async { return Error(InvalidUriFormat(e, ex)) }
 
 let cacheSuccessfulFetch (cacheConfig: CacheConfig) (uri: Uri) (content: string) =
     async {

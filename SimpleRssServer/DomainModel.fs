@@ -7,8 +7,8 @@ open System.Net
 
 type DomainMessage =
     // Uri errors
-    | UriHostNameMustContainDot of InvalidUri
-    | UriFormatException of InvalidUri * Exception
+    | InvalidUriHostname of InvalidUri
+    | InvalidUriFormat of InvalidUri * Exception
 
     // Rss parsing errors
     | InvalidRssFeedFormat of Uri * Exception
@@ -26,8 +26,8 @@ type DomainMessage =
 
     member this.Uri =
         match this with
-        | UriHostNameMustContainDot invalid -> Some invalid.Value
-        | UriFormatException(invalid, _) -> Some invalid.Value
+        | InvalidUriHostname invalid -> Some invalid.Value
+        | InvalidUriFormat(invalid, _) -> Some invalid.Value
         | PreviousHttpRequestFailed(uri, _) -> Some uri.AbsoluteUri
         | PreviousHttpRequestFailedButPageCached(uri, _, _) -> Some uri.AbsoluteUri
         | HttpRequestTimedOut(uri, _) -> Some uri.AbsoluteUri
