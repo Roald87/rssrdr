@@ -11,6 +11,9 @@ open SimpleRssServer.DomainPrimitiveTypes
 open Program
 open RequestTests
 
+let minimalRss =
+    """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Test</title><link>https://example.com</link><description>Test</description></channel></rss>"""
+
 let httpClientWithResponses (responses: Map<string, HttpResponseMessage>) =
     let handler =
         new MockHttpMessageHandler(fun request ->
@@ -71,7 +74,7 @@ let ``Test assembleRssFeeds includes config link with query and removes https pr
 [<Fact>]
 let ``Test assembleRssFeeds returns successful URIs for happy path with two valid URIs`` () =
     // Arrange
-    let client = httpOkClient ""
+    let client = httpOkClient minimalRss
 
     let urls = guids 2 |> Array.map (fun id -> Uri $"https://example.com/feed{id}")
     let rssUrls = urls |> Array.map Ok
@@ -89,7 +92,7 @@ let ``Test assembleRssFeeds returns successful URIs for happy path with two vali
 let ``Test assembleRssFeeds returns only successful URIs for mix of invalid and failed fetches`` () =
     // Arrange
     let okResponse = new HttpResponseMessage(HttpStatusCode.OK)
-    okResponse.Content <- new StringContent ""
+    okResponse.Content <- new StringContent(minimalRss)
 
     let errorResponse = new HttpResponseMessage(HttpStatusCode.InternalServerError)
 
@@ -114,3 +117,37 @@ let ``Test assembleRssFeeds returns only successful URIs for mix of invalid and 
     Assert.Equal(2, successfulUris.Length)
     Assert.Contains(Uri urls[0], successfulUris)
     Assert.Contains(Uri urls[2], successfulUris)
+
+[<Fact>]
+let ``Test assembleRssFeeds excludes URI that returns HTML from successful URIs`` () =
+    // Arrange
+    let htmlContent =
+        "<html><head><title>Not RSS</title></head><body>Test</body></html>"
+
+    let ids = guids 2
+
+    let rssUrl = Uri $"https://example.com/feed{ids[0]}"
+    let htmlUrl = Uri $"https://example.com/feed{ids[1]}"
+
+    let responses =
+        Map.ofList
+            [ rssUrl.AbsoluteUri,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK) in
+               r.Content <- new StringContent(minimalRss)
+               r)
+              htmlUrl.AbsoluteUri,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK) in
+               r.Content <- new StringContent(htmlContent)
+               r) ]
+
+    let client = httpClientWithResponses responses
+    let rssUrls = [| Ok rssUrl; Ok htmlUrl |]
+
+    // Act
+    let successfulUris, _ =
+        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+
+    // Assert
+    Assert.Equal(1, successfulUris.Length)
+    Assert.Contains(rssUrl, successfulUris)
+    Assert.DoesNotContain(htmlUrl, successfulUris)

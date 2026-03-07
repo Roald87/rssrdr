@@ -23,30 +23,38 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
 
     let allValidUris = rssUris |> validUris |> Array.map (fun u -> u.AbsoluteUri)
 
-    let failedResponse =
-        rssFeeds
-        |> Seq.choose (function
-            | Ok _ -> None
-            | Error e -> e.Uri)
-        |> Set.ofSeq
-
-    let successResponses =
-        Set.difference (Set allValidUris) failedResponse |> Set.toArray |> Array.map Uri
-
     let query =
         allValidUris
         |> Array.map (fun s -> s.Replace("https://", ""))
         |> String.concat "&rss="
         |> fun s -> if s.Length > 0 then $"?rss={s}" else s
 
-    let allItems =
+    let parsedResults =
         Seq.zip rssUris rssFeeds
         |> Seq.map (fun (uriResult, feedContent) ->
             match uriResult, feedContent with
-            | Ok uri, Ok content -> Ok(content, uri)
-            | _, Error e -> Error e
+            | Ok uri, Ok content ->
+                match tryParseFeed logger content uri with
+                | Ok feed ->
+                    cacheSuccessfulFetch cacheConfig uri content |> Async.RunSynchronously
+                    Ok(uri, feedToArticles feed)
+                | Error err -> Error(createErrorFeed err |> feedToArticles)
+            | _, Error e -> Error(parseRss logger (Error e))
             | Error _, Ok _ -> failwith "unreachable: invalid URI produced Ok content")
-        |> Seq.collect (parseRss logger)
+        |> Seq.toList
+
+    let successResponses =
+        parsedResults
+        |> Seq.choose (function
+            | Ok(uri, _) -> Some uri
+            | Error _ -> None)
+        |> Seq.toArray
+
+    let allItems =
+        parsedResults
+        |> Seq.collect (function
+            | Ok(_, articles) -> articles
+            | Error articles -> articles)
 
     match order with
     | Chronological -> successResponses, homepage query allItems

@@ -46,7 +46,6 @@ let fetchAndReadPage client (uri: Uri) cacheModified cachePath =
                 do! recordFailure cachePath
                 return Error(CacheReadFailedWithException(uri, cachePath, ex))
         | Ok content ->
-            do! writeCache cachePath content
             do! clearFailure cachePath
             return page
         | Error _ ->
@@ -91,6 +90,12 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, U
         match e with
         | UriError.HostNameMustContainDot e -> async { return Error(UriHostNameMustContainDot e) }
         | UriError.UriFormatException(e, ex) -> async { return Error(UriFormatException(e, ex)) }
+
+let cacheSuccessfulFetch (cacheConfig: CacheConfig) (uri: Uri) (content: string) =
+    async {
+        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
+        do! writeCache cachePath content
+    }
 
 let fetchAllRssFeeds client (cacheConfig: CacheConfig) (uris: Result<Uri, UriError> array) =
     uris

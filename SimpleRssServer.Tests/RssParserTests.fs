@@ -9,6 +9,23 @@ open SimpleRssServer.DomainModel
 open SimpleRssServer.RssParser
 open SimpleRssServer.Config
 
+[<Fact>]
+let ``tryParseFeed returns InvalidRssFeedFormat for non-RSS content`` () =
+    let uri = Uri "https://example.com"
+    let html = "<html><head><title>Not RSS</title></head><body>Test</body></html>"
+    let result = tryParseFeed NullLogger.Instance html uri
+
+    match result with
+    | Error(InvalidRssFeedFormat(errorUri, _)) -> Assert.Equal(uri, errorUri)
+    | _ -> Assert.Fail "Expected Error(InvalidRssFeedFormat ...)"
+
+[<Fact>]
+let ``tryParseFeed returns Ok Feed for valid RSS content`` () =
+    let uri = Uri "https://example.com"
+    let content = File.ReadAllText "data/roaldinch.xml"
+    let result = tryParseFeed NullLogger.Instance content uri
+    Assert.True(Result.isOk result)
+
 let parseRssFromFile logger uri fileName =
     try
         let content = File.ReadAllText fileName

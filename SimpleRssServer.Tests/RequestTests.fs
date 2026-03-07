@@ -289,10 +289,7 @@ let ``Test fetchWithCache with no cache`` () =
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | Ok _ ->
-        Assert.True(File.Exists filePath, "Expected file to be created")
-        let fileContent = File.ReadAllText filePath
-        Assert.Equal(expectedContent, fileContent)
+    | Ok content -> Assert.Equal(expectedContent, content)
     | Error error -> failwithf $"Expected success but got error: {error}"
 
     deleteFile filePath
@@ -343,10 +340,7 @@ let ``Test fetchWithCache with expired cache`` () =
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | Ok content ->
-        Assert.Equal(newContent, content)
-        let fileContent = File.ReadAllText filePath
-        Assert.Equal(newContent, fileContent)
+    | Ok content -> Assert.Equal(newContent, content)
     | Error error -> failwithf $"Expected success but got error: {error}"
 
     deleteFile filePath
@@ -567,6 +561,32 @@ let ``GetAsync returns timeout error when request takes too long`` () =
     | Error(HttpRequestTimedOut _) -> Assert.True(true, "Got expected timeout error")
     | Error error -> failwithf $"Got unexpected error: {error}"
     | Ok x -> failwithf $"Expected timeout failure but got success {x}"
+
+[<Fact>]
+let ``cacheSuccessfulFetch creates cache file with correct content`` () =
+    let url = Uri "http://example.com/cache-write-test"
+    let content = "Fresh RSS content"
+    let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
+    deleteFile filePath
+
+    cacheSuccessfulFetch cacheConfig url content |> Async.RunSynchronously
+
+    Assert.True(File.Exists filePath, "Expected cache file to be created")
+    Assert.Equal(content, File.ReadAllText filePath)
+    deleteFile filePath
+
+[<Fact>]
+let ``cacheSuccessfulFetch overwrites stale cache file with new content`` () =
+    let url = Uri "http://example.com/cache-overwrite-test"
+    let oldContent = "Old cached content"
+    let newContent = "New RSS content"
+    let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
+    createOutdatedCache filePath oldContent
+
+    cacheSuccessfulFetch cacheConfig url newContent |> Async.RunSynchronously
+
+    Assert.Equal(newContent, File.ReadAllText filePath)
+    deleteFile filePath
 
 [<Fact>]
 let ``Test requestUrls skips invalid URLs in log file`` () =

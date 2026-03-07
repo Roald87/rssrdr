@@ -87,25 +87,14 @@ let createErrorFeed errorType =
 
     errorOnlyFeed
 
-let parseRss (logger: ILogger) (feedContent: Result<string * Uri, DomainMessage>) : Article list =
-    let feed =
-        match feedContent with
-        | Ok(content, uri) ->
-            try
-                FeedReader.ReadFromString content
-            with ex ->
-                logger.LogError $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
-                InvalidRssFeedFormat(uri, ex) |> createErrorFeed
-        | Error error ->
-            let errorFeed = createErrorFeed error
+let tryParseFeed (logger: ILogger) (content: string) (uri: Uri) : Result<Feed, DomainMessage> =
+    try
+        Ok(FeedReader.ReadFromString content)
+    with ex ->
+        logger.LogError $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
+        Error(InvalidRssFeedFormat(uri, ex))
 
-            match error with
-            | PreviousHttpRequestFailedButPageCached(_, _, cachedContent) ->
-                let cachedFeed = FeedReader.ReadFromString cachedContent
-                cachedFeed.Items.Add errorFeed.Items.[0]
-                cachedFeed
-            | _ -> errorFeed
-
+let feedToArticles (feed: Feed) : Article list =
     feed.Items
     |> Seq.map (fun entry ->
         let postDate =
@@ -149,3 +138,22 @@ let parseRss (logger: ILogger) (feedContent: Result<string * Uri, DomainMessage>
           BaseUrl = baseUrl
           Text = text })
     |> Seq.toList
+
+let parseRss (logger: ILogger) (feedContent: Result<string * Uri, DomainMessage>) : Article list =
+    let feed =
+        match feedContent with
+        | Ok(content, uri) ->
+            match tryParseFeed logger content uri with
+            | Ok feed -> feed
+            | Error err -> createErrorFeed err
+        | Error error ->
+            let errorFeed = createErrorFeed error
+
+            match error with
+            | PreviousHttpRequestFailedButPageCached(_, _, cachedContent) ->
+                let cachedFeed = FeedReader.ReadFromString cachedContent
+                cachedFeed.Items.Add errorFeed.Items.[0]
+                cachedFeed
+            | _ -> errorFeed
+
+    feedToArticles feed
