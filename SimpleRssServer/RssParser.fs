@@ -61,9 +61,11 @@ let createErrorFeed errorType =
             $"The {uri.Host} RSS feed seems to be offline. Retrying in {waitTime.TotalHours:F1} hours. There is a saved version of the feed, which may be outdated. It is shown below."
 
         errorItem.Link <- uri.AbsoluteUri
-    | InvalidRssFeedFormat ex ->
+    | InvalidRssFeedFormat(uri, ex) ->
         errorItem.Description <-
-            $"Ensure you entered the correct RSS feed address, the format of this feed was not recognized. Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
+            $"Ensure you entered the correct RSS feed address, the format of this feed was not recognized. Invalid RSS feed format for {uri}. {ex.GetType().Name}: {ex.Message}"
+
+        errorItem.Link <- uri.AbsoluteUri
     | HttpRequestTimedOut(uri, timeOut) ->
         errorItem.Description <-
             $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Request to {uri} timed out after {timeOut.TotalSeconds:F1} seconds."
@@ -85,20 +87,20 @@ let createErrorFeed errorType =
 
     errorOnlyFeed
 
-let parseRss (logger: ILogger) (feedContent: Result<string, DomainMessage>) : Article list =
+let parseRss (logger: ILogger) (feedContent: Result<string * Uri, DomainMessage>) : Article list =
     let feed =
         match feedContent with
-        | Ok content ->
+        | Ok(content, uri) ->
             try
                 FeedReader.ReadFromString content
             with ex ->
                 logger.LogError $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
-                InvalidRssFeedFormat ex |> createErrorFeed
+                InvalidRssFeedFormat(uri, ex) |> createErrorFeed
         | Error error ->
             let errorFeed = createErrorFeed error
 
-            match feedContent with
-            | Error(PreviousHttpRequestFailedButPageCached(_, _, cachedContent)) ->
+            match error with
+            | PreviousHttpRequestFailedButPageCached(_, _, cachedContent) ->
                 let cachedFeed = FeedReader.ReadFromString cachedContent
                 cachedFeed.Items.Add errorFeed.Items.[0]
                 cachedFeed
