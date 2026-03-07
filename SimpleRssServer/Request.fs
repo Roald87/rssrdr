@@ -53,6 +53,27 @@ let fetchAndReadPage client (uri: Uri) cacheModified cachePath =
             return page
     }
 
+type CacheState =
+    | NoCacheNoFailures
+    | ReadyToRetry
+    | CacheExpired
+    | InBackoffWithCache of waitTime: TimeSpan
+    | InBackoffNoCache of waitTime: TimeSpan
+    | CacheValid
+
+let computeCacheState
+    (cacheModified: DateTimeOffset option)
+    (nextAttempt: DateTimeOffset option)
+    (expiration: TimeSpan)
+    =
+    match cacheModified, nextAttempt with
+    | None, None -> NoCacheNoFailures
+    | _, Some na when na < DateTimeOffset.Now -> ReadyToRetry
+    | Some cm, None when (DateTimeOffset.Now - cm) > expiration -> CacheExpired
+    | Some _, Some na -> InBackoffWithCache(TimeSpan.FromHours (na - DateTimeOffset.Now).TotalHours)
+    | _, Some na -> InBackoffNoCache(TimeSpan.FromHours (na - DateTimeOffset.Now).TotalHours)
+    | Some _, None -> CacheValid
+
 let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, UriError>) =
     match uri with
     | Ok u ->
@@ -62,23 +83,17 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, U
 
         let nextAttempt = nextRetry cachePath
 
-        match cacheModified, nextAttempt with
-        | None, None -> fetchAndReadPage client u cacheModified cachePath
-        | _, Some d when (d < DateTimeOffset.Now) -> fetchAndReadPage client u cacheModified cachePath
-        | Some d, None when (DateTimeOffset.Now - d) > cacheConfig.Expiration ->
-            fetchAndReadPage client u cacheModified cachePath
-        | Some _, Some _ ->
-            let waitTime =
-                TimeSpan.FromHours (nextAttempt.Value - DateTimeOffset.Now).TotalHours
-
-            let cachedPage: string =
-                readCache cachePath |> Async.RunSynchronously |> Option.defaultValue ""
-
-            async { return Error(PreviousHttpRequestFailedButPageCached(u, waitTime, cachedPage)) }
-        | _, Some d ->
-            let waitTime = TimeSpan.FromHours (d - DateTimeOffset.Now).TotalHours
-            async { return Error(PreviousHttpRequestFailed(u, waitTime)) }
-        | Some _, None ->
+        match computeCacheState cacheModified nextAttempt cacheConfig.Expiration with
+        | NoCacheNoFailures
+        | ReadyToRetry
+        | CacheExpired -> fetchAndReadPage client u cacheModified cachePath
+        | InBackoffWithCache waitTime ->
+            async {
+                let! cachedPage = readCache cachePath
+                return Error(PreviousHttpRequestFailedButPageCached(u, waitTime, cachedPage |> Option.defaultValue ""))
+            }
+        | InBackoffNoCache waitTime -> async { return Error(PreviousHttpRequestFailed(u, waitTime)) }
+        | CacheValid ->
             async {
                 let! cache = readCache cachePath
 
