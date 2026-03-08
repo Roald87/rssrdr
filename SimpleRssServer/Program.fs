@@ -24,11 +24,47 @@ type AssembleResult =
     | FeedsReady of Uri[] * Html
     | NeedsSelection of confirmedRss: Uri[] * toSelect: DiscoveredFeed list
 
-[<RequireQualifiedAccess>]
 type private FetchParseResult =
     | ValidFeed of Uri * Article list
     | MultiDiscovered of DiscoveredFeed list
     | ErrorArticles of Article list
+
+let private toDiscoveredFeed (pageUri: Uri) (link: HtmlFeedLink) : DiscoveredFeed =
+    let absoluteLink = FeedReader.GetAbsoluteFeedUrl(pageUri.ToString(), link)
+    let url = absoluteLink.Url
+
+    let title =
+        if String.IsNullOrWhiteSpace absoluteLink.Title then
+            url
+        else
+            absoluteLink.Title
+
+    { Title = title; Url = url }
+
+let private parseSingleDiscoveredFeed (logger: ILogger) cacheConfig (fetchResult: FetchResult) =
+    async {
+        match fetchResult with
+        | FreshContent(content, uri) ->
+            match tryParseFeed logger content uri with
+            | Ok feed ->
+                do! cacheSuccessfulFetch cacheConfig uri content
+                return ValidFeed(uri, feedToArticles feed)
+            | Error err -> return ErrorArticles [ createErrorArticle err ]
+        | other -> return ErrorArticles(parseRss logger other)
+    }
+
+let private discoverFeeds (logger: ILogger) client cacheConfig (content: string) (uri: Uri) (err: DomainMessage) =
+    async {
+        let htmlFeedLinks = FeedReader.ParseFeedUrlsFromHtml(content) |> Seq.toList
+
+        match htmlFeedLinks with
+        | [] -> return ErrorArticles [ createErrorArticle err ]
+        | [ link ] ->
+            let absoluteUrl = (toDiscoveredFeed uri link).Url
+            let! fetchResult = fetchUrlWithCacheAsync client cacheConfig (Uri.Create absoluteUrl)
+            return! parseSingleDiscoveredFeed logger cacheConfig fetchResult
+        | _ -> return MultiDiscovered(htmlFeedLinks |> List.map (toDiscoveredFeed uri))
+    }
 
 let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
     async {
@@ -51,49 +87,16 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
                         match tryParseFeed logger content uri with
                         | Ok feed ->
                             do! cacheSuccessfulFetch cacheConfig uri content
-                            return FetchParseResult.ValidFeed(uri, feedToArticles feed)
-                        | Error err ->
-                            let htmlFeedLinks = FeedReader.ParseFeedUrlsFromHtml(content) |> Seq.toList
-
-                            match htmlFeedLinks with
-                            | [] -> return FetchParseResult.ErrorArticles [ createErrorArticle err ]
-                            | [ link ] ->
-                                let absoluteLink = FeedReader.GetAbsoluteFeedUrl(uri.ToString(), link)
-                                let absoluteUrl = absoluteLink.Url
-                                let! fetchResult2 = fetchUrlWithCacheAsync client cacheConfig (Uri.Create absoluteUrl)
-
-                                match fetchResult2 with
-                                | FreshContent(content2, uri2) ->
-                                    match tryParseFeed logger content2 uri2 with
-                                    | Ok feed2 ->
-                                        do! cacheSuccessfulFetch cacheConfig uri2 content2
-                                        return FetchParseResult.ValidFeed(uri2, feedToArticles feed2)
-                                    | Error err2 -> return FetchParseResult.ErrorArticles [ createErrorArticle err2 ]
-                                | other -> return FetchParseResult.ErrorArticles(parseRss logger other)
-                            | _ ->
-                                let resolved =
-                                    htmlFeedLinks
-                                    |> List.map (fun l ->
-                                        let absoluteLink = FeedReader.GetAbsoluteFeedUrl(uri.ToString(), l)
-                                        let url = absoluteLink.Url
-
-                                        let title =
-                                            if String.IsNullOrWhiteSpace absoluteLink.Title then
-                                                url
-                                            else
-                                                absoluteLink.Title
-
-                                        { Title = title; Url = url })
-
-                                return FetchParseResult.MultiDiscovered resolved
-                    | other -> return FetchParseResult.ErrorArticles(parseRss logger other)
+                            return ValidFeed(uri, feedToArticles feed)
+                        | Error err -> return! discoverFeeds logger client cacheConfig content uri err
+                    | other -> return ErrorArticles(parseRss logger other)
                 })
             |> Async.Parallel
 
         let multiDiscoveredLinks =
             parsedResults
             |> Seq.choose (function
-                | FetchParseResult.MultiDiscovered links -> Some links
+                | MultiDiscovered links -> Some links
                 | _ -> None)
             |> Seq.concat
             |> Seq.toList
@@ -101,7 +104,7 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
         let confirmedUris =
             parsedResults
             |> Seq.choose (function
-                | FetchParseResult.ValidFeed(uri, _) -> Some uri
+                | ValidFeed(uri, _) -> Some uri
                 | _ -> None)
             |> Seq.toArray
 
@@ -109,9 +112,9 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
             let allItems =
                 parsedResults
                 |> Seq.collect (function
-                    | FetchParseResult.ValidFeed(_, articles) -> articles
-                    | FetchParseResult.ErrorArticles articles -> articles
-                    | FetchParseResult.MultiDiscovered _ -> [])
+                    | ValidFeed(_, articles) -> articles
+                    | ErrorArticles articles -> articles
+                    | MultiDiscovered _ -> [])
 
             let page =
                 match order with
