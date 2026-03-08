@@ -12,6 +12,7 @@ open SimpleRssServer.Logging
 open SimpleRssServer.Request
 open SimpleRssServer.RequestLog
 open SimpleRssServer.RssParser
+open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 
 type FeedOrder =
@@ -30,17 +31,16 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
         |> fun s -> if s.Length > 0 then $"?rss={s}" else s
 
     let parsedResults =
-        Seq.zip rssUris rssFeeds
-        |> Seq.map (fun (uriResult, feedContent) ->
-            match uriResult, feedContent with
-            | Ok uri, Ok content ->
+        rssFeeds
+        |> Seq.map (fun fetchResult ->
+            match fetchResult with
+            | FreshContent(content, uri) ->
                 match tryParseFeed logger content uri with
                 | Ok feed ->
                     cacheSuccessfulFetch cacheConfig uri content |> Async.RunSynchronously
                     Ok(uri, feedToArticles feed)
-                | Error err -> Error(createErrorFeed err |> feedToArticles)
-            | _, Error e -> Error(parseRss logger (Error e))
-            | Error _, Ok _ -> failwith "unreachable: invalid URI produced Ok content")
+                | Error err -> Error [ createErrorArticle err ]
+            | other -> Error(parseRss logger other))
         |> Seq.toList
 
     let successResponses =

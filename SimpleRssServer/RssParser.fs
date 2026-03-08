@@ -5,6 +5,7 @@ open Roald87.FeedReader
 open System
 
 open SimpleRssServer.DomainModel
+open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.Helper
 open Config
 
@@ -26,66 +27,42 @@ let stripHtml (input: string) : string =
         noHtml.Replace("\n", " ").Replace("\r", "").Trim()
         |> fun s -> removeRepeatingSpaces.Replace(s, " ")
 
-let createErrorFeed errorType =
-    let errorItem = FeedItem()
-    errorItem.Title <- "Error"
-    errorItem.PublishingDate <- Nullable DateTime.Now
-    errorItem.Link <- ""
+let createErrorArticle (errorType: DomainMessage) : Article =
+    let link = errorType.Uri |> Option.defaultValue ""
 
-    match errorType with
-    | CacheReadFailed(uri, cachePath) ->
-        errorItem.Description <- $"Failed to read cached file from {cachePath} for {uri}."
-        errorItem.Link <- uri.AbsoluteUri
-    | CacheReadFailedWithException(uri, cachePath, ex) ->
-        errorItem.Description <-
+    let baseUrl =
+        try
+            Uri(link).BaseUrl
+        with _ ->
+            ""
+
+    let text =
+        match errorType with
+        | CacheReadFailed(uri, cachePath) -> $"Failed to read cached file from {cachePath} for {uri}."
+        | CacheReadFailedWithException(uri, cachePath, ex) ->
             $"Failed to read cached file from {cachePath} for {uri}. {ex.GetType().Name}: {ex.Message}"
-
-        errorItem.Link <- uri.AbsoluteUri
-    | InvalidUriHostname u ->
-        errorItem.Description <-
+        | InvalidUriHostname u ->
             $"Ensure that you're using a valid address for this RSS feed. Invalid URI: {u.Value}. Host name must contain a dot."
-
-        errorItem.Link <- u.Value
-    | InvalidUriFormat(u, ex) ->
-        errorItem.Description <-
+        | InvalidUriFormat(u, ex) ->
             $"Ensure that you're using a valid address for this RSS feed. Invalid URI format: {u.Value}. {ex.GetType().Name}: {ex.Message}"
-
-        errorItem.Link <- u.Value
-    | PreviousHttpRequestFailed(uri, waitTime) ->
-        errorItem.Description <-
+        | PreviousHttpRequestFailed(uri, waitTime) ->
             $"The {uri.Host} RSS feed seems to be offline. Retrying in {waitTime.TotalHours:F1} hours."
-
-        errorItem.Link <- uri.AbsoluteUri
-    | PreviousHttpRequestFailedButPageCached(uri, waitTime, _) ->
-        errorItem.Description <-
+        | PreviousHttpRequestFailedButPageCached(uri, waitTime) ->
             $"The {uri.Host} RSS feed seems to be offline. Retrying in {waitTime.TotalHours:F1} hours. There is a saved version of the feed, which may be outdated. It is shown below."
-
-        errorItem.Link <- uri.AbsoluteUri
-    | InvalidRssFeedFormat(uri, ex) ->
-        errorItem.Description <-
+        | InvalidRssFeedFormat(uri, ex) ->
             $"Ensure you entered the correct RSS feed address, the format of this feed was not recognized. Invalid RSS feed format for {uri}. {ex.GetType().Name}: {ex.Message}"
-
-        errorItem.Link <- uri.AbsoluteUri
-    | HttpRequestTimedOut(uri, timeOut) ->
-        errorItem.Description <-
+        | HttpRequestTimedOut(uri, timeOut) ->
             $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Request to {uri} timed out after {timeOut.TotalSeconds:F1} seconds."
-
-        errorItem.Link <- uri.AbsoluteUri
-    | HttpException(uri, ex) ->
-        errorItem.Description <-
+        | HttpException(uri, ex) ->
             $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Failed to get {uri}. {ex.GetType().Name}: {ex.Message}"
-
-        errorItem.Link <- uri.AbsoluteUri
-    | HttpRequestNonSuccessStatus(uri, status) ->
-        errorItem.Description <-
+        | HttpRequestNonSuccessStatus(uri, status) ->
             $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Failed to get {uri}. Error: {status}."
 
-        errorItem.Link <- uri.AbsoluteUri
-
-    let errorOnlyFeed = Feed()
-    errorOnlyFeed.Items <- [| errorItem |]
-
-    errorOnlyFeed
+    { PostDate = Some DateTime.Now
+      Title = "Error"
+      Url = link
+      BaseUrl = baseUrl
+      Text = text }
 
 let tryParseFeed (logger: ILogger) (content: string) (uri: Uri) : Result<Feed, DomainMessage> =
     try
@@ -114,8 +91,7 @@ let feedToArticles (feed: Feed) : Article list =
 
         let baseUrl =
             try
-                let uri = Uri link
-                uri.Host.Replace("www.", "")
+                Uri(link).BaseUrl
             with _ ->
                 ""
 
@@ -139,21 +115,19 @@ let feedToArticles (feed: Feed) : Article list =
           Text = text })
     |> Seq.toList
 
-let parseRss (logger: ILogger) (feedContent: Result<string * Uri, DomainMessage>) : Article list =
-    let feed =
-        match feedContent with
-        | Ok(content, uri) ->
+let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
+    match fetchResult with
+    | FreshContent(content, uri) ->
+        match tryParseFeed logger content uri with
+        | Ok feed -> feedToArticles feed
+        | Error err -> [ createErrorArticle err ]
+    | CachedContent(content, warning) ->
+        let errorArticle = createErrorArticle warning
+
+        match warning.Uri |> Option.map Uri with
+        | Some uri ->
             match tryParseFeed logger content uri with
-            | Ok feed -> feed
-            | Error err -> createErrorFeed err
-        | Error error ->
-            let errorFeed = createErrorFeed error
-
-            match error with
-            | PreviousHttpRequestFailedButPageCached(_, _, cachedContent) ->
-                let cachedFeed = FeedReader.ReadFromString cachedContent
-                cachedFeed.Items.Add errorFeed.Items.[0]
-                cachedFeed
-            | _ -> errorFeed
-
-    feedToArticles feed
+            | Ok feed -> feedToArticles feed @ [ errorArticle ]
+            | Error _ -> [ errorArticle ]
+        | None -> [ errorArticle ]
+    | Failed e -> [ createErrorArticle e ]
