@@ -29,7 +29,7 @@ let ``tryParseFeed returns Ok Feed for valid RSS content`` () =
 let parseRssFromFile logger uri fileName =
     try
         let content = File.ReadAllText fileName
-        parseRss logger (FreshContent(uri, content))
+        parseRss logger (FreshContent(content, uri))
     with ex ->
         [ { PostDate = Some DateTime.Now
             Title = "Error"
@@ -43,7 +43,7 @@ let ``Test parseRss with non-valid RSS feed`` () =
         "<html><head><title>Not an RSS feed</title></head><body>This is a test.</body></html>"
 
     let uri = Uri "https://example.com"
-    let result = parseRss NullLogger.Instance (FreshContent(uri, invalidContent))
+    let result = parseRss NullLogger.Instance (FreshContent(invalidContent, uri))
 
     let expected =
         { PostDate = Some DateTime.Now
@@ -267,7 +267,7 @@ let ``Test read from cache if available`` () =
             (CachedContent(cachedContent, PreviousHttpRequestFailedButPageCached(uri, waitTime)))
 
     let expectedCachedArticles =
-        parseRss NullLogger.Instance (FreshContent(uri, cachedContent))
+        parseRss NullLogger.Instance (FreshContent(cachedContent, uri))
 
     Assert.Equal(expectedCachedArticles.Length + 1, result.Length)
     let actualError = List.last result

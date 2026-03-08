@@ -31,7 +31,7 @@ let createErrorArticle (errorType: DomainMessage) : Article =
 
     let baseUrl =
         try
-            Uri(link).Host.Replace("www.", "")
+            Uri(link).BaseUrl
         with _ ->
             ""
 
@@ -90,8 +90,7 @@ let feedToArticles (feed: Feed) : Article list =
 
         let baseUrl =
             try
-                let uri = Uri link
-                uri.Host.Replace("www.", "")
+                Uri(link).BaseUrl
             with _ ->
                 ""
 
@@ -117,7 +116,7 @@ let feedToArticles (feed: Feed) : Article list =
 
 let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
     match fetchResult with
-    | FreshContent(uri, content) ->
+    | FreshContent(content, uri) ->
         match tryParseFeed logger content uri with
         | Ok feed -> feedToArticles feed
         | Error err -> [ createErrorArticle err ]

@@ -6,7 +6,7 @@ open SimpleRssServer.DomainPrimitiveTypes
 open System.Net
 
 type FetchResult =
-    | FreshContent of Uri * string
+    | FreshContent of string * Uri
     | CachedContent of string * DomainMessage
     | Failed of DomainMessage
 

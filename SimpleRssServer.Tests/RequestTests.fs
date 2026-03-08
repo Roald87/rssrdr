@@ -289,7 +289,7 @@ let ``Test fetchWithCache with no cache`` () =
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | FreshContent(_, content) -> Assert.Equal(expectedContent, content)
+    | FreshContent(content, _) -> Assert.Equal(expectedContent, content)
     | other -> failwithf $"Expected FreshContent but got: {other}"
 
     deleteFile filePath
@@ -318,7 +318,7 @@ let ``Test fetchWithCache with non expired cache`` () =
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | FreshContent(_, content) -> Assert.Equal(expectedContent, content)
+    | FreshContent(content, _) -> Assert.Equal(expectedContent, content)
     | other -> failwithf $"Expected FreshContent but got: {other}"
 
     deleteFile filePath
@@ -340,7 +340,7 @@ let ``Test fetchWithCache with expired cache`` () =
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | FreshContent(_, content) -> Assert.Equal(newContent, content)
+    | FreshContent(content, _) -> Assert.Equal(newContent, content)
     | other -> failwithf $"Expected FreshContent but got: {other}"
 
     deleteFile filePath
@@ -367,7 +367,7 @@ let ``Test fetchWithCache with expired cache and 304 response`` () =
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | FreshContent(_, content) ->
+    | FreshContent(content, _) ->
         Assert.Equal(cachedContent, content)
         let newWriteTime = File.GetLastWriteTime filePath
         Assert.True(newWriteTime > oldWriteTime, "Expected file write time to be updated")
@@ -404,7 +404,7 @@ let ``Test fetchWithCache with expired cache and 304 NotModified should clear fa
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | FreshContent(_, content) ->
+    | FreshContent(content, _) ->
         Assert.Equal(cachedContent, content)
         Assert.False(File.Exists failurePath, "Expected failure record to be removed after successful fetch")
     | other -> failwithf $"Expected FreshContent but got: {other}"
@@ -476,7 +476,7 @@ let ``Test fetchWithCache attempts retry when backoff period has passed and cach
 
     // Assert - should have attempted HTTP request and got new content
     match result with
-    | FreshContent(_, content) ->
+    | FreshContent(content, _) ->
         Assert.Equal(newContent, content)
         // Failure record should be deleted after successful fetch
         Assert.False(File.Exists failurePath, "Expected failure record to be cleared after successful fetch")

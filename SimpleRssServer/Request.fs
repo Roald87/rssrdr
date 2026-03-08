@@ -59,7 +59,7 @@ type CacheState =
     | CacheExpired
     | InBackoffWithCache of waitTime: TimeSpan
     | InBackoffNoCache of waitTime: TimeSpan
-    | CacheValid
+    | CacheHit
 
 let computeCacheState
     (cacheModified: DateTimeOffset option)
@@ -72,7 +72,7 @@ let computeCacheState
     | Some cm, None when (DateTimeOffset.Now - cm) > expiration -> CacheExpired
     | Some _, Some na -> InBackoffWithCache(TimeSpan.FromHours (na - DateTimeOffset.Now).TotalHours)
     | _, Some na -> InBackoffNoCache(TimeSpan.FromHours (na - DateTimeOffset.Now).TotalHours)
-    | Some _, None -> CacheValid
+    | Some _, None -> CacheHit
 
 let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, UriError>) =
     match uri with
@@ -92,7 +92,7 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, U
 
                 return
                     match result with
-                    | Ok content -> FreshContent(u, content)
+                    | Ok content -> FreshContent(content, u)
                     | Error e -> Failed e
             }
         | InBackoffWithCache waitTime ->
@@ -100,19 +100,18 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, U
                 let! cachedPage = readCache cachePath
 
                 return
-                    CachedContent(
-                        cachedPage |> Option.defaultValue "",
-                        PreviousHttpRequestFailedButPageCached(u, waitTime)
-                    )
+                    match cachedPage with
+                    | Some content -> CachedContent(content, PreviousHttpRequestFailedButPageCached(u, waitTime))
+                    | None -> Failed(CacheReadFailed(u, cachePath))
             }
         | InBackoffNoCache waitTime -> async { return Failed(PreviousHttpRequestFailed(u, waitTime)) }
-        | CacheValid ->
+        | CacheHit ->
             async {
                 let! cache = readCache cachePath
 
                 return
                     match cache with
-                    | Some page -> FreshContent(u, page)
+                    | Some page -> FreshContent(page, u)
                     | None -> Failed(CacheReadFailed(u, cachePath))
             }
     | Error e ->

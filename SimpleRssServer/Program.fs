@@ -34,7 +34,7 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
         rssFeeds
         |> Seq.map (fun fetchResult ->
             match fetchResult with
-            | FreshContent(uri, content) ->
+            | FreshContent(content, uri) ->
                 match tryParseFeed logger content uri with
                 | Ok feed ->
                     cacheSuccessfulFetch cacheConfig uri content |> Async.RunSynchronously
