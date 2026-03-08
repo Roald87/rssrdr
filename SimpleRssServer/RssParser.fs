@@ -30,11 +30,7 @@ let stripHtml (input: string) : string =
 let createErrorArticle (errorType: DomainMessage) : Article =
     let link = errorType.Uri |> Option.defaultValue ""
 
-    let baseUrl =
-        try
-            Uri(link).BaseUrl
-        with _ ->
-            ""
+    let baseUrl = Uri.BaseUrl(link)
 
     let text =
         match errorType with
@@ -89,11 +85,7 @@ let feedToArticles (feed: Feed) : Article list =
         let title = entry.Title
         let link = entry.Link
 
-        let baseUrl =
-            try
-                Uri(link).BaseUrl
-            with _ ->
-                ""
+        let baseUrl = Uri.BaseUrl(link)
 
         let text =
             let content =
