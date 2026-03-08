@@ -22,12 +22,12 @@ type FeedOrder =
 
 type AssembleResult =
     | FeedsReady of Uri[] * Html
-    | NeedsSelection of confirmedRss: Uri[] * toSelect: (string * string) list
+    | NeedsSelection of confirmedRss: Uri[] * toSelect: DiscoveredFeed list
 
 [<RequireQualifiedAccess>]
 type private FetchParseResult =
     | ValidFeed of Uri * Article list
-    | MultiDiscovered of (string * string) list
+    | MultiDiscovered of DiscoveredFeed list
     | ErrorArticles of Article list
 
 let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
@@ -75,15 +75,15 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
                                     htmlFeedLinks
                                     |> List.map (fun l ->
                                         let absoluteLink = FeedReader.GetAbsoluteFeedUrl(uri.ToString(), l)
-                                        let absoluteUrl = absoluteLink.Url
+                                        let url = absoluteLink.Url
 
                                         let title =
                                             if String.IsNullOrWhiteSpace absoluteLink.Title then
-                                                absoluteUrl
+                                                url
                                             else
                                                 absoluteLink.Title
 
-                                        title, absoluteUrl)
+                                        { Title = title; Url = url })
 
                                 return FetchParseResult.MultiDiscovered resolved
                     | other -> return FetchParseResult.ErrorArticles(parseRss logger other)

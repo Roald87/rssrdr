@@ -91,33 +91,39 @@ let randomPage query (rssItems: Article seq) : Html =
 
     header + body + shuffledFeeds + footer
 
-let configPage (rssUrls: Result<Uri, UriError> array) : Html =
-    let body =
-        """
+type DiscoveredFeed = { Title: string; Url: string }
+
+let private configBody: Html =
+    """
     <body>
         <div>
             <h1><a href="/">rssrdr</a>/config</h1>
         </div>
     """
-        |> Html
+    |> Html
 
-    let validRssUris =
-        rssUrls
-        |> validUris
-        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
-        |> String.concat "\n"
-
-    let textArea =
+let private feedsForm (feedUris: string) (extra: Html) : Html =
+    Html
         $"""
         <form>
             <label for='feeds'>Enter one feed URL per line.
                 You can ommit the <code>https://</code>, but add <code>http://</code> if needed.
             </label><br>
-            <textarea id='feeds' rows='10' cols='30'>{validRssUris}</textarea><br>
+            <textarea id='feeds' rows='10' cols='30'>{feedUris}</textarea><br>
+        """
+    + extra
+    + Html
+        """
             <button type='button' onclick='submitFeeds()'>Submit</button>
         </form>
         """
-        |> Html
+
+let configPage (rssUrls: Result<Uri, UriError> array) : Html =
+    let validRssUris =
+        rssUrls
+        |> validUris
+        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
+        |> String.concat "\n"
 
     let errorFields = rssUrls |> invalidUris |> String.concat "<br>"
 
@@ -143,44 +149,28 @@ let configPage (rssUrls: Result<Uri, UriError> array) : Html =
         """
         |> Html
 
-    header + body + textArea + invalidDiv + filterFeeds + footer
+    header
+    + configBody
+    + feedsForm validRssUris Html.Empty
+    + invalidDiv
+    + filterFeeds
+    + footer
 
-let feedDiscoveryPage (confirmedRss: Uri[]) (toSelect: (string * string) list) : Html =
-    let body =
-        """
-    <body>
-        <div>
-            <h1><a href="/">rssrdr</a>/config</h1>
-        </div>
-    """
-        |> Html
-
+let feedDiscoveryPage (confirmedRss: Uri[]) (toSelect: DiscoveredFeed list) : Html =
     let confirmedUris =
         confirmedRss
         |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
         |> String.concat "\n"
 
-    let checkboxItems =
+    let checkboxes =
         toSelect
-        |> List.map (fun (title, url) ->
-            $"<li><label><input type='checkbox' name='discovered' value='{url}'> {WebUtility.HtmlEncode title} ({url})</label></li>")
+        |> List.map (fun feed ->
+            $"<label><input type='checkbox' name='discovered' value='{feed.Url}'> {WebUtility.HtmlEncode feed.Title} ({feed.Url})</label><br>")
         |> String.concat "\n"
-
-    let form =
-        $"""
-        <form>
-            <label for='feeds'>Enter one feed URL per line.
-                You can ommit the <code>https://</code>, but add <code>http://</code> if needed.
-            </label><br>
-            <textarea id='feeds' rows='10' cols='30'>{confirmedUris}</textarea><br>
-            <p>Also found — select the feeds you want:</p>
-            <ul id='discovered-feeds'>
-                {checkboxItems}
-            </ul>
-            <button type='button' onclick='submitFeeds()'>Submit</button>
-        </form>
-        """
         |> Html
+
+    let discoverySection =
+        Html "<p>Also found — select the feeds you want:</p>" + checkboxes
 
     let script =
         """
@@ -197,4 +187,4 @@ let feedDiscoveryPage (confirmedRss: Uri[]) (toSelect: (string * string) list) :
         """
         |> Html
 
-    header + body + form + script + footer
+    header + configBody + feedsForm confirmedUris discoverySection + script + footer
