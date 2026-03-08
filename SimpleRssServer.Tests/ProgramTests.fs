@@ -220,7 +220,7 @@ let ``Test assembleRssFeeds with HTML page containing two discovered feeds retur
     // Assert
     match result with
     | NeedsSelection(_, toSelect) -> Assert.Equal(2, toSelect.Length)
-    | FeedsReady _ -> failwith "Expected NeedsSelection but got FeedsReady"
+    | FeedsReady _ -> failwith "two-feed HTML: Expected NeedsSelection but got FeedsReady"
 
 [<Fact>]
 let ``Test assembleRssFeeds with mix of valid RSS and HTML with two feeds returns NeedsSelection`` () =

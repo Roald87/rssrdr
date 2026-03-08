@@ -105,7 +105,7 @@ let ``Test feedDiscoveryPage renders confirmed feeds in textarea and checkboxes 
         if m.Success then
             m.Groups.[1].Value
         else
-            failwith "Textarea not found"
+            failwith "feedDiscoveryPage: Textarea not found"
 
     Assert.Contains("example.com/feed1", textareaValue)
     Assert.Contains("http://example.com/feed2", textareaValue)
