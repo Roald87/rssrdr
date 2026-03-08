@@ -28,9 +28,9 @@ type Uri with
         with :? UriFormatException as ex ->
             Error(UriFormatException(InvalidUri.Create s, ex))
 
-    member this.BaseUrl =
+    static member BaseUrl(s: string) =
         try
-            this.Host.Replace("www.", "")
+            Uri(s).Host.Replace("www.", "")
         with _ ->
             ""
 

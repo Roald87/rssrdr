@@ -30,12 +30,6 @@ let stripHtml (input: string) : string =
 let createErrorArticle (errorType: DomainMessage) : Article =
     let link = errorType.Uri |> Option.defaultValue ""
 
-    let baseUrl =
-        try
-            Uri(link).BaseUrl
-        with _ ->
-            ""
-
     let text =
         match errorType with
         | CacheReadFailed(uri, cachePath) -> $"Failed to read cached file from {cachePath} for {uri}."
@@ -61,7 +55,7 @@ let createErrorArticle (errorType: DomainMessage) : Article =
     { PostDate = Some DateTime.Now
       Title = "Error"
       Url = link
-      BaseUrl = baseUrl
+      BaseUrl = Uri.BaseUrl link
       Text = text }
 
 let tryParseFeed (logger: ILogger) (content: string) (uri: Uri) : Result<Feed, DomainMessage> =
@@ -86,15 +80,6 @@ let feedToArticles (feed: Feed) : Article list =
             else
                 None
 
-        let title = entry.Title
-        let link = entry.Link
-
-        let baseUrl =
-            try
-                Uri(link).BaseUrl
-            with _ ->
-                ""
-
         let text =
             let content =
                 if isText entry.Description then entry.Description
@@ -109,9 +94,9 @@ let feedToArticles (feed: Feed) : Article list =
                 cleanedContent
 
         { PostDate = postDate
-          Title = title
-          Url = link
-          BaseUrl = baseUrl
+          Title = entry.Title
+          Url = entry.Link
+          BaseUrl = Uri.BaseUrl entry.Link
           Text = text })
     |> Seq.toList
 
