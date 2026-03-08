@@ -40,6 +40,7 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     // Act
     let _, page =
         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+        |> Async.RunSynchronously
 
     let result = page |> string
 
@@ -63,6 +64,7 @@ let ``Test assembleRssFeeds includes config link with query and removes https pr
     // Act
     let _, page =
         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+        |> Async.RunSynchronously
 
     let result = page |> string
 
@@ -82,6 +84,7 @@ let ``Test assembleRssFeeds returns successful URIs for happy path with two vali
     // Act
     let successfulUris, _ =
         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+        |> Async.RunSynchronously
 
     // Assert
     Assert.Equal(2, successfulUris.Length)
@@ -112,6 +115,7 @@ let ``Test assembleRssFeeds returns only successful URIs for mix of invalid and 
     // Act
     let successfulUris, _ =
         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+        |> Async.RunSynchronously
 
     // Assert
     Assert.Equal(2, successfulUris.Length)
@@ -146,6 +150,7 @@ let ``Test assembleRssFeeds excludes URI that returns HTML from successful URIs`
     // Act
     let successfulUris, _ =
         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+        |> Async.RunSynchronously
 
     // Assert
     Assert.Equal(1, successfulUris.Length)

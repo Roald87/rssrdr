@@ -126,7 +126,4 @@ let cacheSuccessfulFetch (cacheConfig: CacheConfig) (uri: Uri) (content: string)
     }
 
 let fetchAllRssFeeds client (cacheConfig: CacheConfig) (uris: Result<Uri, UriError> array) =
-    uris
-    |> Array.map (fetchUrlWithCacheAsync client cacheConfig)
-    |> Async.Parallel
-    |> Async.RunSynchronously
+    uris |> Array.map (fetchUrlWithCacheAsync client cacheConfig) |> Async.Parallel
