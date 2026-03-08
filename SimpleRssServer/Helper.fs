@@ -21,6 +21,3 @@ let invalidUris (uris: Result<Uri, UriError> array) : string array =
         | Error(UriFormatException(invalidUri, _)) -> Some invalidUri.Value)
 
 let isText (s: string) = not (String.IsNullOrWhiteSpace s)
-
-type Uri with
-    member this.BaseUrl = this.Host.Replace("www.", "")

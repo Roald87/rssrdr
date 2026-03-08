@@ -28,6 +28,12 @@ type Uri with
         with :? UriFormatException as ex ->
             Error(UriFormatException(InvalidUri.Create s, ex))
 
+    member this.BaseUrl =
+        try
+            this.Host.Replace("www.", "")
+        with _ ->
+            ""
+
     static member CreateWithHttps(s: string) =
         let ensureScheme (s: string) =
             if

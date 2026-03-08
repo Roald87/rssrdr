@@ -5,6 +5,7 @@ open Roald87.FeedReader
 open System
 
 open SimpleRssServer.DomainModel
+open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.Helper
 open Config
 
