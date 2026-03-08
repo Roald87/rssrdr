@@ -289,8 +289,8 @@ let ``Test fetchWithCache with no cache`` () =
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | Ok content -> Assert.Equal(expectedContent, content)
-    | Error error -> failwithf $"Expected success but got error: {error}"
+    | FreshContent(_, content) -> Assert.Equal(expectedContent, content)
+    | other -> failwithf $"Expected FreshContent but got: {other}"
 
     deleteFile filePath
 
@@ -318,8 +318,8 @@ let ``Test fetchWithCache with non expired cache`` () =
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | Ok content -> Assert.Equal(expectedContent, content)
-    | Error error -> failwithf $"Expected success but got error: {error}"
+    | FreshContent(_, content) -> Assert.Equal(expectedContent, content)
+    | other -> failwithf $"Expected FreshContent but got: {other}"
 
     deleteFile filePath
 
@@ -340,8 +340,8 @@ let ``Test fetchWithCache with expired cache`` () =
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | Ok content -> Assert.Equal(newContent, content)
-    | Error error -> failwithf $"Expected success but got error: {error}"
+    | FreshContent(_, content) -> Assert.Equal(newContent, content)
+    | other -> failwithf $"Expected FreshContent but got: {other}"
 
     deleteFile filePath
 
@@ -367,11 +367,11 @@ let ``Test fetchWithCache with expired cache and 304 response`` () =
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | Ok content ->
+    | FreshContent(_, content) ->
         Assert.Equal(cachedContent, content)
         let newWriteTime = File.GetLastWriteTime filePath
         Assert.True(newWriteTime > oldWriteTime, "Expected file write time to be updated")
-    | Error error -> failwithf $"Expected success but got error: {error}"
+    | other -> failwithf $"Expected FreshContent but got: {other}"
 
     deleteFile filePath
 
@@ -404,10 +404,10 @@ let ``Test fetchWithCache with expired cache and 304 NotModified should clear fa
         fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
 
     match result with
-    | Ok content ->
+    | FreshContent(_, content) ->
         Assert.Equal(cachedContent, content)
         Assert.False(File.Exists failurePath, "Expected failure record to be removed after successful fetch")
-    | Error error -> failwithf $"Expected success but got error: {error}"
+    | other -> failwithf $"Expected FreshContent but got: {other}"
 
     deleteFile filePath
     deleteFile failurePath
@@ -439,9 +439,8 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed and
 
     // Assert
     match result with
-    | Error(PreviousHttpRequestFailedButPageCached _) -> Assert.True(true, "Got expected error")
-    | Error error -> failwithf $"Got unexpected error: {error}"
-    | Ok x -> failwithf $"Should return an error due to backoff period. Got {x}"
+    | CachedContent(_, PreviousHttpRequestFailedButPageCached _) -> Assert.True(true, "Got expected error")
+    | other -> failwithf $"Expected CachedContent with PreviousHttpRequestFailedButPageCached but got: {other}"
 
     // Cleanup
     deleteFile filePath
@@ -477,11 +476,11 @@ let ``Test fetchWithCache attempts retry when backoff period has passed and cach
 
     // Assert - should have attempted HTTP request and got new content
     match result with
-    | Ok content ->
+    | FreshContent(_, content) ->
         Assert.Equal(newContent, content)
         // Failure record should be deleted after successful fetch
         Assert.False(File.Exists failurePath, "Expected failure record to be cleared after successful fetch")
-    | Error error -> failwithf $"Expected success with new content but got error: {error}"
+    | other -> failwithf $"Expected FreshContent with new content but got: {other}"
 
     // Cleanup
     deleteFile filePath
@@ -514,9 +513,8 @@ let ``Test fetchWithCache returns error with expired cache and cooldown time whe
 
     // Assert
     match result with
-    | Error(PreviousHttpRequestFailedButPageCached _) -> Assert.True(true, "Got expected error")
-    | Error error -> failwithf $"Got unexpected error: {error}"
-    | Ok x -> failwithf $"Expected error message with cooldown time but got Ok {x}"
+    | CachedContent(_, PreviousHttpRequestFailedButPageCached _) -> Assert.True(true, "Got expected error")
+    | other -> failwithf $"Expected CachedContent with PreviousHttpRequestFailedButPageCached but got: {other}"
 
     // Cleanup
     deleteFile filePath

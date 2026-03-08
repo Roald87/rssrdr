@@ -5,7 +5,12 @@ open System
 open SimpleRssServer.DomainPrimitiveTypes
 open System.Net
 
-type DomainMessage =
+type FetchResult =
+    | FreshContent of Uri * string
+    | CachedContent of string * DomainMessage
+    | Failed of DomainMessage
+
+and DomainMessage =
     // Uri errors
     | InvalidUriHostname of InvalidUri
     | InvalidUriFormat of InvalidUri * Exception
@@ -15,7 +20,7 @@ type DomainMessage =
 
     // Http errors
     | PreviousHttpRequestFailed of Uri * TimeSpan
-    | PreviousHttpRequestFailedButPageCached of Uri * TimeSpan * string
+    | PreviousHttpRequestFailedButPageCached of Uri * TimeSpan
     | HttpRequestTimedOut of Uri * TimeSpan
     | HttpRequestNonSuccessStatus of Uri * HttpStatusCode
     | HttpException of Uri * Exception
@@ -29,7 +34,7 @@ type DomainMessage =
         | InvalidUriHostname invalid -> Some invalid.Value
         | InvalidUriFormat(invalid, _) -> Some invalid.Value
         | PreviousHttpRequestFailed(uri, _) -> Some uri.AbsoluteUri
-        | PreviousHttpRequestFailedButPageCached(uri, _, _) -> Some uri.AbsoluteUri
+        | PreviousHttpRequestFailedButPageCached(uri, _) -> Some uri.AbsoluteUri
         | HttpRequestTimedOut(uri, _) -> Some uri.AbsoluteUri
         | HttpRequestNonSuccessStatus(uri, _) -> Some uri.AbsoluteUri
         | HttpException(uri, _) -> Some uri.AbsoluteUri

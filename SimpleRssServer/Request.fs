@@ -86,25 +86,39 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, U
         match computeCacheState cacheModified nextAttempt cacheConfig.Expiration with
         | NoCacheNoFailures
         | ReadyToRetry
-        | CacheExpired -> fetchAndReadPage client u cacheModified cachePath
+        | CacheExpired ->
+            async {
+                let! result = fetchAndReadPage client u cacheModified cachePath
+
+                return
+                    match result with
+                    | Ok content -> FreshContent(u, content)
+                    | Error e -> Failed e
+            }
         | InBackoffWithCache waitTime ->
             async {
                 let! cachedPage = readCache cachePath
-                return Error(PreviousHttpRequestFailedButPageCached(u, waitTime, cachedPage |> Option.defaultValue ""))
+
+                return
+                    CachedContent(
+                        cachedPage |> Option.defaultValue "",
+                        PreviousHttpRequestFailedButPageCached(u, waitTime)
+                    )
             }
-        | InBackoffNoCache waitTime -> async { return Error(PreviousHttpRequestFailed(u, waitTime)) }
+        | InBackoffNoCache waitTime -> async { return Failed(PreviousHttpRequestFailed(u, waitTime)) }
         | CacheValid ->
             async {
                 let! cache = readCache cachePath
 
-                match cache with
-                | Some page -> return Ok page
-                | None -> return Error(CacheReadFailed(u, cachePath))
+                return
+                    match cache with
+                    | Some page -> FreshContent(u, page)
+                    | None -> Failed(CacheReadFailed(u, cachePath))
             }
     | Error e ->
         match e with
-        | UriError.HostNameMustContainDot e -> async { return Error(InvalidUriHostname e) }
-        | UriError.UriFormatException(e, ex) -> async { return Error(InvalidUriFormat(e, ex)) }
+        | UriError.HostNameMustContainDot e -> async { return Failed(InvalidUriHostname e) }
+        | UriError.UriFormatException(e, ex) -> async { return Failed(InvalidUriFormat(e, ex)) }
 
 let cacheSuccessfulFetch (cacheConfig: CacheConfig) (uri: Uri) (content: string) =
     async {
