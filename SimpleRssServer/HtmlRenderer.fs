@@ -144,3 +144,57 @@ let configPage (rssUrls: Result<Uri, UriError> array) : Html =
         |> Html
 
     header + body + textArea + invalidDiv + filterFeeds + footer
+
+let feedDiscoveryPage (confirmedRss: Uri[]) (toSelect: (string * string) list) : Html =
+    let body =
+        """
+    <body>
+        <div>
+            <h1><a href="/">rssrdr</a>/config</h1>
+        </div>
+    """
+        |> Html
+
+    let confirmedUris =
+        confirmedRss
+        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
+        |> String.concat "\n"
+
+    let checkboxItems =
+        toSelect
+        |> List.map (fun (title, url) ->
+            $"<li><label><input type='checkbox' name='discovered' value='{url}'> {WebUtility.HtmlEncode title} ({url})</label></li>")
+        |> String.concat "\n"
+
+    let form =
+        $"""
+        <form>
+            <label for='feeds'>Enter one feed URL per line.
+                You can ommit the <code>https://</code>, but add <code>http://</code> if needed.
+            </label><br>
+            <textarea id='feeds' rows='10' cols='30'>{confirmedUris}</textarea><br>
+            <p>Also found — select the feeds you want:</p>
+            <ul id='discovered-feeds'>
+                {checkboxItems}
+            </ul>
+            <button type='button' onclick='submitFeeds()'>Submit</button>
+        </form>
+        """
+        |> Html
+
+    let script =
+        """
+        <script>
+            function submitFeeds() {
+                const feeds = document.getElementById('feeds').value.trim().split('\n');
+                const filteredFeeds = feeds.filter(feed => feed.trim() !== '');
+                const checked = Array.from(document.querySelectorAll('input[name="discovered"]:checked')).map(cb => cb.value);
+                const allFeeds = filteredFeeds.concat(checked);
+                const queryString = allFeeds.map(feed => `rss=${feed.trim()}`).join('&');
+                window.location.href = `/?${queryString}`;
+            }
+        </script>
+        """
+        |> Html
+
+    header + body + form + script + footer
