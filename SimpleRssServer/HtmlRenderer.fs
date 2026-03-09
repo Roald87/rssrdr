@@ -106,8 +106,7 @@ let private feedsForm (feedUris: string) (extra: Html) : Html =
     Html
         $"""
         <form>
-            <label for='feeds'>Enter one feed URL per line.
-                You can ommit the <code>https://</code>, but add <code>http://</code> if needed.
+            <label for='feeds'>Enter one website or a direct link to a RSS feed per line.
             </label><br>
             <textarea id='feeds' rows='10' cols='30'>{feedUris}</textarea><br>
         """
@@ -165,12 +164,11 @@ let feedDiscoveryPage (confirmedRss: Uri[]) (toSelect: DiscoveredFeed list) : Ht
     let checkboxes =
         toSelect
         |> List.map (fun feed ->
-            $"<label><input type='checkbox' name='discovered' value='{feed.Url}'> {WebUtility.HtmlEncode feed.Title} ({feed.Url})</label><br>")
+            $"<label><input type='checkbox' name='discovered' value='{feed.Url}'><a href='{feed.Url}'>{WebUtility.HtmlEncode feed.Title}</a></label><br>")
         |> String.concat "\n"
         |> Html
 
-    let discoverySection =
-        Html "<p>Also found — select the feeds you want:</p>" + checkboxes
+    let discoverySection = Html "<p>Select the feeds you want:</p>" + checkboxes
 
     let script =
         """
