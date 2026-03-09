@@ -164,11 +164,16 @@ let feedDiscoveryPage (confirmedRss: Uri[]) (toSelect: DiscoveredFeed list) : Ht
     let checkboxes =
         toSelect
         |> List.map (fun feed ->
-            $"<label><input type='checkbox' name='discovered' value='{feed.Url}'><a href='{feed.Url}'>{WebUtility.HtmlEncode feed.Title}</a></label><br>")
+            let baseUrl = Uri.BaseUrl feed.Url
+
+            $"<label>
+                <input type='checkbox' name='discovered' value='{feed.Url}'>
+                    <a href='{feed.Url}'>{WebUtility.HtmlEncode feed.Title}</a>
+                <span class='source-date'>{baseUrl}</span></label><br>")
         |> String.concat "\n"
         |> Html
 
-    let discoverySection = Html "<p>Select the feeds you want:</p>" + checkboxes
+    let discoverySection = Html "Select the feeds you want:" + checkboxes
 
     let script =
         """
