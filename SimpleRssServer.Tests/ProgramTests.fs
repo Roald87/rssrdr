@@ -1,5 +1,7 @@
 module SimpleRssServer.Tests.ProgramTests
 
+#nowarn "25" // Incomplete pattern matches are intentional in tests asserting specific DU cases
+
 open Microsoft.Extensions.Logging.Abstractions
 open System
 open System.Net
@@ -38,7 +40,7 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     let rssUrls = [||]
 
     // Act
-    let _, page =
+    let (FeedsReady(_, page)) =
         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
         |> Async.RunSynchronously
 
@@ -62,7 +64,7 @@ let ``Test assembleRssFeeds includes config link with query and removes https pr
     let rssUrls = urls |> Array.map Uri.Create
 
     // Act
-    let _, page =
+    let (FeedsReady(_, page)) =
         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
         |> Async.RunSynchronously
 
@@ -82,7 +84,7 @@ let ``Test assembleRssFeeds returns successful URIs for happy path with two vali
     let rssUrls = urls |> Array.map Ok
 
     // Act
-    let successfulUris, _ =
+    let (FeedsReady(successfulUris, _)) =
         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
         |> Async.RunSynchronously
 
@@ -113,7 +115,7 @@ let ``Test assembleRssFeeds returns only successful URIs for mix of invalid and 
            Uri.Create urls[2] |] // valid and success
 
     // Act
-    let successfulUris, _ =
+    let (FeedsReady(successfulUris, _)) =
         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
         |> Async.RunSynchronously
 
@@ -148,7 +150,7 @@ let ``Test assembleRssFeeds excludes URI that returns HTML from successful URIs`
     let rssUrls = [| Ok rssUrl; Ok htmlUrl |]
 
     // Act
-    let successfulUris, _ =
+    let (FeedsReady(successfulUris, _)) =
         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
         |> Async.RunSynchronously
 
@@ -156,3 +158,104 @@ let ``Test assembleRssFeeds excludes URI that returns HTML from successful URIs`
     Assert.Equal(1, successfulUris.Length)
     Assert.Contains(rssUrl, successfulUris)
     Assert.DoesNotContain(htmlUrl, successfulUris)
+
+[<Fact>]
+let ``Test assembleRssFeeds with HTML page containing single discovered feed returns FeedsReady`` () =
+    // Arrange
+    let ids = guids 2
+    let htmlUrl = Uri $"https://example.com/page{ids[0]}"
+    let feedUrl = $"https://example.com/feed{ids[1]}"
+
+    let htmlContent =
+        $"""<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="{feedUrl}"></head><body></body></html>"""
+
+    let htmlResponse = new HttpResponseMessage(HttpStatusCode.OK)
+    htmlResponse.Content <- new StringContent(htmlContent)
+
+    let feedResponse = new HttpResponseMessage(HttpStatusCode.OK)
+    feedResponse.Content <- new StringContent(minimalRss)
+
+    let responses =
+        Map.ofList [ htmlUrl.AbsoluteUri, htmlResponse; feedUrl, feedResponse ]
+
+    let client = httpClientWithResponses responses
+    let rssUrls = [| Ok htmlUrl |]
+
+    // Act
+    let result =
+        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+        |> Async.RunSynchronously
+
+    // Assert
+    match result with
+    | FeedsReady(uris, _) ->
+        Assert.Equal(1, uris.Length)
+        Assert.Contains(Uri feedUrl, uris)
+    | NeedsSelection _ -> failwith "Expected FeedsReady but got NeedsSelection"
+
+[<Fact>]
+let ``Test assembleRssFeeds with HTML page containing two discovered feeds returns NeedsSelection`` () =
+    // Arrange
+    let id = Guid.NewGuid().ToString()
+    let htmlUrl = Uri $"https://example.com/page{id}"
+
+    let htmlContent =
+        """<html><head>
+        <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://example.com/rss.xml">
+        <link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://example.com/atom.xml">
+        </head><body></body></html>"""
+
+    let htmlResponse = new HttpResponseMessage(HttpStatusCode.OK)
+    htmlResponse.Content <- new StringContent(htmlContent)
+
+    let responses = Map.ofList [ htmlUrl.AbsoluteUri, htmlResponse ]
+    let client = httpClientWithResponses responses
+    let rssUrls = [| Ok htmlUrl |]
+
+    // Act
+    let result =
+        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+        |> Async.RunSynchronously
+
+    // Assert
+    match result with
+    | NeedsSelection(_, toSelect) -> Assert.Equal(2, toSelect.Length)
+    | FeedsReady _ -> failwith "two-feed HTML: Expected NeedsSelection but got FeedsReady"
+
+[<Fact>]
+let ``Test assembleRssFeeds with mix of valid RSS and HTML with two feeds returns NeedsSelection`` () =
+    // Arrange
+    let ids = guids 2
+    let rssUrl = Uri $"https://example.com/feed{ids[0]}"
+    let htmlUrl = Uri $"https://example.com/page{ids[1]}"
+
+    let htmlContent =
+        """<html><head>
+        <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://example.com/rss.xml">
+        <link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://example.com/atom.xml">
+        </head><body></body></html>"""
+
+    let rssResponse = new HttpResponseMessage(HttpStatusCode.OK)
+    rssResponse.Content <- new StringContent(minimalRss)
+
+    let htmlResponse = new HttpResponseMessage(HttpStatusCode.OK)
+    htmlResponse.Content <- new StringContent(htmlContent)
+
+    let responses =
+        Map.ofList [ rssUrl.AbsoluteUri, rssResponse; htmlUrl.AbsoluteUri, htmlResponse ]
+
+    let client = httpClientWithResponses responses
+    let rssUrls = [| Ok rssUrl; Ok htmlUrl |]
+
+    // Act
+    let result =
+        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+        |> Async.RunSynchronously
+
+    // Assert
+    match result with
+    | NeedsSelection(confirmedRss, toSelect) ->
+        Assert.Equal(1, confirmedRss.Length)
+        Assert.Contains(rssUrl, confirmedRss)
+        Assert.Equal(2, toSelect.Length)
+    | FeedsReady _ -> failwith "Expected NeedsSelection but got FeedsReady"

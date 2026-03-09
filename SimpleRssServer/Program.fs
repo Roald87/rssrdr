@@ -4,6 +4,7 @@ open System.IO
 open System.Net
 open System.Text
 
+open Roald87.FeedReader
 open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.Helper
@@ -18,6 +19,52 @@ open SimpleRssServer.DomainPrimitiveTypes
 type FeedOrder =
     | Chronological
     | Random
+
+type AssembleResult =
+    | FeedsReady of Uri[] * Html
+    | NeedsSelection of confirmedRss: Uri[] * toSelect: DiscoveredFeed list
+
+type private FetchParseResult =
+    | ValidFeed of Uri * Article list
+    | MultiDiscovered of DiscoveredFeed list
+    | ErrorArticles of Article list
+
+let private toDiscoveredFeed (pageUri: Uri) (link: HtmlFeedLink) : DiscoveredFeed =
+    let absoluteLink = FeedReader.GetAbsoluteFeedUrl(pageUri.ToString(), link)
+    let url = absoluteLink.Url
+
+    let title =
+        if String.IsNullOrWhiteSpace absoluteLink.Title then
+            url
+        else
+            absoluteLink.Title
+
+    { Title = title; Url = url }
+
+let private parseSingleDiscoveredFeed (logger: ILogger) cacheConfig (fetchResult: FetchResult) =
+    async {
+        match fetchResult with
+        | FreshContent(content, uri) ->
+            match tryParseFeed logger content uri with
+            | Ok feed ->
+                do! cacheSuccessfulFetch cacheConfig uri content
+                return ValidFeed(uri, feedToArticles feed)
+            | Error err -> return ErrorArticles [ createErrorArticle err ]
+        | other -> return ErrorArticles(parseRss logger other)
+    }
+
+let private discoverFeeds (logger: ILogger) client cacheConfig (content: string) (uri: Uri) (err: DomainMessage) =
+    async {
+        let htmlFeedLinks = FeedReader.ParseFeedUrlsFromHtml(content) |> Seq.toList
+
+        match htmlFeedLinks with
+        | [] -> return ErrorArticles [ createErrorArticle err ]
+        | [ link ] ->
+            let absoluteUrl = (toDiscoveredFeed uri link).Url
+            let! fetchResult = fetchUrlWithCacheAsync client cacheConfig (Uri.Create absoluteUrl)
+            return! parseSingleDiscoveredFeed logger cacheConfig fetchResult
+        | _ -> return MultiDiscovered(htmlFeedLinks |> List.map (toDiscoveredFeed uri))
+    }
 
 let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
     async {
@@ -40,29 +87,43 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
                         match tryParseFeed logger content uri with
                         | Ok feed ->
                             do! cacheSuccessfulFetch cacheConfig uri content
-                            return Ok(uri, feedToArticles feed)
-                        | Error err -> return Error [ createErrorArticle err ]
-                    | other -> return Error(parseRss logger other)
+                            return ValidFeed(uri, feedToArticles feed)
+                        | Error err -> return! discoverFeeds logger client cacheConfig content uri err
+                    | other -> return ErrorArticles(parseRss logger other)
                 })
             |> Async.Parallel
 
-        let successResponses =
+        let multiDiscoveredLinks =
             parsedResults
             |> Seq.choose (function
-                | Ok(uri, _) -> Some uri
-                | Error _ -> None)
+                | MultiDiscovered links -> Some links
+                | _ -> None)
+            |> Seq.concat
+            |> Seq.toList
+
+        let confirmedUris =
+            parsedResults
+            |> Seq.choose (function
+                | ValidFeed(uri, _) -> Some uri
+                | _ -> None)
             |> Seq.toArray
 
-        let allItems =
-            parsedResults
-            |> Seq.collect (function
-                | Ok(_, articles) -> articles
-                | Error articles -> articles)
+        if multiDiscoveredLinks.IsEmpty then
+            let allItems =
+                parsedResults
+                |> Seq.collect (function
+                    | ValidFeed(_, articles) -> articles
+                    | ErrorArticles articles -> articles
+                    | MultiDiscovered _ -> [])
 
-        return
-            match order with
-            | Chronological -> successResponses, homepage query allItems
-            | Random -> successResponses, randomPage query allItems
+            let page =
+                match order with
+                | Chronological -> homepage query allItems
+                | Random -> randomPage query allItems
+
+            return FeedsReady(confirmedUris, page)
+        else
+            return NeedsSelection(confirmedUris, multiDiscoveredLinks)
     }
 
 let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContext) =
@@ -76,16 +137,23 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
             | Prefix "/config.html" _ -> async { return configPage rssUris |> string }
             | Prefix "/random?rss=" _ ->
                 async {
-                    let! okRequests, page = assembleRssFeeds logger Random client cacheConfig rssUris
-                    updateRequestLog RequestLogPath RequestLogRetention okRequests
-                    return page |> string
+                    let! result = assembleRssFeeds logger Random client cacheConfig rssUris
+
+                    match result with
+                    | FeedsReady(okRequests, page) ->
+                        updateRequestLog RequestLogPath RequestLogRetention okRequests
+                        return page |> string
+                    | NeedsSelection(confirmed, toSelect) -> return feedDiscoveryPage confirmed toSelect |> string
                 }
             | Prefix "/?rss=" _ ->
                 async {
-                    let! okRequests, page = assembleRssFeeds logger Chronological client cacheConfig rssUris
+                    let! result = assembleRssFeeds logger Chronological client cacheConfig rssUris
 
-                    updateRequestLog RequestLogPath RequestLogRetention okRequests
-                    return page |> string
+                    match result with
+                    | FeedsReady(okRequests, page) ->
+                        updateRequestLog RequestLogPath RequestLogRetention okRequests
+                        return page |> string
+                    | NeedsSelection(confirmed, toSelect) -> return feedDiscoveryPage confirmed toSelect |> string
                 }
             | "/robots.txt" -> async { return File.ReadAllText(Path.Combine("site", "robots.txt")) }
             | "/sitemap.xml" -> async { return File.ReadAllText(Path.Combine("site", "sitemap.xml")) }

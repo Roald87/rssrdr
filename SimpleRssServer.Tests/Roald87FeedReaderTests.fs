@@ -6,6 +6,57 @@ open Roald87.FeedReader
 open Xunit
 
 [<Fact>]
+let ``ParseFeedUrlsFromHtml returns single HtmlFeedLink from HTML with one RSS alternate link`` () =
+    let html =
+        """<html><head><link rel="alternate" type="application/rss+xml" title="My Feed" href="/feed.rss"></head><body></body></html>"""
+
+    let links = FeedReader.ParseFeedUrlsFromHtml html |> Seq.toList
+
+    Assert.Equal(1, links.Length)
+    Assert.Equal("/feed.rss", links.[0].Url)
+    Assert.Equal("My Feed", links.[0].Title)
+
+[<Fact>]
+let ``ParseFeedUrlsFromHtml returns both RSS and Atom links`` () =
+    let html =
+        """<html><head>
+<link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/rss.xml">
+<link rel="alternate" type="application/atom+xml" title="Atom Feed" href="/atom.xml">
+</head><body></body></html>"""
+
+    let links = FeedReader.ParseFeedUrlsFromHtml html |> Seq.toList
+
+    Assert.Equal(2, links.Length)
+
+[<Fact>]
+let ``ParseFeedUrlsFromHtml returns empty for HTML with no feed links`` () =
+    let html = "<html><head><title>No feeds</title></head><body></body></html>"
+
+    let links = FeedReader.ParseFeedUrlsFromHtml html |> Seq.toList
+
+    Assert.Empty links
+
+[<Fact>]
+let ``GetAbsoluteFeedUrl resolves relative href to absolute URL`` () =
+    let html =
+        """<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="/feed.rss"></head><body></body></html>"""
+
+    let link = FeedReader.ParseFeedUrlsFromHtml html |> Seq.head
+    let result = FeedReader.GetAbsoluteFeedUrl("https://example.com/page", link)
+
+    Assert.Equal("https://example.com/page/feed.rss", result.Url)
+
+[<Fact>]
+let ``GetAbsoluteFeedUrl returns already-absolute href unchanged`` () =
+    let html =
+        """<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="https://other.com/feed.rss"></head><body></body></html>"""
+
+    let link = FeedReader.ParseFeedUrlsFromHtml html |> Seq.head
+    let result = FeedReader.GetAbsoluteFeedUrl("https://example.com/page", link)
+
+    Assert.Equal("https://other.com/feed.rss", result.Url)
+
+[<Fact>]
 let ``test Roald87.FeedReader with roaldinch`` () =
     let feed = FeedReader.ReadFromFile "data/roaldinch.xml"
 
