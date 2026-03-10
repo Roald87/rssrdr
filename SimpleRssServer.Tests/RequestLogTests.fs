@@ -25,7 +25,7 @@ let ``Test updateRequestLog removes old entries`` () =
 
     File.WriteAllLines(filename, [ oldEntry; recentEntry ])
 
-    updateRequestLog filename retention [| FeedUri(Uri "http://newentry.com") |]
+    updateRequestLog filename retention [| FeedUri.Create "http://newentry.com" |]
 
     let fileContent = File.ReadAllLines filename
 

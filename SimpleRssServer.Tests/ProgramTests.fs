@@ -119,8 +119,8 @@ let ``Test assembleRssFeeds returns only successful URIs for mix of invalid and 
 
     // Assert
     Assert.Equal(2, successfulUris.Length)
-    Assert.Contains(FeedUri(Uri urls[0]), successfulUris)
-    Assert.Contains(FeedUri(Uri urls[2]), successfulUris)
+    Assert.Contains(FeedUri.Create urls[0], successfulUris)
+    Assert.Contains(FeedUri.Create urls[2], successfulUris)
 
 [<Fact>]
 let ``Test assembleRssFeeds excludes URI that returns HTML from successful URIs`` () =

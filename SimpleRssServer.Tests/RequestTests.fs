@@ -88,8 +88,8 @@ let ``Test requestUrls returns two URLs from request-log.txt`` () =
     let urls = readRequestLog logFilePath
 
     Assert.Equal(2, Array.length urls)
-    Assert.Contains(FeedUri(Uri "https://example.com/feed1"), urls)
-    Assert.Contains(FeedUri(Uri "https://example.com/feed2"), urls)
+    Assert.Contains(FeedUri.Create "https://example.com/feed1", urls)
+    Assert.Contains(FeedUri.Create "https://example.com/feed2", urls)
 
 [<Fact>]
 let ``Test updateRequestLog removes entries older than retention period`` () =
@@ -107,7 +107,7 @@ let ``Test updateRequestLog removes entries older than retention period`` () =
 
     File.WriteAllLines(filename, [ oldEntry; recentEntry ])
 
-    updateRequestLog filename retention [| FeedUri(Uri "http://newentry.nl") |]
+    updateRequestLog filename retention [| FeedUri.Create "http://newentry.nl" |]
 
     let fileContent = File.ReadAllLines filename
 
@@ -122,9 +122,9 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     let filename = OsPath "test_log.txt"
 
     let logEntries =
-        [| FeedUri(Uri "https://Entry1.com")
-           FeedUri(Uri "http://Entry2.ch")
-           FeedUri(Uri "https://Entry3.nl") |]
+        [| FeedUri.Create "https://Entry1.com"
+           FeedUri.Create "http://Entry2.ch"
+           FeedUri.Create "https://Entry3.nl" |]
 
     let retention = TimeSpan 1
 
@@ -611,8 +611,8 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
         with _ ->
             [||]
 
-    Assert.Contains(FeedUri(Uri "https://valid-url.com/feed1"), urls)
-    Assert.Contains(FeedUri(Uri "https://valid-url.com/feed2"), urls)
-    Assert.DoesNotContain(FeedUri(Uri "ftp://unsupported-protocol.com/feed3"), urls)
+    Assert.Contains(FeedUri.Create "https://valid-url.com/feed1", urls)
+    Assert.Contains(FeedUri.Create "https://valid-url.com/feed2", urls)
+    Assert.DoesNotContain(FeedUri.Create "ftp://unsupported-protocol.com/feed3", urls)
     Assert.Equal(2, Array.length urls)
     File.Delete filename
