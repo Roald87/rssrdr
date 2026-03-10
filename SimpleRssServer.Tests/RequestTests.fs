@@ -88,8 +88,8 @@ let ``Test requestUrls returns two URLs from request-log.txt`` () =
     let urls = readRequestLog logFilePath
 
     Assert.Equal(2, Array.length urls)
-    Assert.Contains(Uri "https://example.com/feed1", urls)
-    Assert.Contains(Uri "https://example.com/feed2", urls)
+    Assert.Contains(FeedUri.Create "https://example.com/feed1", urls)
+    Assert.Contains(FeedUri.Create "https://example.com/feed2", urls)
 
 [<Fact>]
 let ``Test updateRequestLog removes entries older than retention period`` () =
@@ -107,7 +107,7 @@ let ``Test updateRequestLog removes entries older than retention period`` () =
 
     File.WriteAllLines(filename, [ oldEntry; recentEntry ])
 
-    updateRequestLog filename retention [| Uri "http://newentry.nl" |]
+    updateRequestLog filename retention [| FeedUri.Create "http://newentry.nl" |]
 
     let fileContent = File.ReadAllLines filename
 
@@ -122,7 +122,9 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     let filename = OsPath "test_log.txt"
 
     let logEntries =
-        [| Uri "https://Entry1.com"; Uri "http://Entry2.ch"; Uri "https://Entry3.nl" |]
+        [| FeedUri.Create "https://Entry1.com"
+           FeedUri.Create "http://Entry2.ch"
+           FeedUri.Create "https://Entry3.nl" |]
 
     let retention = TimeSpan 1
 
@@ -286,7 +288,8 @@ let ``Test fetchWithCache with no cache`` () =
     deleteFile filePath
 
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     match result with
     | FreshContent(content, _) -> Assert.Equal(expectedContent, content)
@@ -315,7 +318,8 @@ let ``Test fetchWithCache with non expired cache`` () =
     File.SetLastWriteTime(filePath, cacheAge)
 
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     match result with
     | FreshContent(content, _) -> Assert.Equal(expectedContent, content)
@@ -337,7 +341,8 @@ let ``Test fetchWithCache with expired cache`` () =
     createOutdatedCache filePath cachedContent
 
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     match result with
     | FreshContent(content, _) -> Assert.Equal(newContent, content)
@@ -364,7 +369,8 @@ let ``Test fetchWithCache with expired cache and 304 response`` () =
     File.SetLastWriteTime(filePath, oldWriteTime)
 
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     match result with
     | FreshContent(content, _) ->
@@ -401,7 +407,8 @@ let ``Test fetchWithCache with expired cache and 304 NotModified should clear fa
     let client = new HttpClient(handler)
 
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     match result with
     | FreshContent(content, _) ->
@@ -434,7 +441,7 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed and
 
     // Act
     let result =
-        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (Ok url)
+        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (FeedUri url)
         |> Async.RunSynchronously
 
     // Assert
@@ -472,7 +479,8 @@ let ``Test fetchWithCache attempts retry when backoff period has passed and cach
 
     // Act
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     // Assert - should have attempted HTTP request and got new content
     match result with
@@ -508,7 +516,7 @@ let ``Test fetchWithCache returns error with expired cache and cooldown time whe
 
     // Act
     let result =
-        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (Ok url)
+        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (FeedUri url)
         |> Async.RunSynchronously
 
     // Assert
@@ -567,7 +575,7 @@ let ``cacheSuccessfulFetch creates cache file with correct content`` () =
     let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
     deleteFile filePath
 
-    cacheSuccessfulFetch cacheConfig url content |> Async.RunSynchronously
+    cacheSuccessfulFetch cacheConfig (FeedUri url) content |> Async.RunSynchronously
 
     Assert.True(File.Exists filePath, "Expected cache file to be created")
     Assert.Equal(content, File.ReadAllText filePath)
@@ -581,7 +589,8 @@ let ``cacheSuccessfulFetch overwrites stale cache file with new content`` () =
     let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
     createOutdatedCache filePath oldContent
 
-    cacheSuccessfulFetch cacheConfig url newContent |> Async.RunSynchronously
+    cacheSuccessfulFetch cacheConfig (FeedUri url) newContent
+    |> Async.RunSynchronously
 
     Assert.Equal(newContent, File.ReadAllText filePath)
     deleteFile filePath
@@ -609,8 +618,8 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
         with _ ->
             [||]
 
-    Assert.Contains(Uri "https://valid-url.com/feed1", urls)
-    Assert.Contains(Uri "https://valid-url.com/feed2", urls)
-    Assert.DoesNotContain(Uri "ftp://unsupported-protocol.com/feed3", urls)
+    Assert.Contains(FeedUri.Create "https://valid-url.com/feed1", urls)
+    Assert.Contains(FeedUri.Create "https://valid-url.com/feed2", urls)
+    Assert.DoesNotContain(FeedUri.Create "ftp://unsupported-protocol.com/feed3", urls)
     Assert.Equal(2, Array.length urls)
     File.Delete filename

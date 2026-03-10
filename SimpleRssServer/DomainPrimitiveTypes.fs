@@ -46,6 +46,15 @@ type Uri with
 
         Uri.Create(ensureScheme s)
 
+type FeedUri =
+    | FeedUri of Uri
+
+    static member Create(s: string) = FeedUri(Uri s)
+
+    member this.AbsoluteUri =
+        let (FeedUri u) = this
+        u.AbsoluteUri
+
 type Filename = Filename of string
 
 type OsPath =

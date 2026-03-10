@@ -88,8 +88,8 @@ let ``Test assembleRssFeeds returns successful URIs for happy path with two vali
 
     // Assert
     Assert.Equal(2, successfulUris.Length)
-    Assert.Contains(urls[0], successfulUris)
-    Assert.Contains(urls[1], successfulUris)
+    Assert.Contains(FeedUri urls[0], successfulUris)
+    Assert.Contains(FeedUri urls[1], successfulUris)
 
 [<Fact>]
 let ``Test assembleRssFeeds returns only successful URIs for mix of invalid and failed fetches`` () =
@@ -119,8 +119,8 @@ let ``Test assembleRssFeeds returns only successful URIs for mix of invalid and 
 
     // Assert
     Assert.Equal(2, successfulUris.Length)
-    Assert.Contains(Uri urls[0], successfulUris)
-    Assert.Contains(Uri urls[2], successfulUris)
+    Assert.Contains(FeedUri.Create urls[0], successfulUris)
+    Assert.Contains(FeedUri.Create urls[2], successfulUris)
 
 [<Fact>]
 let ``Test assembleRssFeeds excludes URI that returns HTML from successful URIs`` () =
@@ -154,5 +154,5 @@ let ``Test assembleRssFeeds excludes URI that returns HTML from successful URIs`
 
     // Assert
     Assert.Equal(1, successfulUris.Length)
-    Assert.Contains(rssUrl, successfulUris)
-    Assert.DoesNotContain(htmlUrl, successfulUris)
+    Assert.Contains(FeedUri rssUrl, successfulUris)
+    Assert.DoesNotContain(FeedUri htmlUrl, successfulUris)
