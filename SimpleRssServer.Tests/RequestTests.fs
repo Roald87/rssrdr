@@ -288,7 +288,8 @@ let ``Test fetchWithCache with no cache`` () =
     deleteFile filePath
 
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     match result with
     | FreshContent(content, _) -> Assert.Equal(expectedContent, content)
@@ -317,7 +318,8 @@ let ``Test fetchWithCache with non expired cache`` () =
     File.SetLastWriteTime(filePath, cacheAge)
 
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     match result with
     | FreshContent(content, _) -> Assert.Equal(expectedContent, content)
@@ -339,7 +341,8 @@ let ``Test fetchWithCache with expired cache`` () =
     createOutdatedCache filePath cachedContent
 
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     match result with
     | FreshContent(content, _) -> Assert.Equal(newContent, content)
@@ -366,7 +369,8 @@ let ``Test fetchWithCache with expired cache and 304 response`` () =
     File.SetLastWriteTime(filePath, oldWriteTime)
 
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     match result with
     | FreshContent(content, _) ->
@@ -403,7 +407,8 @@ let ``Test fetchWithCache with expired cache and 304 NotModified should clear fa
     let client = new HttpClient(handler)
 
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     match result with
     | FreshContent(content, _) ->
@@ -436,7 +441,7 @@ let ``Test fetchWithCache respects failure backoff when retry is not allowed and
 
     // Act
     let result =
-        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (Ok url)
+        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (FeedUri url)
         |> Async.RunSynchronously
 
     // Assert
@@ -474,7 +479,8 @@ let ``Test fetchWithCache attempts retry when backoff period has passed and cach
 
     // Act
     let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
+        fetchUrlWithCacheAsync client cacheConfig (FeedUri url)
+        |> Async.RunSynchronously
 
     // Assert - should have attempted HTTP request and got new content
     match result with
@@ -510,7 +516,7 @@ let ``Test fetchWithCache returns error with expired cache and cooldown time whe
 
     // Act
     let result =
-        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (Ok url)
+        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (FeedUri url)
         |> Async.RunSynchronously
 
     // Assert
@@ -569,7 +575,7 @@ let ``cacheSuccessfulFetch creates cache file with correct content`` () =
     let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
     deleteFile filePath
 
-    cacheSuccessfulFetch cacheConfig url content |> Async.RunSynchronously
+    cacheSuccessfulFetch cacheConfig (FeedUri url) content |> Async.RunSynchronously
 
     Assert.True(File.Exists filePath, "Expected cache file to be created")
     Assert.Equal(content, File.ReadAllText filePath)
@@ -583,7 +589,8 @@ let ``cacheSuccessfulFetch overwrites stale cache file with new content`` () =
     let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
     createOutdatedCache filePath oldContent
 
-    cacheSuccessfulFetch cacheConfig url newContent |> Async.RunSynchronously
+    cacheSuccessfulFetch cacheConfig (FeedUri url) newContent
+    |> Async.RunSynchronously
 
     Assert.Equal(newContent, File.ReadAllText filePath)
     deleteFile filePath

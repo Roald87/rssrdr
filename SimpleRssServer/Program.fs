@@ -19,17 +19,24 @@ type FeedOrder =
     | Chronological
     | Random
 
-let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
+let assembleRssFeeds (logger: ILogger) order client cacheConfig (rssUris: Result<Uri, UriError> array) =
     async {
-        let! rssFeeds = fetchAllRssFeeds client cacheConfig rssUris
-
-        let allValidUris = rssUris |> validUris |> Array.map (fun u -> u.AbsoluteUri)
+        let validFeedUris = rssUris |> validUris |> Array.map FeedUri
 
         let query =
-            allValidUris
-            |> Array.map (fun s -> s.Replace("https://", ""))
+            validFeedUris
+            |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
             |> String.concat "&rss="
             |> fun s -> if s.Length > 0 then $"?rss={s}" else s
+
+        let invalidErrorArticles =
+            rssUris
+            |> Array.choose (function
+                | Error(UriError.HostNameMustContainDot e) -> Some(parseRss logger (Failed(InvalidUriHostname e)))
+                | Error(UriError.UriFormatException(e, ex)) -> Some(parseRss logger (Failed(InvalidUriFormat(e, ex))))
+                | Ok _ -> None)
+
+        let! rssFeeds = fetchAllRssFeeds client cacheConfig validFeedUris
 
         let! parsedResults =
             rssFeeds
@@ -39,7 +46,7 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
                     | FreshContent(content, uri) ->
                         match tryParseFeed logger content uri with
                         | Ok feed ->
-                            do! cacheSuccessfulFetch cacheConfig uri content
+                            do! cacheSuccessfulFetch cacheConfig (FeedUri uri) content
                             return Ok(FeedUri uri, feedToArticles feed)
                         | Error err -> return Error [ createErrorArticle err ]
                     | other -> return Error(parseRss logger other)
@@ -54,10 +61,15 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
             |> Seq.toArray
 
         let allItems =
-            parsedResults
-            |> Seq.collect (function
-                | Ok(_, articles) -> articles
-                | Error articles -> articles)
+            seq {
+                yield!
+                    parsedResults
+                    |> Seq.collect (function
+                        | Ok(_, articles) -> articles
+                        | Error articles -> articles)
+
+                yield! invalidErrorArticles |> Seq.concat
+            }
 
         return
             match order with
@@ -105,7 +117,7 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
 let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.CacheConfig) =
     async {
         while true do
-            let urls = readRequestLog RequestLogPath |> Array.map (fun (FeedUri u) -> Ok u)
+            let urls = readRequestLog RequestLogPath
 
             if urls.Length > 0 then
                 logger.LogDebug $"Periodically updating {urls.Length} RSS feeds."

@@ -13,8 +13,7 @@ let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: FeedU
         currentDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
     let newEntries =
-        uris
-        |> Array.map (fun (FeedUri url) -> $"{currentDateString} {url.AbsoluteUri}")
+        uris |> Array.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
 
     let existingEntries =
         if File.Exists requestLogPath then
