@@ -6,14 +6,15 @@ open System.Globalization
 
 open SimpleRssServer.DomainPrimitiveTypes
 
-let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri array) =
+let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: FeedUri array) =
     let currentDate = DateTime.Now
 
     let currentDateString =
         currentDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
     let newEntries =
-        uris |> Array.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
+        uris
+        |> Array.map (fun (FeedUri url) -> $"{currentDateString} {url.AbsoluteUri}")
 
     let existingEntries =
         if File.Exists requestLogPath then
@@ -46,5 +47,6 @@ let readRequestLog (logPath: OsPath) =
             | Error e -> None
             | Ok u -> Some u)
         |> Array.filter (fun x -> x.Scheme = Uri.UriSchemeHttp || x.Scheme = Uri.UriSchemeHttps)
+        |> Array.map FeedUri
     else
         [||]

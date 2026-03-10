@@ -40,7 +40,7 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
                         match tryParseFeed logger content uri with
                         | Ok feed ->
                             do! cacheSuccessfulFetch cacheConfig uri content
-                            return Ok(uri, feedToArticles feed)
+                            return Ok(FeedUri uri, feedToArticles feed)
                         | Error err -> return Error [ createErrorArticle err ]
                     | other -> return Error(parseRss logger other)
                 })
@@ -105,7 +105,7 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
 let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.CacheConfig) =
     async {
         while true do
-            let urls = readRequestLog RequestLogPath |> Array.map Ok
+            let urls = readRequestLog RequestLogPath |> Array.map (fun (FeedUri u) -> Ok u)
 
             if urls.Length > 0 then
                 logger.LogDebug $"Periodically updating {urls.Length} RSS feeds."
