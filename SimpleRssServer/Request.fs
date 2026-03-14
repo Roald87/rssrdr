@@ -119,9 +119,9 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, U
         | UriError.HostNameMustContainDot e -> async { return Failed(InvalidUriHostname e) }
         | UriError.UriFormatException(e, ex) -> async { return Failed(InvalidUriFormat(e, ex)) }
 
-let cacheSuccessfulFetch (cacheConfig: CacheConfig) (uri: Uri) (content: string) =
+let cacheSuccessfulFetch (cacheConfig: CacheConfig) (feedUri: FeedUri) (content: string) =
     async {
-        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
+        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename feedUri.Uri)
         do! writeCache cachePath content
     }
 

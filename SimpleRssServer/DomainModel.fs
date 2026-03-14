@@ -5,6 +5,13 @@ open System
 open SimpleRssServer.DomainPrimitiveTypes
 open System.Net
 
+type FeedUri =
+    | FeedUri of Uri
+
+    member this.Uri =
+        let (FeedUri u) = this
+        u
+
 type FetchResult =
     | FreshContent of string * Uri
     | CachedContent of string * DomainMessage
