@@ -12,6 +12,7 @@ open Microsoft.Extensions.Logging.Abstractions
 open Xunit
 
 open SimpleRssServer.Config
+open SimpleRssServer.DomainModel
 open SimpleRssServer.Helper
 open SimpleRssServer.Request
 open SimpleRssServer.RssParser
@@ -567,7 +568,7 @@ let ``cacheSuccessfulFetch creates cache file with correct content`` () =
     let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
     deleteFile filePath
 
-    cacheSuccessfulFetch cacheConfig url content |> Async.RunSynchronously
+    cacheSuccessfulFetch cacheConfig (FeedUri url) content |> Async.RunSynchronously
 
     Assert.True(File.Exists filePath, "Expected cache file to be created")
     Assert.Equal(content, File.ReadAllText filePath)
@@ -581,7 +582,8 @@ let ``cacheSuccessfulFetch overwrites stale cache file with new content`` () =
     let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
     createOutdatedCache filePath oldContent
 
-    cacheSuccessfulFetch cacheConfig url newContent |> Async.RunSynchronously
+    cacheSuccessfulFetch cacheConfig (FeedUri url) newContent
+    |> Async.RunSynchronously
 
     Assert.Equal(newContent, File.ReadAllText filePath)
     deleteFile filePath
