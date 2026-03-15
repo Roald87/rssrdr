@@ -6,9 +6,10 @@ open System.Text
 open System.Xml.Linq
 open Xunit
 
+open SimpleRssServer.DomainModel
+open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.RssParser
-open SimpleRssServer.DomainPrimitiveTypes
 
 [<Fact>]
 let ``Test convertArticleToHtml encodes special characters`` () =

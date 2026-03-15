@@ -7,15 +7,7 @@ open System.Net
 open Helper
 open RssParser
 open DomainPrimitiveTypes
-
-type Html =
-    | Html of string
-
-    override this.ToString() = let (Html s) = this in s
-    static member (+)(Html a, Html b) = Html(a + b)
-    static member Empty = Html ""
-
-type DiscoveredFeed = { Title: string; Url: string }
+open SimpleRssServer.DomainModel
 
 let convertArticleToHtml (article: Article) : Html =
     let date =
@@ -103,7 +95,7 @@ let private configBody: Html =
     |> Html
 
 let private feedsForm (confirmedUris: string) (extras: Html) : Html =
-    let form =
+    let enteredFeeds =
         $"""
         <form>
             <label for='feeds'>Enter one feed URL per line.
@@ -116,7 +108,7 @@ let private feedsForm (confirmedUris: string) (extras: Html) : Html =
         """
         |> Html
 
-    let script =
+    let submitFeedLinks =
         """
         <script>
             function submitFeeds() {
@@ -131,7 +123,7 @@ let private feedsForm (confirmedUris: string) (extras: Html) : Html =
         """
         |> Html
 
-    form + script
+    enteredFeeds + submitFeedLinks
 
 let configPage (rssUrls: Result<Uri, UriError> array) : Html =
     let validRssUris =

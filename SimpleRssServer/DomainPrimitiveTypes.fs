@@ -128,3 +128,10 @@ type File with
     static member WriteAllTextAsync(path, content: string) =
         let (OsPath p) = path
         File.WriteAllTextAsync(p, content)
+
+type Html =
+    | Html of string
+
+    override this.ToString() = let (Html s) = this in s
+    static member (+)(Html a, Html b) = Html(a + b)
+    static member Empty = Html ""
