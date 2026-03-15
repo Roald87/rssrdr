@@ -22,14 +22,14 @@ type FeedOrder =
 
 type AssembleResult =
     | FeedsReady of Uri[] * Html
-    | NeedsSelection of confirmedRss: Uri[] * toSelect: (string * string) list
+    | NeedsSelection of confirmedRss: Uri[] * toSelect: DiscoveredFeed list
 
 type private FetchParseResult =
     | ValidFeed of Uri * Article list
-    | MultiDiscovered of (string * string) list
+    | MultiDiscovered of DiscoveredFeed list
     | ErrorArticles of Article list
 
-let private toDiscoveredFeeds (pageUri: Uri) (links: HtmlFeedLink list) : (string * string) list =
+let private toDiscoveredFeeds (pageUri: Uri) (links: HtmlFeedLink list) : DiscoveredFeed list =
     links
     |> List.map (fun l ->
         let absoluteLink = FeedReader.GetAbsoluteFeedUrl(pageUri.ToString(), l)
@@ -41,7 +41,7 @@ let private toDiscoveredFeeds (pageUri: Uri) (links: HtmlFeedLink list) : (strin
             else
                 absoluteLink.Title
 
-        title, url)
+        { Title = title; Url = url })
 
 let private parseSingleFetchResult
     (logger: ILogger)

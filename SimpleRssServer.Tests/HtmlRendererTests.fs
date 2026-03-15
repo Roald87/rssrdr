@@ -87,8 +87,10 @@ let ``Test feedDiscoveryPage renders confirmed feeds in textarea and checkboxes 
         [| Uri "https://example.com/feed1"; Uri "http://example.com/feed2" |]
 
     let toSelect =
-        [ ("RSS Feed", "https://site.com/rss.xml")
-          ("Atom Feed", "https://site.com/atom.xml") ]
+        [ { Title = "RSS Feed"
+            Url = "https://site.com/rss.xml" }
+          { Title = "Atom Feed"
+            Url = "https://site.com/atom.xml" } ]
 
     let resultHtml = feedDiscoveryPage confirmedUris toSelect |> string
 
@@ -112,3 +114,4 @@ let ``Test feedDiscoveryPage renders confirmed feeds in textarea and checkboxes 
     Assert.Contains("RSS Feed", resultHtml)
     Assert.Contains("value='https://site.com/atom.xml'", resultHtml)
     Assert.Contains("Atom Feed", resultHtml)
+    Assert.Contains("site.com", resultHtml)
