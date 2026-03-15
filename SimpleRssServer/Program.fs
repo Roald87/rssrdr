@@ -31,20 +31,7 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
             |> String.concat "&rss="
             |> fun s -> if s.Length > 0 then $"?rss={s}" else s
 
-        let parseFeedResult fetchResult =
-            async {
-                match fetchResult with
-                | FreshContent(content, uri) ->
-                    match tryParseFeed logger content uri with
-                    | Ok feed ->
-                        let feedUri = FeedUri uri
-                        cacheSuccessfulFetch cacheConfig feedUri content
-                        return Ok(feedUri, feedToArticles feed)
-                    | Error err -> return Error [ createErrorArticle err ]
-                | other -> return Error(parseRss logger other)
-            }
-
-        let! parsedResults = rssFeeds |> Array.map parseFeedResult |> Async.Parallel
+        let parsedResults = rssFeeds |> Array.map (parseFeedResult logger cacheConfig)
 
         let successResponses =
             parsedResults

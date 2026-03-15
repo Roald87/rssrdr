@@ -5,9 +5,12 @@ open System
 open System.IO
 open Xunit
 
-open SimpleRssServer.DomainModel
-open SimpleRssServer.RssParser
+open SimpleRssServer.Cache
 open SimpleRssServer.Config
+open SimpleRssServer.DomainModel
+open SimpleRssServer.DomainPrimitiveTypes
+open SimpleRssServer.Request
+open SimpleRssServer.RssParser
 
 [<Fact>]
 let ``tryParseFeed returns InvalidRssFeedFormat for non-RSS content`` () =
@@ -286,3 +289,47 @@ let ``Test read from cache if available`` () =
         Assert.Equal(exp.Url, act.Url)
         Assert.Equal(exp.BaseUrl, act.BaseUrl)
         Assert.Equal(exp.Text, act.Text))
+
+let makeTempCacheConfig () =
+    { Dir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
+      Expiration = TimeSpan.FromHours 1.0 }
+
+[<Fact>]
+let ``parseFeedResult with valid FreshContent returns Ok and writes cache`` () =
+    let uri = Uri "https://example.com"
+    let content = File.ReadAllText "data/roaldinch.xml"
+    let cacheConfig = makeTempCacheConfig ()
+    Directory.CreateDirectory cacheConfig.Dir
+
+    let result =
+        parseFeedResult NullLogger.Instance cacheConfig (FreshContent(content, uri))
+
+    match result with
+    | Ok(feedUri, articles) ->
+        Assert.Equal(uri, feedUri.Uri)
+        Assert.NotEmpty articles
+        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
+        Assert.True(File.Exists cachePath, "Expected cache file to be written")
+        Assert.Equal(content, File.ReadAllText cachePath)
+    | Error _ -> Assert.Fail "Expected Ok"
+
+    Directory.DeleteRecursive cacheConfig.Dir
+
+[<Fact>]
+let ``parseFeedResult with invalid FreshContent returns Error and does not write cache`` () =
+    let uri = Uri "https://example.com"
+    let cacheConfig = makeTempCacheConfig ()
+    Directory.CreateDirectory cacheConfig.Dir
+
+    let result =
+        parseFeedResult NullLogger.Instance cacheConfig (FreshContent("<html>not rss</html>", uri))
+
+    match result with
+    | Error articles ->
+        Assert.Single articles |> ignore
+        Assert.Equal("Error", (List.head articles).Title)
+        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
+        Assert.False(File.Exists cachePath, "Expected no cache file to be written")
+    | Ok _ -> Assert.Fail "Expected Error"
+
+    Directory.DeleteRecursive cacheConfig.Dir

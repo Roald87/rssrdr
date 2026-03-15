@@ -4,9 +4,11 @@ open Microsoft.Extensions.Logging
 open Roald87.FeedReader
 open System
 
+open SimpleRssServer.Cache
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.Helper
+open SimpleRssServer.Request
 open Config
 
 type Article =
@@ -119,3 +121,15 @@ let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
 
         feedArticles @ [ errorArticle ]
     | Failed e -> [ createErrorArticle e ]
+
+let parseFeedResult (logger: ILogger) (cacheConfig: CacheConfig) (fetchResult: FetchResult) =
+    match fetchResult with
+    | FreshContent(content, uri) ->
+        let feedUri = FeedUri uri
+
+        match tryParseFeed logger content uri with
+        | Ok feed ->
+            cacheSuccessfulFetch cacheConfig feedUri content
+            Ok(feedUri, feedToArticles feed)
+        | Error err -> Error [ createErrorArticle err ]
+    | other -> Error(parseRss logger other)
