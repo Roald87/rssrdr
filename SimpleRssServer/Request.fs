@@ -75,49 +75,42 @@ let computeCacheState
     | Some _, None -> CacheHit
 
 let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, UriError>) =
-    match uri with
-    | Ok u ->
-        let cacheFilename = convertUrlToValidFilename u
-        let cachePath = Path.Combine(cacheConfig.Dir, cacheFilename)
-        let cacheModified = fileLastModified cachePath
+    async {
+        match uri with
+        | Error(UriError.HostNameMustContainDot e) -> return Failed(InvalidUriHostname e)
+        | Error(UriError.UriFormatException(e, ex)) -> return Failed(InvalidUriFormat(e, ex))
+        | Ok u ->
+            let cacheFilename = convertUrlToValidFilename u
+            let cachePath = Path.Combine(cacheConfig.Dir, cacheFilename)
+            let cacheModified = fileLastModified cachePath
+            let nextAttempt = nextRetry cachePath
 
-        let nextAttempt = nextRetry cachePath
-
-        match computeCacheState cacheModified nextAttempt cacheConfig.Expiration with
-        | NoCacheNoFailures
-        | ReadyToRetry
-        | CacheExpired ->
-            async {
+            match computeCacheState cacheModified nextAttempt cacheConfig.Expiration with
+            | NoCacheNoFailures
+            | ReadyToRetry
+            | CacheExpired ->
                 let! result = fetchAndReadPage client u cacheModified cachePath
 
                 return
                     match result with
                     | Ok content -> FreshContent(content, u)
                     | Error e -> Failed e
-            }
-        | InBackoffWithCache waitTime ->
-            async {
+            | InBackoffWithCache waitTime ->
                 let! cachedPage = readCache cachePath
 
                 return
                     match cachedPage with
                     | Some content -> CachedContent(content, PreviousHttpRequestFailedButPageCached(u, waitTime))
                     | None -> Failed(CacheReadFailed(u, cachePath))
-            }
-        | InBackoffNoCache waitTime -> async { return Failed(PreviousHttpRequestFailed(u, waitTime)) }
-        | CacheHit ->
-            async {
+            | InBackoffNoCache waitTime -> return Failed(PreviousHttpRequestFailed(u, waitTime))
+            | CacheHit ->
                 let! cache = readCache cachePath
 
                 return
                     match cache with
                     | Some page -> FreshContent(page, u)
                     | None -> Failed(CacheReadFailed(u, cachePath))
-            }
-    | Error e ->
-        match e with
-        | UriError.HostNameMustContainDot e -> async { return Failed(InvalidUriHostname e) }
-        | UriError.UriFormatException(e, ex) -> async { return Failed(InvalidUriFormat(e, ex)) }
+    }
 
 let cacheSuccessfulFetch (cacheConfig: CacheConfig) (feedUri: FeedUri) (content: string) =
     async {
