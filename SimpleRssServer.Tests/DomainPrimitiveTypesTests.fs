@@ -69,3 +69,15 @@ let ``Uri.createWithHttps should return Error for invalid host`` () =
     | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", invalid.Value)
     | Ok x -> failwith $"Expected Error but got Ok {x}"
     | Error error -> failwithf $"Expected HostNameMustContainDot error but got {error}"
+
+[<Fact>]
+let ``Uri.StripScheme removes https scheme`` () =
+    Assert.Equal("example.com/feed", Uri.StripScheme "https://example.com/feed")
+
+[<Fact>]
+let ``Uri.StripScheme removes http scheme`` () =
+    Assert.Equal("example.com/feed", Uri.StripScheme "http://example.com/feed")
+
+[<Fact>]
+let ``Uri.StripScheme leaves url without scheme unchanged`` () =
+    Assert.Equal("example.com/feed", Uri.StripScheme "example.com/feed")

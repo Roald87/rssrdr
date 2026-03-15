@@ -34,6 +34,9 @@ type Uri with
         with _ ->
             ""
 
+    static member StripScheme(s: string) =
+        Text.RegularExpressions.Regex.Replace(s, "^https?://", "")
+
     static member CreateWithHttps(s: string) =
         let ensureScheme (s: string) =
             if

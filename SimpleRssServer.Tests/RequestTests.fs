@@ -528,7 +528,7 @@ let ``Test Html encoding of special characters`` () =
           Text =
             "Maybe 15 years ago, I heard that a certain cell phone camera would lose the ability to autofocus for about two weeks, then it would go back to working for another two weeks, and so on. It had something to do with the time ( since the epoch), the bits in u..."
           PostDate = Some(DateTime(2024, 02, 25))
-          Url = "https://rachelbythebay.com/w/2024/02/24/signext/"
+          ArticleUrl = "https://rachelbythebay.com/w/2024/02/24/signext/"
           FeedUrl = "https://rachelbythebay.com/feed" }
         |> convertArticleToHtml ""
         |> string

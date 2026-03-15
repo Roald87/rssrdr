@@ -13,16 +13,13 @@ open SimpleRssServer.DomainModel
 let removeFromQuery (query: string) (feedToRemove: string) : string =
     let qs = HttpUtility.ParseQueryString(query)
 
-    let normalizedFeedUrl =
-        Text.RegularExpressions.Regex.Replace(feedToRemove, "^https?://", "")
+    let normalizedFeedUrl = Uri.StripScheme feedToRemove
 
     let remaining =
         qs.GetValues("rss")
         |> Option.ofObj
         |> Option.defaultValue [||]
-        |> Array.filter (fun u ->
-            let normalized = Text.RegularExpressions.Regex.Replace(u, "^https?://", "")
-            normalized <> normalizedFeedUrl)
+        |> Array.filter (fun u -> Uri.StripScheme u <> normalizedFeedUrl)
 
     if remaining.Length = 0 then
         "/"
@@ -46,7 +43,7 @@ let convertArticleToHtml (query: string) (article: Article) : Html =
 
     $"""
     <div>
-        <h2><a href="%s{article.Url}" target="_blank">%s{article.Title |> WebUtility.HtmlEncode}</a></h2>
+        <h2><a href="%s{article.ArticleUrl}" target="_blank">%s{article.Title |> WebUtility.HtmlEncode}</a></h2>
         <div class="source-date">%s{baseUrl} %s{date}
             <button class="remove-feed"
                     title="Remove %s{baseUrl} from your feed"

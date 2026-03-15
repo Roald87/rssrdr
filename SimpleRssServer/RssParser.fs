@@ -13,7 +13,7 @@ open Config
 type Article =
     { PostDate: DateTime option
       Title: string
-      Url: string
+      ArticleUrl: string
       FeedUrl: string
       Text: string }
 
@@ -55,7 +55,7 @@ let createErrorArticle (errorType: DomainMessage) : Article =
 
     { PostDate = Some DateTime.Now
       Title = "Error"
-      Url = link
+      ArticleUrl = link
       FeedUrl = link
       Text = text }
 
@@ -97,7 +97,7 @@ let feedToArticles (uri: Uri) (feed: Feed) : Article list =
     |> Seq.map (fun entry ->
         { PostDate = getPostDate feed entry
           Title = entry.Title
-          Url = entry.Link
+          ArticleUrl = entry.Link
           FeedUrl = uri.AbsoluteUri
           Text = getArticleText entry })
     |> Seq.toList
