@@ -14,7 +14,7 @@ type Article =
     { PostDate: DateTime option
       Title: string
       Url: string
-      BaseUrl: string
+      FeedUrl: string
       Text: string }
 
 let stripHtml (input: string) : string =
@@ -56,7 +56,7 @@ let createErrorArticle (errorType: DomainMessage) : Article =
     { PostDate = Some DateTime.Now
       Title = "Error"
       Url = link
-      BaseUrl = Uri.BaseUrl link
+      FeedUrl = link
       Text = text }
 
 let tryParseFeed (logger: ILogger) (content: string) (uri: Uri) : Result<Feed, DomainMessage> =
@@ -92,13 +92,13 @@ let private getArticleText (entry: FeedItem) =
     else
         cleaned
 
-let feedToArticles (feed: Feed) : Article list =
+let feedToArticles (uri: Uri) (feed: Feed) : Article list =
     feed.Items
     |> Seq.map (fun entry ->
         { PostDate = getPostDate feed entry
           Title = entry.Title
           Url = entry.Link
-          BaseUrl = Uri.BaseUrl entry.Link
+          FeedUrl = uri.AbsoluteUri
           Text = getArticleText entry })
     |> Seq.toList
 
@@ -106,7 +106,7 @@ let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
     match fetchResult with
     | FreshContent(content, uri) ->
         match tryParseFeed logger content uri with
-        | Ok feed -> feedToArticles feed
+        | Ok feed -> feedToArticles uri feed
         | Error err -> [ createErrorArticle err ]
     | CachedContent(content, warning) ->
         let errorArticle = createErrorArticle warning
@@ -114,8 +114,10 @@ let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
         let feedArticles =
             warning.Uri
             |> Option.map Uri
-            |> Option.bind (fun uri -> tryParseFeed logger content uri |> Result.toOption)
-            |> Option.map feedToArticles
+            |> Option.bind (fun uri ->
+                tryParseFeed logger content uri
+                |> Result.toOption
+                |> Option.map (feedToArticles uri))
             |> Option.defaultValue []
 
         feedArticles @ [ errorArticle ]
@@ -129,6 +131,6 @@ let parseFeedResult (logger: ILogger) (cacheConfig: CacheConfig) (fetchResult: F
         match tryParseFeed logger content uri with
         | Ok feed ->
             cacheSuccessfulFetch cacheConfig feedUri content
-            Ok(feedUri, feedToArticles feed)
+            Ok(feedUri, feedToArticles uri feed)
         | Error err -> Error [ createErrorArticle err ]
     | other -> Error(parseRss logger other)
