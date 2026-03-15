@@ -38,7 +38,7 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
                     match tryParseFeed logger content uri with
                     | Ok feed ->
                         let feedUri = FeedUri uri
-                        do! cacheSuccessfulFetch cacheConfig feedUri content
+                        cacheSuccessfulFetch cacheConfig feedUri content
                         return Ok(feedUri, feedToArticles feed)
                     | Error err -> return Error [ createErrorArticle err ]
                 | other -> return Error(parseRss logger other)

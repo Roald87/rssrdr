@@ -37,19 +37,19 @@ let fetchAndReadPage client (uri: Uri) cacheModified cachePath =
         | Ok "No changes" ->
             try
                 logger.LogDebug $"Reading from cached file {cachePath}, because feed didn't change"
-                let! content = readCache cachePath
+                let content = readCache cachePath
                 File.SetLastWriteTime(cachePath, DateTime.Now)
-                do! clearFailure cachePath
+                clearFailure cachePath
                 return Ok content.Value
             with ex ->
                 logger.LogError $"Failed to read file {cachePath}. {ex.GetType().Name}: {ex.Message}"
-                do! recordFailure cachePath
+                recordFailure cachePath
                 return Error(CacheReadFailedWithException(uri, cachePath, ex))
         | Ok content ->
-            do! clearFailure cachePath
+            clearFailure cachePath
             return page
         | Error _ ->
-            do! recordFailure cachePath
+            recordFailure cachePath
             return page
     }
 
@@ -96,27 +96,21 @@ let fetchUrlWithCacheAsync client (cacheConfig: CacheConfig) (uri: Result<Uri, U
                     | Ok content -> FreshContent(content, u)
                     | Error e -> Failed e
             | InBackoffWithCache waitTime ->
-                let! cachedPage = readCache cachePath
-
                 return
-                    match cachedPage with
+                    match readCache cachePath with
                     | Some content -> CachedContent(content, PreviousHttpRequestFailedButPageCached(u, waitTime))
                     | None -> Failed(CacheReadFailed(u, cachePath))
             | InBackoffNoCache waitTime -> return Failed(PreviousHttpRequestFailed(u, waitTime))
             | CacheHit ->
-                let! cache = readCache cachePath
-
                 return
-                    match cache with
+                    match readCache cachePath with
                     | Some page -> FreshContent(page, u)
                     | None -> Failed(CacheReadFailed(u, cachePath))
     }
 
 let cacheSuccessfulFetch (cacheConfig: CacheConfig) (feedUri: FeedUri) (content: string) =
-    async {
-        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename feedUri.Uri)
-        do! writeCache cachePath content
-    }
+    let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename feedUri.Uri)
+    writeCache cachePath content
 
 let fetchAllRssFeeds client (cacheConfig: CacheConfig) (uris: Result<Uri, UriError> array) =
     uris |> Array.map (fetchUrlWithCacheAsync client cacheConfig) |> Async.Parallel

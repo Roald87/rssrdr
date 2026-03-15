@@ -568,7 +568,7 @@ let ``cacheSuccessfulFetch creates cache file with correct content`` () =
     let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
     deleteFile filePath
 
-    cacheSuccessfulFetch cacheConfig (FeedUri url) content |> Async.RunSynchronously
+    cacheSuccessfulFetch cacheConfig (FeedUri url) content
 
     Assert.True(File.Exists filePath, "Expected cache file to be created")
     Assert.Equal(content, File.ReadAllText filePath)
@@ -583,7 +583,6 @@ let ``cacheSuccessfulFetch overwrites stale cache file with new content`` () =
     createOutdatedCache filePath oldContent
 
     cacheSuccessfulFetch cacheConfig (FeedUri url) newContent
-    |> Async.RunSynchronously
 
     Assert.Equal(newContent, File.ReadAllText filePath)
     deleteFile filePath
