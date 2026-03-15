@@ -4,9 +4,11 @@ open Microsoft.Extensions.Logging
 open Roald87.FeedReader
 open System
 
+open SimpleRssServer.Cache
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.Helper
+open SimpleRssServer.Request
 open Config
 
 type Article =
@@ -65,39 +67,40 @@ let tryParseFeed (logger: ILogger) (content: string) (uri: Uri) : Result<Feed, D
         logger.LogError $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
         Error(InvalidRssFeedFormat(uri, ex))
 
+let private getPostDate (feed: Feed) (entry: FeedItem) =
+    if entry.PublishingDate.HasValue then
+        Some entry.PublishingDate.Value
+    elif feed.Type = FeedType.Atom then
+        let atomEntry = entry.SpecificItem :?> Feeds.AtomFeedItem
+
+        if atomEntry.UpdatedDate.HasValue then
+            Some atomEntry.UpdatedDate.Value
+        else
+            None
+    else
+        None
+
+let private getArticleText (entry: FeedItem) =
+    let content =
+        if isText entry.Description then entry.Description
+        elif isText entry.Content then entry.Content
+        else ""
+
+    let cleaned = content |> stripHtml
+
+    if cleaned.Length > ArticleDescriptionLength then
+        cleaned[.. ArticleDescriptionLength - 1] + "..."
+    else
+        cleaned
+
 let feedToArticles (feed: Feed) : Article list =
     feed.Items
     |> Seq.map (fun entry ->
-        let postDate =
-            if entry.PublishingDate.HasValue then
-                Some entry.PublishingDate.Value
-            else if feed.Type = FeedType.Atom then
-                let atomEntry = entry.SpecificItem :?> Feeds.AtomFeedItem
-
-                match atomEntry.UpdatedDate.HasValue with
-                | false -> None
-                | true -> Some atomEntry.UpdatedDate.Value
-            else
-                None
-
-        let text =
-            let content =
-                if isText entry.Description then entry.Description
-                else if isText entry.Content then entry.Content
-                else ""
-
-            let cleanedContent = content |> stripHtml
-
-            if cleanedContent.Length > ArticleDescriptionLength then
-                cleanedContent.Substring(0, ArticleDescriptionLength) + "..."
-            else
-                cleanedContent
-
-        { PostDate = postDate
+        { PostDate = getPostDate feed entry
           Title = entry.Title
           Url = entry.Link
           BaseUrl = Uri.BaseUrl entry.Link
-          Text = text })
+          Text = getArticleText entry })
     |> Seq.toList
 
 let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
@@ -109,10 +112,24 @@ let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
     | CachedContent(content, warning) ->
         let errorArticle = createErrorArticle warning
 
-        match warning.Uri |> Option.map Uri with
-        | Some uri ->
-            match tryParseFeed logger content uri with
-            | Ok feed -> feedToArticles feed @ [ errorArticle ]
-            | Error _ -> [ errorArticle ]
-        | None -> [ errorArticle ]
+        let feedArticles =
+            warning.Uri
+            |> Option.map Uri
+            |> Option.bind (fun uri -> tryParseFeed logger content uri |> Result.toOption)
+            |> Option.map feedToArticles
+            |> Option.defaultValue []
+
+        feedArticles @ [ errorArticle ]
     | Failed e -> [ createErrorArticle e ]
+
+let parseFeedResult (logger: ILogger) (cacheConfig: CacheConfig) (fetchResult: FetchResult) =
+    match fetchResult with
+    | FreshContent(content, uri) ->
+        let feedUri = FeedUri uri
+
+        match tryParseFeed logger content uri with
+        | Ok feed ->
+            cacheSuccessfulFetch cacheConfig feedUri content
+            Ok(feedUri, feedToArticles feed)
+        | Error err -> Error [ createErrorArticle err ]
+    | other -> Error(parseRss logger other)

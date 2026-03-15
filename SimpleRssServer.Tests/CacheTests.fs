@@ -23,7 +23,7 @@ let ``Test clearFailure deletes failure record`` () =
     File.WriteAllText(failurePath, json)
 
     // Clear the failure record explicitly
-    clearFailure filePath |> Async.RunSynchronously
+    clearFailure filePath
 
     // Verify failure record is cleared
     Assert.False(File.Exists failurePath, "Expected failure record to be deleted by clearFailure")
@@ -38,7 +38,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     let failurePath = failureFilePath filePath
 
     // Record first failure
-    recordFailure filePath |> Async.RunSynchronously
+    recordFailure filePath
 
     let failure1 =
         JsonSerializer.Deserialize<FetchFailure>(File.ReadAllText failurePath)
@@ -46,7 +46,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     Assert.Equal(1, failure1.ConsecutiveFailures)
 
     // Record second failure
-    recordFailure filePath |> Async.RunSynchronously
+    recordFailure filePath
 
     let failure2 =
         JsonSerializer.Deserialize<FetchFailure>(File.ReadAllText failurePath)

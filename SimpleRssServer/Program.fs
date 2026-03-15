@@ -31,21 +31,7 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
             |> String.concat "&rss="
             |> fun s -> if s.Length > 0 then $"?rss={s}" else s
 
-        let! parsedResults =
-            rssFeeds
-            |> Array.map (fun fetchResult ->
-                async {
-                    match fetchResult with
-                    | FreshContent(content, uri) ->
-                        match tryParseFeed logger content uri with
-                        | Ok feed ->
-                            let feedUri = FeedUri uri
-                            do! cacheSuccessfulFetch cacheConfig feedUri content
-                            return Ok(feedUri, feedToArticles feed)
-                        | Error err -> return Error [ createErrorArticle err ]
-                    | other -> return Error(parseRss logger other)
-                })
-            |> Async.Parallel
+        let parsedResults = rssFeeds |> Array.map (parseFeedResult logger cacheConfig)
 
         let successResponses =
             parsedResults
@@ -72,25 +58,21 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
 
         let rssUris = getRssUrls context.Request.Url.Query
 
+        let serveRss order =
+            async {
+                let! okRequests, page = assembleRssFeeds logger order client cacheConfig rssUris
+                updateRequestLog RequestLogPath RequestLogRetention okRequests
+                return page |> string
+            }
+
         let! responseString =
             match context.Request.RawUrl with
-            | Prefix "/config.html" _ -> async { return configPage rssUris |> string }
-            | Prefix "/random?rss=" _ ->
-                async {
-                    let! okRequests, page = assembleRssFeeds logger Random client cacheConfig rssUris
-                    updateRequestLog RequestLogPath RequestLogRetention okRequests
-                    return page |> string
-                }
-            | Prefix "/?rss=" _ ->
-                async {
-                    let! okRequests, page = assembleRssFeeds logger Chronological client cacheConfig rssUris
-
-                    updateRequestLog RequestLogPath RequestLogRetention okRequests
-                    return page |> string
-                }
-            | "/robots.txt" -> async { return File.ReadAllText(Path.Combine("site", "robots.txt")) }
-            | "/sitemap.xml" -> async { return File.ReadAllText(Path.Combine("site", "sitemap.xml")) }
-            | _ -> async { return landingPage |> string }
+            | Prefix "/config.html" _ -> async.Return(configPage rssUris |> string)
+            | Prefix "/random?rss=" _ -> serveRss Random
+            | Prefix "/?rss=" _ -> serveRss Chronological
+            | "/robots.txt" -> async.Return(File.ReadAllText(Path.Combine("site", "robots.txt")))
+            | "/sitemap.xml" -> async.Return(File.ReadAllText(Path.Combine("site", "sitemap.xml")))
+            | _ -> async.Return(landingPage |> string)
 
         let buffer = responseString |> Encoding.UTF8.GetBytes
         context.Response.ContentLength64 <- int64 buffer.Length

@@ -4,6 +4,7 @@ open System
 open System.IO
 open System.Text.Json
 open SimpleRssServer.Logging
+
 open Microsoft.Extensions.Logging
 open DomainPrimitiveTypes
 
@@ -24,13 +25,10 @@ let fileLastModified (path: OsPath) =
         None
 
 let readCache (cachePath: OsPath) =
-    async {
-        if File.Exists cachePath then
-            let! content = File.ReadAllTextAsync cachePath |> Async.AwaitTask
-            return Some content
-        else
-            return None
-    }
+    if File.Exists cachePath then
+        Some(File.ReadAllText cachePath)
+    else
+        None
 
 let createDirectoryForPath (path: OsPath) =
     let (OsPath dir) = Path.GetDirectoryName path
@@ -39,42 +37,35 @@ let createDirectoryForPath (path: OsPath) =
         Directory.CreateDirectory dir |> ignore
 
 let writeCache cachePath (content: string) =
-    async {
-        createDirectoryForPath cachePath
-        do! File.WriteAllTextAsync(cachePath, content) |> Async.AwaitTask
-    }
+    createDirectoryForPath cachePath
+    File.WriteAllText(cachePath, content)
 
 let clearFailure cachePath =
-    async {
-        let failurePath = failureFilePath cachePath
+    let failurePath = failureFilePath cachePath
 
-        if File.Exists failurePath then
-            File.Delete failurePath
-    }
+    if File.Exists failurePath then
+        File.Delete failurePath
 
 let recordFailure cachePath =
-    async {
-        let failurePath = failureFilePath cachePath
-        createDirectoryForPath failurePath
+    let failurePath = failureFilePath cachePath
+    createDirectoryForPath failurePath
 
-        let failure =
-            if File.Exists(failurePath) then
-                try
-                    let json = File.ReadAllText(failurePath)
-                    let existing = JsonSerializer.Deserialize<FetchFailure>(json)
+    let failure =
+        if File.Exists(failurePath) then
+            try
+                let json = File.ReadAllText(failurePath)
+                let existing = JsonSerializer.Deserialize<FetchFailure>(json)
 
-                    { LastFailure = DateTimeOffset.Now
-                      ConsecutiveFailures = existing.ConsecutiveFailures + 1 }
-                with _ ->
-                    { LastFailure = DateTimeOffset.Now
-                      ConsecutiveFailures = 1 }
-            else
+                { LastFailure = DateTimeOffset.Now
+                  ConsecutiveFailures = existing.ConsecutiveFailures + 1 }
+            with _ ->
                 { LastFailure = DateTimeOffset.Now
                   ConsecutiveFailures = 1 }
+        else
+            { LastFailure = DateTimeOffset.Now
+              ConsecutiveFailures = 1 }
 
-        let json = JsonSerializer.Serialize(failure)
-        do! File.WriteAllTextAsync(failurePath, json) |> Async.AwaitTask
-    }
+    File.WriteAllText(failurePath, JsonSerializer.Serialize(failure))
 
 let readFailure cachePath =
     let path = failureFilePath cachePath
