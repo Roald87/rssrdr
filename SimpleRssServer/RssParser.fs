@@ -4,7 +4,6 @@ open Microsoft.Extensions.Logging
 open Roald87.FeedReader
 open System
 
-open SimpleRssServer.Cache
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.Helper

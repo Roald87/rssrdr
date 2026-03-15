@@ -7,13 +7,7 @@ open System.Net
 open Helper
 open RssParser
 open DomainPrimitiveTypes
-
-type Html =
-    | Html of string
-
-    override this.ToString() = let (Html s) = this in s
-    static member (+)(Html a, Html b) = Html(a + b)
-    static member Empty = Html ""
+open SimpleRssServer.DomainModel
 
 let convertArticleToHtml (article: Article) : Html =
     let date =
@@ -91,33 +85,52 @@ let randomPage query (rssItems: Article seq) : Html =
 
     header + body + shuffledFeeds + footer
 
-let configPage (rssUrls: Result<Uri, UriError> array) : Html =
-    let body =
-        """
+let private configBody: Html =
+    """
     <body>
         <div>
             <h1><a href="/">rssrdr</a>/config</h1>
         </div>
     """
-        |> Html
+    |> Html
 
-    let validRssUris =
-        rssUrls
-        |> validUris
-        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
-        |> String.concat "\n"
-
-    let textArea =
+let private feedsForm (confirmedUris: string) (extras: Html) : Html =
+    let enteredFeeds =
         $"""
         <form>
             <label for='feeds'>Enter one feed URL per line.
                 You can ommit the <code>https://</code>, but add <code>http://</code> if needed.
             </label><br>
-            <textarea id='feeds' rows='10' cols='30'>{validRssUris}</textarea><br>
+            <textarea id='feeds' rows='10' cols='30'>{confirmedUris}</textarea><br>
+            %s{string extras}
             <button type='button' onclick='submitFeeds()'>Submit</button>
         </form>
         """
         |> Html
+
+    let submitFeedLinks =
+        """
+        <script>
+            function submitFeeds() {
+                const feeds = document.getElementById('feeds').value.trim().split('\n');
+                const filteredFeeds = feeds.filter(feed => feed.trim() !== '');
+                const checked = Array.from(document.querySelectorAll('input[name="discovered"]:checked')).map(cb => cb.value);
+                const allFeeds = filteredFeeds.concat(checked);
+                const queryString = allFeeds.map(feed => `rss=${feed.trim()}`).join('&');
+                window.location.href = `/?${queryString}`;
+            }
+        </script>
+        """
+        |> Html
+
+    enteredFeeds + submitFeedLinks
+
+let configPage (rssUrls: Result<Uri, UriError> array) : Html =
+    let validRssUris =
+        rssUrls
+        |> validUris
+        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
+        |> String.concat "\n"
 
     let errorFields = rssUrls |> invalidUris |> String.concat "<br>"
 
@@ -130,17 +143,25 @@ let configPage (rssUrls: Result<Uri, UriError> array) : Html =
         else
             Html.Empty
 
-    let filterFeeds =
-        """
-        <script>
-            function submitFeeds() {
-                const feeds = document.getElementById('feeds').value.trim().split('\n');
-                const filteredFeeds = feeds.filter(feed => feed.trim() !== '');
-                const queryString = filteredFeeds.map(feed => `rss=${feed.trim()}`).join('&');
-                window.location.href = `/?${queryString}`;
-            }
-        </script>
+    header + configBody + feedsForm validRssUris invalidDiv + footer
+
+let feedDiscoveryPage (confirmedRss: Uri[]) (toSelect: DiscoveredFeed list) : Html =
+    let confirmedUris =
+        confirmedRss
+        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
+        |> String.concat "\n"
+
+    let checkboxItems =
+        toSelect
+        |> List.map (fun feed ->
+            $"<label><input type='checkbox' name='discovered' value='{feed.Url}'> {Uri.BaseUrl feed.Url}: <a href='{feed.Url}'>{WebUtility.HtmlEncode feed.Title}</a></label>")
+        |> String.concat "\n"
+
+    let extras =
+        $"""
+        Select feeds:</br>
+        {checkboxItems}
         """
         |> Html
 
-    header + body + textArea + invalidDiv + filterFeeds + footer
+    header + configBody + feedsForm confirmedUris extras + footer

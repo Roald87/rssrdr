@@ -48,3 +48,5 @@ and DomainMessage =
         | InvalidRssFeedFormat(uri, _) -> Some uri.AbsoluteUri
         | CacheReadFailed(uri, _) -> Some uri.AbsoluteUri
         | CacheReadFailedWithException(uri, _, _) -> Some uri.AbsoluteUri
+
+type DiscoveredFeed = { Title: string; Url: string }
