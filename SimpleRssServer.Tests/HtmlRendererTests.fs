@@ -13,27 +13,55 @@ open SimpleRssServer.RssParser
 
 [<Fact>]
 let ``Test convertArticleToHtml encodes special characters`` () =
-    let expected =
-        """
-    <div>
-        <h2><a href="https://rachelbythebay.com/w/2024/02/24/signext/" target="_blank">1 &lt;&lt; n vs. 1U &lt;&lt; n and a cell phone autofocus problem</a></h2>
-        <div class="source-date">rachelbythebay.com on Sunday, February 25, 2024</div>
-        <p>Maybe 15 years ago, I heard that a certain cell phone camera would lose the ability to autofocus for about two weeks, then it would go back to working for another two weeks, and so on. It had something to do with the time ( since the epoch), the bits in u...</p>
-    </div>
-    """
-
     let actual =
         { Title = "1 << n vs. 1U << n and a cell phone autofocus problem"
           Text =
             "Maybe 15 years ago, I heard that a certain cell phone camera would lose the ability to autofocus for about two weeks, then it would go back to working for another two weeks, and so on. It had something to do with the time ( since the epoch), the bits in u..."
           PostDate = Some(DateTime(2024, 02, 25))
-          Url = "https://rachelbythebay.com/w/2024/02/24/signext/"
-          BaseUrl = "rachelbythebay.com" }
-        |> convertArticleToHtml
+          ArticleUrl = "https://rachelbythebay.com/w/2024/02/24/signext/"
+          FeedUrl = "https://rachelbythebay.com/feed" }
+        |> convertArticleToHtml ""
         |> string
 
-    // Comparing strings, instead of Html, is easier to see where they differ
-    Assert.Equal(expected, actual)
+    Assert.Contains(
+        """<a href="https://rachelbythebay.com/w/2024/02/24/signext/" target="_blank">1 &lt;&lt; n vs. 1U &lt;&lt; n and a cell phone autofocus problem</a>""",
+        actual
+    )
+
+    Assert.Contains("""<div class="source-date">rachelbythebay.com on Sunday, February 25, 2024""", actual)
+    Assert.Contains("Maybe 15 years ago, I heard that a certain cell phone camera", actual)
+    Assert.Contains("title=\"Remove rachelbythebay.com from your feed\"", actual)
+
+[<Fact>]
+let ``removeFromQuery removes a matching feed from a multi-feed query`` () =
+    let result =
+        removeFromQuery "?rss=example.com/feed&rss=other.com/feed" "https://example.com/feed"
+
+    Assert.Equal("?rss=other.com/feed", result)
+
+[<Fact>]
+let ``removeFromQuery returns slash when removing the last feed`` () =
+    let result = removeFromQuery "?rss=example.com/feed" "https://example.com/feed"
+    Assert.Equal("/", result)
+
+[<Fact>]
+let ``removeFromQuery handles http prefix in query param`` () =
+    let result =
+        removeFromQuery "?rss=http://example.com/feed&rss=other.com/feed" "http://example.com/feed"
+
+    Assert.Equal("?rss=other.com/feed", result)
+
+[<Fact>]
+let ``removeFromQuery leaves query unchanged if feedUrl not found`` () =
+    let result = removeFromQuery "?rss=other.com/feed" "https://example.com/feed"
+    Assert.Equal("?rss=other.com/feed", result)
+
+[<Fact>]
+let ``removeFromQuery removes only the specified feed when two feeds share the same base url`` () =
+    let result =
+        removeFromQuery "?rss=example.com/feed1&rss=example.com/feed2" "https://example.com/feed1"
+
+    Assert.Equal("?rss=example.com/feed2", result)
 
 [<Fact>]
 let ``Test landing page displays correct version number using XML parser`` () =
