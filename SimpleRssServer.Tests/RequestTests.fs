@@ -511,7 +511,7 @@ let ``Test Html encoding of special characters`` () =
           PostDate = Some(DateTime(2024, 02, 25))
           ArticleUrl = "https://rachelbythebay.com/w/2024/02/24/signext/"
           FeedUrl = "https://rachelbythebay.com/feed" }
-        |> convertArticleToHtml ""
+        |> convertArticleToHtml Html.Empty
         |> string
 
     Assert.Contains(

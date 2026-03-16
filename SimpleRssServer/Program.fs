@@ -131,8 +131,8 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
 
             let page =
                 match order with
-                | Chronological -> homepage query allItems
-                | Random -> randomPage query allItems
+                | Chronological -> homepage (Query.Create query) allItems
+                | Random -> randomPage (Query.Create query) allItems
 
             return FeedsReady(confirmedUris, page)
         else

@@ -10,13 +10,11 @@ open RssParser
 open DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
 
-let removeFromQuery (query: string) (feedToRemove: string) : string =
-    let qs = HttpUtility.ParseQueryString(query)
-
+let removeFromQuery (query: Query) (feedToRemove: string) : string =
     let normalizedFeedUrl = Uri.StripScheme feedToRemove
 
     let remaining =
-        qs.GetValues("rss")
+        query.Value.GetValues("rss")
         |> Option.ofObj
         |> Option.defaultValue [||]
         |> Array.filter (fun u -> Uri.StripScheme u <> normalizedFeedUrl)
@@ -31,10 +29,16 @@ let header: Html = File.ReadAllText(Path.Combine("site", "header.html")) |> Html
 let private trashIcon: string =
     File.ReadAllText(Path.Combine("site", "trash-can.svg"))
 
-let convertArticleToHtml (query: string) (article: Article) : Html =
-    let removeUrl = removeFromQuery query article.FeedUrl
-    let baseUrl = Uri.BaseUrl article.FeedUrl
+let private deleteFeedButton (query: Query) (feedUrl: string) : Html =
+    let removeUrl = removeFromQuery query feedUrl
+    let baseUrl = Uri.BaseUrl feedUrl
 
+    $"""<button class="remove-feed"
+            title="Remove {baseUrl} from your feed"
+            onclick="removeFeed('{removeUrl}', '{baseUrl}')">{trashIcon}</button>"""
+    |> Html
+
+let convertArticleToHtml (deleteButton: Html) (article: Article) : Html =
     let date =
         if article.PostDate.IsSome then
             $"on %s{article.PostDate.Value.ToLongDateString()}"
@@ -44,10 +48,8 @@ let convertArticleToHtml (query: string) (article: Article) : Html =
     $"""
     <div>
         <h2><a href="%s{article.ArticleUrl}" target="_blank">%s{article.Title |> WebUtility.HtmlEncode}</a></h2>
-        <div class="source-date">%s{baseUrl} %s{date}
-            <button class="remove-feed"
-                    title="Remove %s{baseUrl} from your feed"
-                    onclick="removeFeed('%s{removeUrl}', '%s{baseUrl}')">%s{trashIcon}</button>
+        <div class="source-date">%s{article.FeedUrl |> Uri.BaseUrl} %s{date}
+            %s{string deleteButton}
         </div>
         <p>%s{article.Text}</p>
     </div>
@@ -98,7 +100,7 @@ let homepage (query: Query) (rssItems: Article seq) : Html =
     let rssFeeds =
         rssItems
         |> Seq.sortByDescending (fun a -> a.PostDate)
-        |> Seq.map (convertArticleToHtml query)
+        |> Seq.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
         |> Seq.fold (+) Html.Empty
 
     header + body + rssFeeds + removeFeedScript + footer
@@ -119,7 +121,7 @@ let randomPage (query: Query) (rssItems: Article seq) : Html =
         rssItems
         |> Seq.toArray
         |> Array.randomShuffle
-        |> Seq.map (convertArticleToHtml query)
+        |> Seq.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
         |> Seq.fold (+) Html.Empty
 
     header + body + shuffledFeeds + removeFeedScript + footer

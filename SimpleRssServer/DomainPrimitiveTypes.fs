@@ -4,6 +4,8 @@ open System
 open System.IO
 open System.Collections.Specialized
 open System.Web
+open System.Collections.Specialized
+open System.Web
 
 type InvalidUri =
     | InvalidUri of string

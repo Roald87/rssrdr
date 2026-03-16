@@ -20,7 +20,7 @@ let ``Test convertArticleToHtml encodes special characters`` () =
           PostDate = Some(DateTime(2024, 02, 25))
           ArticleUrl = "https://rachelbythebay.com/w/2024/02/24/signext/"
           FeedUrl = "https://rachelbythebay.com/feed" }
-        |> convertArticleToHtml ""
+        |> convertArticleToHtml Html.Empty
         |> string
 
     Assert.Contains(
@@ -30,36 +30,39 @@ let ``Test convertArticleToHtml encodes special characters`` () =
 
     Assert.Contains("""<div class="source-date">rachelbythebay.com on Sunday, February 25, 2024""", actual)
     Assert.Contains("Maybe 15 years ago, I heard that a certain cell phone camera", actual)
-    Assert.Contains("title=\"Remove rachelbythebay.com from your feed\"", actual)
 
 [<Fact>]
 let ``removeFromQuery removes a matching feed from a multi-feed query`` () =
     let result =
-        removeFromQuery "?rss=example.com/feed&rss=other.com/feed" "https://example.com/feed"
+        removeFromQuery (Query.Create "?rss=example.com/feed&rss=other.com/feed") "https://example.com/feed"
 
     Assert.Equal("?rss=other.com/feed", result)
 
 [<Fact>]
 let ``removeFromQuery returns slash when removing the last feed`` () =
-    let result = removeFromQuery "?rss=example.com/feed" "https://example.com/feed"
+    let result =
+        removeFromQuery (Query.Create "?rss=example.com/feed") "https://example.com/feed"
+
     Assert.Equal("/", result)
 
 [<Fact>]
 let ``removeFromQuery handles http prefix in query param`` () =
     let result =
-        removeFromQuery "?rss=http://example.com/feed&rss=other.com/feed" "http://example.com/feed"
+        removeFromQuery (Query.Create "?rss=http://example.com/feed&rss=other.com/feed") "http://example.com/feed"
 
     Assert.Equal("?rss=other.com/feed", result)
 
 [<Fact>]
 let ``removeFromQuery leaves query unchanged if feedUrl not found`` () =
-    let result = removeFromQuery "?rss=other.com/feed" "https://example.com/feed"
+    let result =
+        removeFromQuery (Query.Create "?rss=other.com/feed") "https://example.com/feed"
+
     Assert.Equal("?rss=other.com/feed", result)
 
 [<Fact>]
 let ``removeFromQuery removes only the specified feed when two feeds share the same base url`` () =
     let result =
-        removeFromQuery "?rss=example.com/feed1&rss=example.com/feed2" "https://example.com/feed1"
+        removeFromQuery (Query.Create "?rss=example.com/feed1&rss=example.com/feed2") "https://example.com/feed1"
 
     Assert.Equal("?rss=example.com/feed2", result)
 
