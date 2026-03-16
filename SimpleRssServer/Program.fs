@@ -53,7 +53,7 @@ let private parseSingleFetchResult
         match tryParseFeed logger content uri with
         | Ok feed ->
             cacheSuccessfulFetch cacheConfig (FeedUri uri) content
-            let articles = feedToArticles uri feed
+            let articles = feedToArticles feed
             ValidFeed(uri, articles)
         | Error err -> ErrorArticles [ createErrorArticle err ]
     | other -> ErrorArticles(parseRss logger other)
@@ -85,7 +85,7 @@ let private parseFetchResult (logger: ILogger) client (cacheConfig: CacheConfig)
             match tryParseFeed logger content uri with
             | Ok feed ->
                 cacheSuccessfulFetch cacheConfig (FeedUri uri) content
-                return ValidFeed(uri, feedToArticles uri feed)
+                return ValidFeed(uri, feedToArticles feed)
             | Error err -> return! discoverFeeds logger client cacheConfig uri err content
         | other -> return ErrorArticles(parseRss logger other)
     }
