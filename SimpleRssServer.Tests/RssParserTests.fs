@@ -24,7 +24,7 @@ let ``tryParseFeed returns InvalidRssFeedFormat for non-RSS content`` () =
 
 [<Fact>]
 let ``tryParseFeed returns Ok Feed for valid RSS content`` () =
-    let uri = Uri "https://example.com"
+    let uri = Uri "https://roaldin.ch/feed.xml"
     let content = File.ReadAllText "data/roaldinch.xml"
     let result = tryParseFeed NullLogger.Instance content uri
     Assert.True(Result.isOk result)
@@ -143,13 +143,13 @@ let ``Test parseRss with roaldinch.xml`` () =
 [<Fact>]
 let ``Test parseRss with zoesklot.xml`` () =
     let result =
-        parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/zoesklot.xml"
+        parseRssFromFile NullLogger.Instance (Uri "https://zoesklot.nl/feed/") "data/zoesklot.xml"
 
     let expectedFirst =
         { PostDate = Some(DateTime(2024, 8, 6, 13, 26, 32))
           Title = "Duitse shag"
           ArticleUrl = "https://www.zoesklot.nl/duitse-shag/"
-          FeedUrl = "https://example.com/"
+          FeedUrl = "https://zoesklot.nl/feed/"
           Text =
             "Bij de kassa van de Jumbo ziet M. mij en ik kan niet meer vluchten naar een andere kassa. M., een magere vijftiger met donker achterovergekamd golvend haar; enkele tattoos, oorbel en kunstgebitje ken ik van de volkstuin. Als we oogcontact hebben dan word ik meegezogen in zijn persoonlijke wereld. “Het was zo druk man"
                 .Substring(0, ArticleDescriptionLength)
@@ -159,7 +159,7 @@ let ``Test parseRss with zoesklot.xml`` () =
         { PostDate = Some(DateTime(2024, 7, 24, 21, 8, 2))
           Title = "Wolf"
           ArticleUrl = "https://www.zoesklot.nl/wolf/"
-          FeedUrl = "https://example.com/"
+          FeedUrl = "https://zoesklot.nl/feed/"
           Text =
             "Het was even groot nieuws in Nederland. Een wolf heeft een meisje gebeten. “De wolf beet haar zeer kort in de zij, maar beet niet door”, volgens de ouders. Het Landgoed Den Treek werd daarop deels afgesloten voor publiek. Om dit bericht in perspectief te plaatsen ging ik op zoek naar bijtincidenten van onze geliefde"
                 .Substring(0, ArticleDescriptionLength)
@@ -226,6 +226,7 @@ let ``Test parseRss with Failure feedContent`` () =
     Assert.Equal(expected.Title, actual.Title)
     Assert.StartsWith("The example.com RSS feed seems to be offline", actual.Text)
     Assert.Equal(expected.ArticleUrl, actual.ArticleUrl)
+    Assert.Equal(expected.FeedUrl, actual.FeedUrl)
     Assert.True((expected.PostDate.Value - actual.PostDate.Value).TotalSeconds < 1.0)
 
 [<Fact>]
@@ -284,6 +285,7 @@ let ``Test read from cache if available`` () =
     |> List.iter (fun (exp, act) ->
         Assert.Equal(exp.Title, act.Title)
         Assert.Equal(exp.ArticleUrl, act.ArticleUrl)
+        Assert.Equal(exp.FeedUrl, act.FeedUrl)
         Assert.Equal(exp.Text, act.Text))
 
 let makeTempCacheConfig () =

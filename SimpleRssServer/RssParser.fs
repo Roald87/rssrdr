@@ -5,10 +5,9 @@ open Roald87.FeedReader
 open System
 
 open SimpleRssServer.DomainModel
-open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.Helper
 open SimpleRssServer.Request
-open Config
+open SimpleRssServer.Config
 
 type Article =
     { PostDate: DateTime option
@@ -61,7 +60,11 @@ let createErrorArticle (errorType: DomainMessage) : Article =
 
 let tryParseFeed (logger: ILogger) (content: string) (uri: Uri) : Result<Feed, DomainMessage> =
     try
-        Ok(FeedReader.ReadFromString content)
+        let feed = FeedReader.ReadFromString content
+        // Link in feed points to the base url of the website, not the link to the feed.
+        // The link to the feed is also not always available.
+        feed.Link <- uri.AbsoluteUri
+        Ok feed
     with ex ->
         logger.LogError $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
         Error(InvalidRssFeedFormat(uri, ex))
@@ -92,13 +95,13 @@ let private getArticleText (entry: FeedItem) =
     else
         cleaned
 
-let feedToArticles (uri: Uri) (feed: Feed) : Article list =
+let feedToArticles (feed: Feed) : Article list =
     feed.Items
     |> Seq.map (fun entry ->
         { PostDate = getPostDate feed entry
           Title = entry.Title
           ArticleUrl = entry.Link
-          FeedUrl = uri.AbsoluteUri
+          FeedUrl = feed.Link
           Text = getArticleText entry })
     |> Seq.toList
 
@@ -106,7 +109,7 @@ let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
     match fetchResult with
     | FreshContent(content, uri) ->
         match tryParseFeed logger content uri with
-        | Ok feed -> feedToArticles uri feed
+        | Ok feed -> feedToArticles feed
         | Error err -> [ createErrorArticle err ]
     | CachedContent(content, warning) ->
         let errorArticle = createErrorArticle warning
@@ -114,10 +117,7 @@ let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
         let feedArticles =
             warning.Uri
             |> Option.map Uri
-            |> Option.bind (fun uri ->
-                tryParseFeed logger content uri
-                |> Result.toOption
-                |> Option.map (feedToArticles uri))
+            |> Option.bind (fun uri -> tryParseFeed logger content uri |> Result.toOption |> Option.map feedToArticles)
             |> Option.defaultValue []
 
         feedArticles @ [ errorArticle ]
@@ -131,6 +131,6 @@ let parseFeedResult (logger: ILogger) (cacheConfig: CacheConfig) (fetchResult: F
         match tryParseFeed logger content uri with
         | Ok feed ->
             cacheSuccessfulFetch cacheConfig feedUri content
-            Ok(feedUri, feedToArticles uri feed)
+            Ok(feedUri, feedToArticles feed)
         | Error err -> Error [ createErrorArticle err ]
     | other -> Error(parseRss logger other)
