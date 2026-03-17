@@ -44,14 +44,14 @@ let footer: Html =
     """
     |> Html
 
-let homepage query (rssItems: Article seq) : Html =
+let homepage (query: Query) (rssItems: Article seq) : Html =
     let body =
         $"""
     <body>
         <div>
             <h1><a href="/">rssrdr</a></h1>
-            <a href="config.html/%s{query}">config/</a>
-            <a href="/random%s{query}" style="margin-left: 20px;">random/</a>
+            <a href="config.html/%s{query |> string}">config/</a>
+            <a href="/random%s{query |> string}" style="margin-left: 20px;">random/</a>
         </div>
     """
         |> Html
@@ -64,14 +64,14 @@ let homepage query (rssItems: Article seq) : Html =
 
     header + body + rssFeeds + footer
 
-let randomPage query (rssItems: Article seq) : Html =
+let randomPage (query: Query) (rssItems: Article seq) : Html =
     let body =
         $"""
     <body>
         <div>
             <h1><a href="/" >rssrdr</a></h1>
-            <a href="config.html/%s{query}">config/</a>
-            <a href="/%s{query}" style="margin-left: 20px;">chronological/</a>
+            <a href="config.html/%s{query |> string}">config/</a>
+            <a href="/%s{query |> string}" style="margin-left: 20px;">chronological/</a>
         </div>
     """
         |> Html

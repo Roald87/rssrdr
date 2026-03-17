@@ -2,6 +2,8 @@ module SimpleRssServer.DomainPrimitiveTypes
 
 open System
 open System.IO
+open System.Collections.Specialized
+open System.Web
 
 type InvalidUri =
     | InvalidUri of string
@@ -33,6 +35,9 @@ type Uri with
             Uri(s).Host.Replace("www.", "")
         with _ ->
             ""
+
+    static member StripScheme(s: string) =
+        Text.RegularExpressions.Regex.Replace(s, "^https?://", "")
 
     static member CreateWithHttps(s: string) =
         let ensureScheme (s: string) =
@@ -135,3 +140,29 @@ type Html =
     override this.ToString() = let (Html s) = this in s
     static member (+)(Html a, Html b) = Html(a + b)
     static member Empty = Html ""
+
+type Query =
+    | Query of NameValueCollection
+
+    member this.Value =
+        let (Query nvc) = this
+        nvc
+
+    static member Create(s: string) = Query(HttpUtility.ParseQueryString s)
+
+    static member CreateWithKey(key: string, values: string array) : Query =
+        let nvc = new NameValueCollection()
+        values |> Array.map (fun value -> nvc.Add(key, value)) |> ignore
+        Query nvc
+
+    member this.GetValues(key: string) = this.GetValues(key)
+
+    override this.ToString() =
+        let nvc = this.Value
+
+        let pairs =
+            nvc.AllKeys
+            |> Array.collect (fun key -> nvc.GetValues key |> Array.map (fun v -> $"{key}={v}"))
+            |> String.concat "&"
+
+        if pairs.Length = 0 then "" else "?" + pairs

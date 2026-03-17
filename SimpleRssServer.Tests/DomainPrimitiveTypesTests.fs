@@ -69,3 +69,36 @@ let ``Uri.createWithHttps should return Error for invalid host`` () =
     | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", invalid.Value)
     | Ok x -> failwith $"Expected Error but got Ok {x}"
     | Error error -> failwithf $"Expected HostNameMustContainDot error but got {error}"
+
+[<Fact>]
+let ``Uri.StripScheme removes https scheme`` () =
+    Assert.Equal("example.com/feed", Uri.StripScheme "https://example.com/feed")
+
+[<Fact>]
+let ``Uri.StripScheme removes http scheme`` () =
+    Assert.Equal("example.com/feed", Uri.StripScheme "http://example.com/feed")
+
+[<Fact>]
+let ``Uri.StripScheme leaves url without scheme unchanged`` () =
+    Assert.Equal("example.com/feed", Uri.StripScheme "example.com/feed")
+
+[<Fact>]
+let ``Query.Create empty string gives empty ToString`` () =
+    Assert.Equal("", Query.Create "" |> string)
+
+[<Fact>]
+let ``Query.Create single rss param round-trips`` () =
+    let q = Query.Create "?rss=example.com/feed" |> string
+    Assert.Equal("?rss=example.com/feed", q)
+
+[<Fact>]
+let ``Query.Create two rss params round-trip`` () =
+    let q = Query.Create "?rss=example.com/feed&rss=other.com/feed" |> string
+    Assert.Contains("rss=example.com/feed", q)
+    Assert.Contains("rss=other.com/feed", q)
+
+[<Fact>]
+let ``Query.Create preserves non-rss params`` () =
+    let q = Query.Create "?rss=example.com/feed&foo=bar" |> string
+    Assert.Contains("rss=", q)
+    Assert.Contains("foo=bar", q)
