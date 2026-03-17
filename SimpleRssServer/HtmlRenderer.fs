@@ -14,10 +14,9 @@ let removeFromQuery (query: Query) (feedToRemove: string) : string =
     let normalizedFeedUrl = Uri.StripScheme feedToRemove
 
     let remaining =
-        query.Value.GetValues("rss")
-        |> Option.ofObj
-        |> Option.defaultValue [||]
+        query.Value.GetValues "rss"
         |> Array.filter (fun u -> Uri.StripScheme u <> normalizedFeedUrl)
+        |> fun values -> Query.CreateWithKey "rss" values
 
     if remaining.Length = 0 then
         "/"

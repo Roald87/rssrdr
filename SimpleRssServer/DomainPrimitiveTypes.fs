@@ -160,6 +160,18 @@ type Query =
 
     member this.GetValues(key: string) = this.Value.GetValues(key)
 
+    static member CreateWithKey(key: string, values: string array) : Query =
+        let nvc = NameValueCollection()
+        values |> Array.map (fun value -> nvc.Add(key, value)) |> ignore
+        Query nvc
+
+    member this.GetValues(key: string) = this.Value.GetValues(key)
+
+    static member CreateWithKey(key: string, values: string array) : Query =
+        let nvc = new NameValueCollection()
+        values |> Array.map (fun value -> nvc.Add(key, value)) |> ignore
+        Query nvc
+
     override this.ToString() =
         let nvc = this.Value
 
