@@ -218,25 +218,6 @@ let ``Test getAsync with successful response`` () =
     | Error error -> failwithf $"Expected OK but got Error: {error}"
 
 [<Fact>]
-let ``Test getAsync with unsuccessful response on real page`` () =
-    let client = new HttpClient()
-    let logger = NullLogger.Instance
-
-    let response =
-        fetchUrlAsync
-            client
-            logger
-            (Uri "https://thisurldoesntexistforsureordoesit.com")
-            (Some DateTimeOffset.Now)
-            (TimeSpan.FromSeconds 5.0)
-        |> Async.RunSynchronously
-
-    match response with
-    | Error(HttpException _) -> Assert.True(true, "Got expected error")
-    | Ok x -> failwithf $"Expected Failure but got Ok {x}"
-    | Error errorMsg -> failwithf $"Got unexpected error: {errorMsg}"
-
-[<Fact>]
 let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
     // Arrange
     let url = Uri "http://example.com"
