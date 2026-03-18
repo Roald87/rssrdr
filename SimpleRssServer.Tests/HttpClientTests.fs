@@ -41,7 +41,7 @@ let ``Test fetchUrlAsync with successful response`` () =
 
 [<Fact>]
 let ``Test fetchUrlAsync with unsuccessful response`` () =
-    let client = new HttpClient(FailingHttpMessageHandler())
+    let client = new HttpClient(new FailingHttpMessageHandler())
     let logger = NullLogger.Instance
 
     let response =
