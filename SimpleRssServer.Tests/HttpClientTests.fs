@@ -15,6 +15,12 @@ type MockHttpResponseHandler(response: HttpResponseMessage) =
     inherit HttpMessageHandler()
     override _.SendAsync(request, cancellationToken) = Task.FromResult(response)
 
+type FailingHttpMessageHandler() =
+    inherit HttpMessageHandler()
+
+    override _.SendAsync(request, cancellationToken) =
+        Task.FromException<HttpResponseMessage>(HttpRequestException("Simulated network failure"))
+
 [<Fact>]
 let ``Test fetchUrlAsync with successful response`` () =
     let expectedContent = "Hello, world!"
@@ -35,7 +41,7 @@ let ``Test fetchUrlAsync with successful response`` () =
 
 [<Fact>]
 let ``Test fetchUrlAsync with unsuccessful response`` () =
-    let client = new HttpClient()
+    let client = new HttpClient(FailingHttpMessageHandler())
     let logger = NullLogger.Instance
 
     let response =

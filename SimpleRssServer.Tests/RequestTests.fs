@@ -219,7 +219,11 @@ let ``Test getAsync with successful response`` () =
 
 [<Fact>]
 let ``Test getAsync with unsuccessful response on real page`` () =
-    let client = new HttpClient()
+    let handler =
+        new MockHttpMessageHandler(fun _ ->
+            Task.FromException<HttpResponseMessage>(HttpRequestException("Simulated network failure")))
+
+    let client = new HttpClient(handler)
     let logger = NullLogger.Instance
 
     let response =
