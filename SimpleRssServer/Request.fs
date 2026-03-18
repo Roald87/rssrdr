@@ -17,14 +17,13 @@ let convertUrlToValidFilename (uri: Uri) =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
     replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_") |> Filename
 
-let getRssUrls (context: string) : Result<Uri, UriError> array =
-    context
-    |> HttpUtility.ParseQueryString
-    |> fun query ->
-        let rssValues = query.GetValues "rss"
+let getRssUrls (query: string) : Result<Uri, UriError> array =
+    Query.Create query
+    |> fun query -> query.GetValues "rss"
+    |> fun (rssUrls: string array) ->
 
-        if not (isNull rssValues) && rssValues.Length > 0 then
-            rssValues |> Array.map Uri.CreateWithHttps
+        if not (isNull rssUrls) && rssUrls.Length > 0 then
+            rssUrls |> Array.map Uri.CreateWithHttps
         else
             [||]
 

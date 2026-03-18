@@ -98,8 +98,7 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
         let query =
             allValidUris
             |> Array.map (fun s -> s.Replace("https://", ""))
-            |> String.concat "&rss="
-            |> fun s -> if s.Length > 0 then $"?rss={s}" else s
+            |> fun values -> Query.CreateWithKey("rss", values)
 
         let! parsedResults =
             rssFeeds
@@ -109,7 +108,7 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
         let multiDiscoveredLinks =
             parsedResults
             |> Seq.choose (function
-                | FetchParseResult.MultiDiscovered links -> Some links
+                | MultiDiscovered links -> Some links
                 | _ -> None)
             |> Seq.concat
             |> Seq.toList
