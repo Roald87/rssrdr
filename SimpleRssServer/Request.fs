@@ -19,7 +19,7 @@ let convertUrlToValidFilename (uri: Uri) =
 
 let getRssUrls (query: string) : Result<Uri, UriError> array =
     Query.Create query
-    |> fun query -> query.GetValues " rss"
+    |> fun query -> query.GetValues "rss"
     |> fun (rssUrls: string array) ->
 
         if not (isNull rssUrls) && rssUrls.Length > 0 then

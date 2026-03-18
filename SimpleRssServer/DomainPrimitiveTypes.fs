@@ -37,7 +37,8 @@ type Uri with
             ""
 
     static member StripScheme(s: string) =
-        Text.RegularExpressions.Regex.Replace(s, "^https?://", "")
+        let s = s.Replace("http://", "")
+        s.Replace("https://", "")
 
     static member CreateWithHttps(s: string) =
         let ensureScheme (s: string) =
@@ -155,7 +156,7 @@ type Query =
         values |> Array.map (fun value -> nvc.Add(key, value)) |> ignore
         Query nvc
 
-    member this.GetValues(key: string) = this.GetValues(key)
+    member this.GetValues(key: string) = this.Value.GetValues(key)
 
     override this.ToString() =
         let nvc = this.Value
