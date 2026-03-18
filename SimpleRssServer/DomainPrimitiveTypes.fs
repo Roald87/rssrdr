@@ -152,7 +152,7 @@ type Query =
     static member Create(s: string) = Query(HttpUtility.ParseQueryString s)
 
     static member CreateWithKey(key: string, values: string array) : Query =
-        let nvc = new NameValueCollection()
+        let nvc = NameValueCollection()
         values |> Array.map (fun value -> nvc.Add(key, value)) |> ignore
         Query nvc
 
