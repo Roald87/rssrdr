@@ -97,7 +97,7 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
 
         let query =
             allValidUris
-            |> Array.map Uri.StripScheme
+            |> Array.map (fun s -> s.Replace("https://", ""))
             |> fun values -> Query.CreateWithKey("rss", values)
 
         let! parsedResults =
