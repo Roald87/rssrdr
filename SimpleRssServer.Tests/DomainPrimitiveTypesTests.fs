@@ -84,21 +84,68 @@ let ``Uri.StripScheme leaves url without scheme unchanged`` () =
 
 [<Fact>]
 let ``Query.Create empty string gives empty ToString`` () =
-    Assert.Equal("", Query.Create "" |> string)
+    let q = Query.Create ""
+    Assert.Null(q.GetValues "rss")
+    Assert.Equal("", q |> string)
 
 [<Fact>]
 let ``Query.Create single rss param round-trips`` () =
-    let q = Query.Create "?rss=example.com/feed" |> string
-    Assert.Equal("?rss=example.com/feed", q)
+    let q = Query.Create "?rss=example.com/feed"
+    let values = q.GetValues "rss"
+    Assert.Equal(1, values.Length)
+    Assert.Equal("example.com/feed", values[0])
+    Assert.Equal("?rss=example.com/feed", q |> string)
 
 [<Fact>]
 let ``Query.Create two rss params round-trip`` () =
-    let q = Query.Create "?rss=example.com/feed&rss=other.com/feed" |> string
-    Assert.Contains("rss=example.com/feed", q)
-    Assert.Contains("rss=other.com/feed", q)
+    let q = Query.Create "?rss=example.com/feed&rss=other.com/feed"
+    let values = q.GetValues "rss"
+    Assert.Equal(2, values.Length)
+    Assert.Contains("example.com/feed", values)
+    Assert.Contains("other.com/feed", values)
+    let s = q |> string
+    Assert.Contains("rss=example.com/feed", s)
+    Assert.Contains("rss=other.com/feed", s)
 
 [<Fact>]
 let ``Query.Create preserves non-rss params`` () =
-    let q = Query.Create "?rss=example.com/feed&foo=bar" |> string
-    Assert.Contains("rss=", q)
-    Assert.Contains("foo=bar", q)
+    let q = Query.Create "?rss=example.com/feed&foo=bar"
+    let rssValues = q.GetValues "rss"
+    Assert.Equal(1, rssValues.Length)
+    Assert.Equal("example.com/feed", rssValues[0])
+    let fooValues = q.GetValues "foo"
+    Assert.Equal(1, fooValues.Length)
+    Assert.Equal("bar", fooValues[0])
+    let s = q |> string
+    Assert.Contains("rss=example.com/feed", s)
+    Assert.Contains("foo=bar", s)
+
+[<Fact>]
+let ``Query.Create returns null for missing key`` () =
+    let q = Query.Create "?rss=example.com/feed"
+    Assert.Null(q.GetValues "missing")
+
+[<Fact>]
+let ``Query.CreateWithKey single value`` () =
+    let q = Query.CreateWithKey("rss", [| "example.com/feed" |])
+    let values = q.GetValues "rss"
+    Assert.Equal(1, values.Length)
+    Assert.Equal("example.com/feed", values[0])
+    Assert.Equal("?rss=example.com/feed", q |> string)
+
+[<Fact>]
+let ``Query.CreateWithKey multiple values`` () =
+    let q = Query.CreateWithKey("rss", [| "example.com/feed"; "other.com/feed" |])
+    let values = q.GetValues "rss"
+    Assert.Equal(2, values.Length)
+    Assert.Contains("example.com/feed", values)
+    Assert.Contains("other.com/feed", values)
+    let s = q |> string
+    Assert.Contains("rss=example.com/feed", s)
+    Assert.Contains("rss=other.com/feed", s)
+
+[<Fact>]
+let ``Query.CreateWithKey empty array gives empty ToString`` () =
+    let q = Query.CreateWithKey("rss", [||])
+    Assert.Null(q.GetValues "rss")
+    Assert.Equal("", q |> string)
