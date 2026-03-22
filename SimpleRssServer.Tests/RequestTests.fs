@@ -13,7 +13,6 @@ open Xunit
 
 open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
-open SimpleRssServer.Helper
 open SimpleRssServer.Request
 open SimpleRssServer.RssParser
 open SimpleRssServer.RequestLog
@@ -22,7 +21,6 @@ open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.Cache
 open SimpleRssServer.DomainPrimitiveTypes
 open TestHelpers
-open SimpleRssServer.DomainModel
 
 let cacheConfig =
     let tempDir = Path.Combine(Path.GetTempPath(), "rssrdr_test_cache")

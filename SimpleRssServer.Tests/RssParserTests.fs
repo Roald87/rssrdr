@@ -5,7 +5,6 @@ open System
 open System.IO
 open Xunit
 
-open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes

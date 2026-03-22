@@ -11,12 +11,11 @@ open DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
 
 let removeFromQuery (query: Query) (feedToRemove: string) : string =
-    let normalizedFeedUrl = Uri.StripScheme feedToRemove
+    let normalizedFeedUrl = Uri.RemoveScheme feedToRemove
 
     let remaining =
         query.Value.GetValues "rss"
-        |> Array.filter (fun u -> Uri.StripScheme u <> normalizedFeedUrl)
-        |> fun values -> Query.CreateWithKey "rss" values
+        |> Array.filter (fun u -> Uri.RemoveScheme u <> normalizedFeedUrl)
 
     if remaining.Length = 0 then
         "/"
@@ -30,11 +29,10 @@ let private trashIcon: string =
 
 let private deleteFeedButton (query: Query) (feedUrl: string) : Html =
     let removeUrl = removeFromQuery query feedUrl
-    let baseUrl = Uri.BaseUrl feedUrl
 
     $"""<button class="remove-feed"
-            title="Remove {baseUrl} from your feed"
-            onclick="removeFeed('{removeUrl}', '{baseUrl}')">{trashIcon}</button>"""
+            title="Removes {feedUrl |> Uri.RemoveScheme} from your feed"
+            onclick="removeFeed('{removeUrl}', '{feedUrl}')">{trashIcon}</button>"""
     |> Html
 
 let convertArticleToHtml (deleteButton: Html) (article: Article) : Html =
@@ -75,8 +73,8 @@ let footer: Html =
 let private removeFeedScript: Html =
     """
     <script>
-        function removeFeed(newUrl, baseUrl) {
-            if (confirm(`Are you sure you want to remove ${baseUrl}?`)) {
+        function removeFeed(newUrl, feedUrl) {
+            if (confirm(`Are you sure you want to remove ${feedUrl}?`)) {
                 window.location.href = newUrl;
             }
         }
