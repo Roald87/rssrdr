@@ -53,7 +53,8 @@ let private parseSingleFetchResult
         match tryParseFeed logger content uri with
         | Ok feed ->
             cacheSuccessfulFetch cacheConfig (FeedUri uri) content
-            ValidFeed(uri, feedToArticles feed)
+            let articles = feedToArticles feed
+            ValidFeed(uri, articles)
         | Error err -> ErrorArticles [ createErrorArticle err ]
     | other -> ErrorArticles(parseRss logger other)
 

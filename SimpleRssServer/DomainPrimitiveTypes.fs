@@ -36,7 +36,7 @@ type Uri with
         with _ ->
             ""
 
-    static member StripScheme(s: string) =
+    static member RemoveScheme(s: string) =
         let s = s.Replace("http://", "")
         s.Replace("https://", "")
 

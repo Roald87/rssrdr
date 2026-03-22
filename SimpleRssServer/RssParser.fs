@@ -5,16 +5,15 @@ open Roald87.FeedReader
 open System
 
 open SimpleRssServer.DomainModel
-open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.Helper
 open SimpleRssServer.Request
-open Config
+open SimpleRssServer.Config
 
 type Article =
     { PostDate: DateTime option
       Title: string
-      Url: string
-      BaseUrl: string
+      ArticleUrl: string
+      FeedUrl: string
       Text: string }
 
 let stripHtml (input: string) : string =
@@ -55,13 +54,17 @@ let createErrorArticle (errorType: DomainMessage) : Article =
 
     { PostDate = Some DateTime.Now
       Title = "Error"
-      Url = link
-      BaseUrl = Uri.BaseUrl link
+      ArticleUrl = link
+      FeedUrl = link
       Text = text }
 
 let tryParseFeed (logger: ILogger) (content: string) (uri: Uri) : Result<Feed, DomainMessage> =
     try
-        Ok(FeedReader.ReadFromString content)
+        let feed = FeedReader.ReadFromString content
+        // Link in feed points to the base url of the website, not the link to the feed.
+        // The link to the feed is also not always available.
+        feed.Link <- uri.AbsoluteUri
+        Ok feed
     with ex ->
         logger.LogError $"Invalid RSS feed format. {ex.GetType().Name}: {ex.Message}"
         Error(InvalidRssFeedFormat(uri, ex))
@@ -97,8 +100,8 @@ let feedToArticles (feed: Feed) : Article list =
     |> Seq.map (fun entry ->
         { PostDate = getPostDate feed entry
           Title = entry.Title
-          Url = entry.Link
-          BaseUrl = Uri.BaseUrl entry.Link
+          ArticleUrl = entry.Link
+          FeedUrl = feed.Link
           Text = getArticleText entry })
     |> Seq.toList
 
@@ -114,8 +117,7 @@ let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
         let feedArticles =
             warning.Uri
             |> Option.map Uri
-            |> Option.bind (fun uri -> tryParseFeed logger content uri |> Result.toOption)
-            |> Option.map feedToArticles
+            |> Option.bind (fun uri -> tryParseFeed logger content uri |> Result.toOption |> Option.map feedToArticles)
             |> Option.defaultValue []
 
         feedArticles @ [ errorArticle ]

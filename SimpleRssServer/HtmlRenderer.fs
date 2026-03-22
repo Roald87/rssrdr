@@ -3,13 +3,39 @@ module SimpleRssServer.HtmlRenderer
 open System
 open System.IO
 open System.Net
+open System.Web
 
 open Helper
 open RssParser
 open DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
 
-let convertArticleToHtml (article: Article) : Html =
+let removeFromQuery (query: Query) (feedToRemove: string) : string =
+    let normalizedFeedUrl = Uri.RemoveScheme feedToRemove
+
+    let remaining =
+        query.Value.GetValues "rss"
+        |> Array.filter (fun u -> Uri.RemoveScheme u <> normalizedFeedUrl)
+
+    if remaining.Length = 0 then
+        "/"
+    else
+        "?" + (remaining |> Array.map (fun u -> $"rss={u}") |> String.concat "&")
+
+let header: Html = File.ReadAllText(Path.Combine("site", "header.html")) |> Html
+
+let private trashIcon: string =
+    File.ReadAllText(Path.Combine("site", "trash-can.svg"))
+
+let private deleteFeedButton (query: Query) (feedUrl: string) : Html =
+    let removeUrl = removeFromQuery query feedUrl
+
+    $"""<button class="remove-feed"
+            title="Removes {feedUrl |> Uri.RemoveScheme} from your feed"
+            onclick="removeFeed('{removeUrl}', '{feedUrl}')">{trashIcon}</button>"""
+    |> Html
+
+let convertArticleToHtml (deleteButton: Html) (article: Article) : Html =
     let date =
         if article.PostDate.IsSome then
             $"on %s{article.PostDate.Value.ToLongDateString()}"
@@ -18,14 +44,14 @@ let convertArticleToHtml (article: Article) : Html =
 
     $"""
     <div>
-        <h2><a href="%s{article.Url}" target="_blank">%s{article.Title |> WebUtility.HtmlEncode}</a></h2>
-        <div class="source-date">%s{article.BaseUrl} %s{date}</div>
+        <h2><a href="%s{article.ArticleUrl}" target="_blank">%s{article.Title |> WebUtility.HtmlEncode}</a></h2>
+        <div class="source-date">%s{article.FeedUrl |> Uri.BaseUrl} %s{date}
+            %s{string deleteButton}
+        </div>
         <p>%s{article.Text}</p>
     </div>
     """
     |> Html
-
-let header: Html = File.ReadAllText(Path.Combine("site", "header.html")) |> Html
 
 let versionNumber =
     let version = Reflection.Assembly.GetExecutingAssembly().GetName().Version
@@ -44,6 +70,18 @@ let footer: Html =
     """
     |> Html
 
+let private removeFeedScript: Html =
+    """
+    <script>
+        function removeFeed(newUrl, feedUrl) {
+            if (confirm(`Are you sure you want to remove ${feedUrl}?`)) {
+                window.location.href = newUrl;
+            }
+        }
+    </script>
+    """
+    |> Html
+
 let homepage (query: Query) (rssItems: Article seq) : Html =
     let body =
         $"""
@@ -59,10 +97,10 @@ let homepage (query: Query) (rssItems: Article seq) : Html =
     let rssFeeds =
         rssItems
         |> Seq.sortByDescending (fun a -> a.PostDate)
-        |> Seq.map convertArticleToHtml
+        |> Seq.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
         |> Seq.fold (+) Html.Empty
 
-    header + body + rssFeeds + footer
+    header + body + rssFeeds + removeFeedScript + footer
 
 let randomPage (query: Query) (rssItems: Article seq) : Html =
     let body =
@@ -80,10 +118,10 @@ let randomPage (query: Query) (rssItems: Article seq) : Html =
         rssItems
         |> Seq.toArray
         |> Array.randomShuffle
-        |> Seq.map convertArticleToHtml
+        |> Seq.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
         |> Seq.fold (+) Html.Empty
 
-    header + body + shuffledFeeds + footer
+    header + body + shuffledFeeds + removeFeedScript + footer
 
 let private configBody: Html =
     """
