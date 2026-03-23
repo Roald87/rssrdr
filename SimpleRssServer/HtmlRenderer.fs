@@ -5,7 +5,6 @@ open System.IO
 open System.Net
 
 open Helper
-open RssParser
 open DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
 

@@ -9,13 +9,6 @@ open SimpleRssServer.Helper
 open SimpleRssServer.Request
 open SimpleRssServer.Config
 
-type Article =
-    { PostDate: DateTime option
-      Title: string
-      ArticleUrl: string
-      FeedUrl: string
-      Text: string }
-
 let stripHtml (input: string) : string =
     if String.IsNullOrWhiteSpace input then
         ""
@@ -74,11 +67,7 @@ let private getPostDate (feed: Feed) (entry: FeedItem) =
         Some entry.PublishingDate.Value
     elif feed.Type = FeedType.Atom then
         let atomEntry = entry.SpecificItem :?> Feeds.AtomFeedItem
-
-        if atomEntry.UpdatedDate.HasValue then
-            Some atomEntry.UpdatedDate.Value
-        else
-            None
+        Option.ofNullable atomEntry.UpdatedDate
     else
         None
 

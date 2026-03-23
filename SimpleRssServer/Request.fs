@@ -4,7 +4,6 @@ open Microsoft.Extensions.Logging
 open System
 open System.IO
 open System.Text
-open System.Web
 
 open SimpleRssServer.Logging
 open SimpleRssServer.HttpClient

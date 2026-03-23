@@ -1,16 +1,15 @@
 module SimpleRssServer.Logging
 
 open Microsoft.Extensions.Logging
+open Microsoft.Extensions.Logging.Abstractions
 
-let createLoggerFactory (logLevel: LogLevel) =
-    LoggerFactory.Create(fun builder ->
-        builder.AddSimpleConsole(fun c -> c.TimestampFormat <- "[yyyy-MM-dd HH:mm:ss.fff] ")
-        |> ignore
+let mutable logger: ILogger = NullLogger.Instance
 
-        builder.SetMinimumLevel logLevel |> ignore)
+let initializeLogger (logLevel: LogLevel) =
+    let logFactory =
+        LoggerFactory.Create(fun builder ->
+            builder.AddSimpleConsole(fun c -> c.TimestampFormat <- "[yyyy-MM-dd HH:mm:ss.fff] ").SetMinimumLevel
+                logLevel
+            |> ignore)
 
-let mutable logger: ILogger =
-    (createLoggerFactory LogLevel.Information).CreateLogger "SimpleRssReader"
-
-let initializeLogger verbosity =
-    logger <- (createLoggerFactory verbosity).CreateLogger "SimpleRssReader"
+    logger <- logFactory.CreateLogger "SimpleRssReader"

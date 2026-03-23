@@ -10,6 +10,7 @@ open System.Threading.Tasks
 open Xunit
 
 open SimpleRssServer.DomainPrimitiveTypes
+open SimpleRssServer.DomainModel
 open Program
 open RequestTests
 
