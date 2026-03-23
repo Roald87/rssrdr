@@ -7,10 +7,6 @@ open DomainPrimitiveTypes
 let (|Prefix|_|) (p: string) (s: string) =
     if s.StartsWith p then Some(s.Substring p.Length) else None
 
-let validUris (uris: Result<Uri, UriError> array) : Uri array =
-    uris
-    |> Array.choose (function
-        | Ok uri -> Some uri
-        | Error _ -> None)
+let validUris (uris: Result<Uri, UriError> array) : Uri array = uris |> Array.choose Result.toOption
 
 let isText (s: string) = not (String.IsNullOrWhiteSpace s)
