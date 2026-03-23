@@ -77,21 +77,17 @@ let ``Test landing page displays correct version number using XML parser`` () =
     Assert.Contains($"v{version}", string landingPage)
 
 [<Fact>]
-let ``Test configPage handles valid and invalid URIs`` () =
+let ``Test configPage prefills textarea with valid URIs`` () =
     let validUri1 = Uri "https://example.com/feed1"
     let validUri2 = Uri "http://example.com/feed2"
-    let invalidUri1 = InvalidUri.Create "invalid-uri"
-    let invalidUri2 = InvalidUri.Create "not-a-url"
 
     let rssUrls =
         [| Ok validUri1
            Ok validUri2
-           Error(HostNameMustContainDot invalidUri1)
-           Error(HostNameMustContainDot invalidUri2) |]
+           Error(HostNameMustContainDot(InvalidUri.Create "invalid-uri")) |]
 
     let resultHtml = configPage rssUrls |> string
 
-    // Use regex to extract the value of the textarea with id 'feeds'
     let textareaValue =
         let m =
             RegularExpressions.Regex.Match(
@@ -105,13 +101,7 @@ let ``Test configPage handles valid and invalid URIs`` () =
         else
             failwith "Textarea not found"
 
-    let expectedValidUris = "example.com/feed1\nhttp://example.com/feed2"
-    Assert.Equal(expectedValidUris, textareaValue)
-
-    // Check both invalid URIs in invalid-uris div
-    Assert.Contains(invalidUri1.Value, resultHtml)
-    Assert.Contains(invalidUri2.Value, resultHtml)
-    Assert.Contains("<div class='invalid-uris'>", resultHtml)
+    Assert.Equal("example.com/feed1\nhttp://example.com/feed2", textareaValue)
 
 [<Fact>]
 let ``Test feedDiscoveryPage renders confirmed feeds in textarea and checkboxes for toSelect`` () =
