@@ -12,11 +12,6 @@ type FeedUri =
         let (FeedUri u) = this
         u
 
-type FetchResult =
-    | FreshContent of string * Uri
-    | CachedContent of string * DomainMessage
-    | Failed of DomainMessage
-
 and DomainMessage =
     // Uri errors
     | InvalidUriHostname of InvalidUri
@@ -50,3 +45,28 @@ and DomainMessage =
         | CacheReadFailedWithException(uri, _, _) -> Some uri.AbsoluteUri
 
 type DiscoveredFeed = { Title: string; Url: string }
+
+type FetchResult =
+    | FreshContent of string * Uri
+    | CachedContent of string * DomainMessage
+    | Failed of DomainMessage
+
+type FeedOrder =
+    | Chronological
+    | Shuffle
+
+type AssembleResult =
+    | FeedsReady of Uri[] * Html
+    | NeedsSelection of confirmedRss: Uri[] * toSelect: DiscoveredFeed list
+
+type Article =
+    { PostDate: DateTime option
+      Title: string
+      ArticleUrl: string
+      FeedUrl: string
+      Text: string }
+
+type FetchParseResult =
+    | ValidFeed of Uri * Article list
+    | MultiDiscovered of DiscoveredFeed list
+    | ErrorArticles of Article list

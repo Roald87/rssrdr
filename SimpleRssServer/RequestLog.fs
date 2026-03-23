@@ -8,9 +8,10 @@ open SimpleRssServer.DomainPrimitiveTypes
 
 let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri array) =
     let currentDate = DateTime.Now
+    let dateFormat = "yyyy-MM-dd"
 
     let currentDateString =
-        currentDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        currentDate.ToString(dateFormat, CultureInfo.InvariantCulture)
 
     let newEntries =
         uris |> Array.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
@@ -22,7 +23,7 @@ let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri a
                 let datePart = line.Split(' ', 2)[0]
 
                 let entryDate =
-                    DateTime.ParseExact(datePart, "yyyy-MM-dd", CultureInfo.InvariantCulture)
+                    DateTime.ParseExact(datePart, dateFormat, CultureInfo.InvariantCulture)
 
                 currentDate - entryDate <= retention)
         else
@@ -41,10 +42,7 @@ let readRequestLog (logPath: OsPath) =
         |> Array.map (fun parts -> parts[1])
         |> Array.distinct
         |> Array.map Uri.Create
-        |> Array.choose (fun x ->
-            match x with
-            | Error e -> None
-            | Ok u -> Some u)
+        |> Array.choose Result.toOption
         |> Array.filter (fun x -> x.Scheme = Uri.UriSchemeHttp || x.Scheme = Uri.UriSchemeHttps)
     else
         [||]

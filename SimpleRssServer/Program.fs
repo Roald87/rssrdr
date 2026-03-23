@@ -16,19 +16,6 @@ open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 
-type FeedOrder =
-    | Chronological
-    | Shuffle
-
-type AssembleResult =
-    | FeedsReady of Uri[] * Html
-    | NeedsSelection of confirmedRss: Uri[] * toSelect: DiscoveredFeed list
-
-type private FetchParseResult =
-    | ValidFeed of Uri * Article list
-    | MultiDiscovered of DiscoveredFeed list
-    | ErrorArticles of Article list
-
 let private toDiscoveredFeeds (pageUri: Uri) (links: HtmlFeedLink list) : DiscoveredFeed list =
     links
     |> List.map (fun l ->
