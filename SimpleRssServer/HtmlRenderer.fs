@@ -30,7 +30,7 @@ let private deleteFeedButton (query: Query) (feedUrl: string) : Html =
     let removeUrl = removeFromQuery query feedUrl
 
     $"""<button class="remove-feed"
-            title="Removes {feedUrl |> Uri.RemoveScheme} from your feed"
+            title="Remove {feedUrl |> Uri.RemoveScheme} from your feed"
             onclick="removeFeed('{removeUrl}', '{feedUrl}')">{trashIcon}</button>"""
     |> Html
 
