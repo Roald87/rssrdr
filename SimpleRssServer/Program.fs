@@ -18,7 +18,7 @@ open SimpleRssServer.DomainPrimitiveTypes
 
 type FeedOrder =
     | Chronological
-    | Random
+    | Shuffle
 
 type AssembleResult =
     | FeedsReady of Uri[] * Html
@@ -131,8 +131,8 @@ let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
 
             let page =
                 match order with
-                | Chronological -> homepage query allItems
-                | Random -> randomPage query allItems
+                | Chronological -> chronologicalFeedsPage query allItems
+                | Shuffle -> shuffledFeedsPage query allItems
 
             return FeedsReady(confirmedUris, page)
         else
@@ -159,7 +159,7 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
         let! responseString =
             match context.Request.RawUrl with
             | Prefix "/config.html" _ -> async.Return(configPage rssUris |> string)
-            | Prefix "/random?rss=" _ -> serveRss Random
+            | Prefix "/shuffle?rss=" _ -> serveRss Shuffle
             | Prefix "/?rss=" _ -> serveRss Chronological
             | "/robots.txt" -> async.Return(File.ReadAllText(Path.Combine("site", "robots.txt")))
             | "/sitemap.xml" -> async.Return(File.ReadAllText(Path.Combine("site", "sitemap.xml")))

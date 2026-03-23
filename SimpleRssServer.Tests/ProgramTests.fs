@@ -47,7 +47,7 @@ let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
     let result = page |> string
 
     // Assert
-    Assert.Contains("<a href=\"config.html/\">config/</a>", result)
+    Assert.Contains("<a href=\"config.html/\">rssrdr</a>", result)
 
 [<Fact>]
 let ``Test assembleRssFeeds includes config link with query and removes https prefix`` () =
@@ -73,7 +73,7 @@ let ``Test assembleRssFeeds includes config link with query and removes https pr
     let expectedQuery =
         $"?rss=example.com/feed{ids[0]}&rss=example.com/feed{ids[1]}&rss=http://example.com/feed{ids[2]}"
 
-    Assert.Contains($"<a href=\"config.html/%s{expectedQuery}\">config/</a>", result)
+    Assert.Contains($"<a href=\"config.html/%s{expectedQuery}\">rssrdr</a>", result)
 
 [<Fact>]
 let ``Test assembleRssFeeds returns successful URIs for happy path with two valid URIs`` () =
