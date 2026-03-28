@@ -16,138 +16,90 @@ open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 
-let private toDiscoveredFeeds (pageUri: Uri) (links: HtmlFeedLink list) : DiscoveredFeed list =
-    links
-    |> List.map (fun l ->
-        let absoluteLink = FeedReader.GetAbsoluteFeedUrl(pageUri.ToString(), l)
-        let url = absoluteLink.Url
+let readFromCache (cacheConfig: CacheConfig) (uri : UriProcessState) : UriProcessState =
+    match uri with
+    | ValidUri (_, u) -> 
+        let fname = convertUrlToValidFilename u
+        let cachePath = Path.Combine(cacheConfig.Dir, fname)
+        let cache = readCache cachePath
+        match cache with
+        | Some s  -> CachedFeed s
+        | None -> ProcessingError (CacheReadFailed(u, cachePath))
+    | _ -> uri
 
-        let title =
-            if String.IsNullOrWhiteSpace absoluteLink.Title then
-                url
-            else
-                absoluteLink.Title
+let toUriProcessState (uri: Result<Uri, UriError> ) : UriProcessState =
+    match uri with
+    | Ok u -> ValidUri(Some DateTimeOffset.Now, u)
+    | Error u -> 
+        match u with 
+        | HostNameMustContainDot iu -> ProcessingError (InvalidUriHostname iu)
+        | UriFormatException (iu, ex) -> ProcessingError (InvalidUriFormat(iu, ex))
 
-        { Title = title; Url = url })
+let parseFeedResult (logger: ILogger) (uri: UriProcessState) =
+    match uri with
+    | Response r -> 
+        match tryParseFeed logger r (Uri "uri") with
+        | Ok f -> ParsedFeed (UnparsedXml r, f)
+        | Error e -> 
+            match e with
+            | InvalidRssFeedFormat _ -> ResponseCanContainsFeeds r
+            | _ -> ProcessingError e
+    | _ -> uri
 
-let private parseSingleFetchResult
-    (logger: ILogger)
-    (cacheConfig: CacheConfig)
-    (fetchResult: FetchResult)
-    : FetchParseResult =
-    match fetchResult with
-    | FreshContent(content, uri) ->
-        match tryParseFeed logger content uri with
-        | Ok feed ->
-            cacheSuccessfulFetch cacheConfig (FeedUri uri) content
-            let articles = feedToArticles feed
-            ValidFeed(uri, articles)
-        | Error err -> ErrorArticles [ createErrorArticle err ]
-    | other -> ErrorArticles(parseRss logger other)
 
-let private discoverFeeds
-    (logger: ILogger)
-    client
-    (cacheConfig: CacheConfig)
-    (pageUri: Uri)
-    (err: DomainMessage)
-    (content: string)
-    =
-    async {
-        let links = FeedReader.ParseFeedUrlsFromHtml(content) |> Seq.toList
+let checkIfDiscoveryFeeds uri =
+    match uri with
+    | ResponseCanContainsFeeds s -> 
+        let feed = FeedReader.ParseFeedUrlsFromHtml s |> Seq.toArray
+        match feed with
+        | [||] -> [| ProcessingError (InvalidRssFeedFormat (Uri "tbd", Exception "tbd")) |]
+        | x -> x |> Array.map (fun u -> ValidUri(None, Uri u.Url))
+    | x -> [| x |]
 
-        match links with
-        | [] -> return ErrorArticles [ createErrorArticle err ]
-        | [ link ] ->
-            let absoluteUrl = FeedReader.GetAbsoluteFeedUrl(pageUri.ToString(), link).Url
-            let! fetchResult = fetchUrlWithCacheAsync client cacheConfig (Uri.Create absoluteUrl)
-            return parseSingleFetchResult logger cacheConfig fetchResult
-        | _ -> return MultiDiscovered(toDiscoveredFeeds pageUri links)
-    }
 
-let private parseFetchResult (logger: ILogger) client (cacheConfig: CacheConfig) (fetchResult: FetchResult) =
-    async {
-        match fetchResult with
-        | FreshContent(content, uri) ->
-            match tryParseFeed logger content uri with
-            | Ok feed ->
-                cacheSuccessfulFetch cacheConfig (FeedUri uri) content
-                return ValidFeed(uri, feedToArticles feed)
-            | Error err -> return! discoverFeeds logger client cacheConfig uri err content
-        | other -> return ErrorArticles(parseRss logger other)
-    }
+let cacheSuccessfulFetch cacheConfig uri =
+    match uri with
+    | ParsedFeed (xml, _) -> writeCache cacheConfig.Dir xml.Value
+    | _ -> ()
 
-let assembleRssFeeds (logger: ILogger) order client cacheConfig rssUris =
-    async {
-        let! rssFeeds = fetchAllRssFeeds client cacheConfig rssUris
+    uri
 
-        let allValidUris = rssUris |> validUris |> Array.map (fun u -> u.AbsoluteUri)
+let onlyFeedArticles ups =
+    match ups with
+    | FeedArticles articles -> articles
+    | _ -> [||]
 
-        let query =
-            allValidUris
-            |> Array.map (fun s -> s.Replace("https://", ""))
-            |> fun values -> Query.CreateWithKey("rss", values)
-
-        let! parsedResults =
-            rssFeeds
-            |> Array.map (parseFetchResult logger client cacheConfig)
-            |> Async.Parallel
-
-        let multiDiscoveredLinks =
-            parsedResults
-            |> Seq.choose (function
-                | MultiDiscovered links -> Some links
-                | _ -> None)
-            |> Seq.concat
-            |> Seq.toList
-
-        let confirmedUris =
-            parsedResults
-            |> Seq.choose (function
-                | ValidFeed(uri, _) -> Some uri
-                | _ -> None)
-            |> Seq.toArray
-
-        if multiDiscoveredLinks.IsEmpty then
-            let allItems =
-                parsedResults
-                |> Seq.collect (function
-                    | ValidFeed(_, articles) -> articles
-                    | ErrorArticles articles -> articles
-                    | MultiDiscovered _ -> [])
-
-            let page =
-                match order with
-                | Chronological -> chronologicalFeedsPage query allItems
-                | Shuffle -> shuffledFeedsPage query allItems
-
-            return FeedsReady(confirmedUris, page)
-        else
-            return NeedsSelection(confirmedUris, multiDiscoveredLinks)
-    }
+let processRssRequest client cacheConfig (query: string) =
+    getRssUrls query
+    |> Array.map toUriProcessState
+    |> Array.map (readFromCache cacheConfig)
+    |> fetchAllRssFeeds2 client logger
+    |> Async.RunSynchronously
+    |> Array.map (parseFeedResult logger)
+    // TODO do I want to show the discovery selection page?
+    |> Array.collect checkIfDiscoveryFeeds // if there are the following steps will be bypassed this should return Html?
+    |> Array.map (parseFeedResult logger) 
+    |> Array.map (cacheSuccessfulFetch cacheConfig)
+    |> Array.map feedToArticles
+    |> Array.collect onlyFeedArticles
+    |> Array.toSeq
 
 let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContext) =
     async {
         logger.LogDebug $"Received request {context.Request.Url}"
 
         let rssUris = getRssUrls context.Request.Url.Query
+    
+        let processRssRequest = processRssRequest client cacheConfig context.Request.Url.Query 
 
-        let serveRss order =
-            async {
-                let! result = assembleRssFeeds logger order client cacheConfig rssUris
-
-                match result with
-                | FeedsReady(okRequests, page) ->
-                    updateRequestLog RequestLogPath RequestLogRetention okRequests
-                    return page |> string
-                | NeedsSelection(confirmed, toSelect) -> return feedDiscoveryPage confirmed toSelect |> string
-            }
+        // TODO this probably needs to come from the processRssRequest, such that it filters out old stuff and removed invalid urls
+        let query = Query.Create context.Request.Url.Query
 
         let! responseString =
             match context.Request.RawUrl with
             | Prefix "/config.html" _ -> async.Return(configPage rssUris |> string)
-            | Prefix "/shuffle?rss=" _ -> serveRss Shuffle
-            | Prefix "/?rss=" _ -> serveRss Chronological
+            | Prefix "/shuffle?rss=" _ -> async.Return(shuffledFeedsPage query processRssRequest |> string)
+            | Prefix "/?rss=" _ -> async.Return(chronologicalFeedsPage query processRssRequest |> string)
             | "/robots.txt" -> async.Return(File.ReadAllText(Path.Combine("site", "robots.txt")))
             | "/sitemap.xml" -> async.Return(File.ReadAllText(Path.Combine("site", "sitemap.xml")))
             | _ -> async.Return(landingPage |> string)
@@ -166,6 +118,7 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
 let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.CacheConfig) =
     async {
         while true do
+            // TODO why is all this converted to Ok?
             let urls = readRequestLog RequestLogPath |> Array.map Ok
 
             if urls.Length > 0 then

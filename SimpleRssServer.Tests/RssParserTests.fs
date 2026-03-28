@@ -28,305 +28,305 @@ let ``tryParseFeed returns Ok Feed for valid RSS content`` () =
     let result = tryParseFeed NullLogger.Instance content uri
     Assert.True(Result.isOk result)
 
-let parseRssFromFile logger uri fileName =
-    try
-        let content = File.ReadAllText fileName
-        parseRss logger (FreshContent(content, uri))
-    with ex ->
-        [ { PostDate = Some DateTime.Now
-            Title = "Error"
-            ArticleUrl = fileName
-            FeedUrl = fileName
-            Text = $"{ex.GetType().Name} {ex.Message}" } ]
+// // let parseRssFromFile logger uri fileName =
+// //     try
+// //         let content = File.ReadAllText fileName
+// //         parseRss logger (FreshContent(content, uri))
+// //     with ex ->
+// //         [ { PostDate = Some DateTime.Now
+// //             Title = "Error"
+// //             ArticleUrl = fileName
+// //             FeedUrl = fileName
+// //             Text = $"{ex.GetType().Name} {ex.Message}" } ]
+
+// // [<Fact>]
+// // let ``Test parseRss with non-valid RSS feed`` () =
+// //     let invalidContent =
+// //         "<html><head><title>Not an RSS feed</title></head><body>This is a test.</body></html>"
+
+// //     let uri = Uri "https://example.com"
+// //     let result = parseRss NullLogger.Instance (FreshContent(invalidContent, uri))
+
+// //     let expected =
+// //         { PostDate = Some DateTime.Now
+// //           Title = "Error"
+// //           ArticleUrl = "https://example.com/"
+// //           FeedUrl = "https://example.com/"
+// //           Text =
+// //             $"Ensure you entered the correct RSS feed address, the format of this feed was not recognized. Invalid RSS feed format for {uri}. FeedTypeNotSupportedException: unknown feed type html" }
+
+// //     Assert.Single result |> ignore
+// //     let actual = List.head result
+// //     Assert.Equal(expected.Title, actual.Title)
+// //     Assert.StartsWith("Ensure you entered the correct RSS feed address", actual.Text)
+// //     Assert.Equal(expected.ArticleUrl, actual.ArticleUrl)
+// //     Assert.Equal(expected.FeedUrl, actual.FeedUrl)
+// //     Assert.True((expected.PostDate.Value - actual.PostDate.Value).TotalSeconds < 1.0)
+
+// let ``Test parseRss with roaldinch.xml`` () =
+//     let feedUrl = "https://roaldin.ch/feed.xml"
+
+//     let result = parseRssFromFile NullLogger.Instance (Uri feedUrl) "data/roaldinch.xml"
+
+//     let expected =
+//         [ { PostDate = Some(DateTime(2024, 8, 6, 0, 0, 0))
+//             Title = "Groepsreserveringen"
+//             ArticleUrl = "https://roaldin.ch/groepsreserveringen"
+//             FeedUrl = feedUrl
+//             Text =
+//               "Regelmatig zie ik hier treincoupés die zijn gereserveerd voor een groep. Vaak zijn dit schoolklassen op een uitje, maar soms ook andere groepen. Zo had ik laatst een wandeling met collega’s, waarvoor een gedeelte van de coupé was gereserveerd. In Nederlan..." }
+//           { PostDate = Some(DateTime(2024, 8, 5, 0, 0, 0))
+//             Title = "1 augustus brunch"
+//             ArticleUrl = "https://roaldin.ch/1-augustus-brunch"
+//             FeedUrl = feedUrl
+//             Text =
+//               "Normaal doen wij niets speciaals met 1 augustus1, maar deze keer kwam vriend T. met een idee: een 1 augustus brunch. I. en ik, hier al bijna negen en zeven jaar woonachtig, kenden dit concept nog niet. Op 1 augustus organiseren sommige boerderijen een bru..." }
+//           { PostDate = Some(DateTime(2024, 7, 30, 0, 0, 0))
+//             Title = "Geschakeld stopcontact"
+//             ArticleUrl = "https://roaldin.ch/geschakeld-stopcontact"
+//             FeedUrl = feedUrl
+//             Text =
+//               "Net als in Nederland hebben huizen hier dezelfde stopcontacten en lichtschakelaars. Stopcontacten hebben vaak ruimte voor drie stekkers, dankzij de kleinere vormfactor van geaarde stekkers1. Eén van de drie stekkers is soms geschakeld. Dit zie je aan het ..." }
+//           { PostDate = Some(DateTime(2024, 7, 25, 0, 0, 0))
+//             Title = "Voetbalfans"
+//             ArticleUrl = "https://roaldin.ch/voetbalfans"
+//             FeedUrl = feedUrl
+//             Text =
+//               "Toen ik in 2018 het WK voetbal vanuit Zwitserland meemaakte, was ik teleurgesteld. Het voetbal leek hier niet echt te leven. Afgezien van een enkeling met een voetbalshirt en winkels die iets met het WK deden, merkte je weinig van het toernooi. Het diepte..." }
+//           { PostDate = Some(DateTime(2024, 7, 20, 0, 0, 0))
+//             Title = "Canapé"
+//             ArticleUrl = "https://roaldin.ch/canape"
+//             FeedUrl = feedUrl
+//             Text =
+//               "Canapé1 zijn kleine hartige hapjes die tijdens een apéro2 worden geserveerd. Deze hapjes bestaan uit een basis van vers of getoast brood met daarop hartig beleg. Als je “canapé” googelt, zie je dat het geen specifiek Zwitsers fenomeen is. Wat echter wel t..." }
+//           { PostDate = Some(DateTime(2024, 7, 14, 0, 0, 0))
+//             Title = "Guillemets"
+//             ArticleUrl = "https://roaldin.ch/guillemets"
+//             FeedUrl = feedUrl
+//             Text =
+//               "Laatst was ik bij een tentoonstelling waar de guillemets andersom werden gebruikt dan ik gewend was. Guillemets zijn deze tekens: « ». Ze worden in sommige landen, waaronder Zwitserland, als aanhalingstekens gebruikt. In mijn herinnering werd geopend met ..." }
+//           { PostDate = Some(DateTime(2024, 7, 1, 0, 0, 0))
+//             Title = "Bevoegde kinderen"
+//             ArticleUrl = "https://roaldin.ch/bevoegde-kinderen"
+//             FeedUrl = feedUrl
+//             Text =
+//               "Dit bord kwam ik tegen in onze buurt: “Betreten des Gerüstes für Kinder und Unbefugte verboten” (Betreden van de steiger verboden voor kinderen en onbevoegden). De toevoeging van de kinderen vond ik opvallend. Waarom vallen zij niet onder de onbevoegden? ..." }
+//           { PostDate = Some(DateTime(2024, 6, 27, 0, 0, 0))
+//             Title = "Verkeerd om"
+//             ArticleUrl = "https://roaldin.ch/verkeerd-om"
+//             FeedUrl = feedUrl
+//             Text =
+//               "De eerste keer dat ik een kaartspel met Zwitsers speelde, ging er iets fout. Ik ging ervan uit dat we met de klok mee zouden spelen, maar dat bleek niet zo te zijn. De standaard richting hier is tegen de klok in. Het wordt ook wel “dr ohrfiige noch” genoemd. Dit betekent in de richting van een (rechtshandige) oorveeg. Op het werk was men verdeeld over de juiste volgorde. J. antwoordde dat het afhing of hij in Duitsland of Zwitserland speelde, S. zei dat hij in Oostenrijk de goede richting op speelde, met de klok mee, en A. uit Spanje dacht even na en kwam uit op tegen de klok in. In de rest van Europa is men ook niet eensgezind. Het hangt af van de regio, het land of het spel1. https://www.reddit.com/r/AskEurope/s/mIHUVNFwGH &#8617;"
+//                   .Substring(0, ArticleDescriptionLength)
+//               + "..." }
+//           { PostDate = Some(DateTime(2024, 6, 22, 0, 0, 0))
+//             Title = "Vrouwenemancipatie"
+//             ArticleUrl = "https://roaldin.ch/vrouwenemancipatie"
+//             FeedUrl = feedUrl
+//             Text =
+//               "Hoe hier over vrouwen wordt gedacht lijkt soms een generatie achter te lopen vergeleken met Nederland. Een vriendin vertelde dat een vriendin van haar, A., naar Zwitserland was verhuisd. A. was werkloos en moest iets bij de gemeente aanvragen. Toen ze vertelde dat ze geen werk had, zei de ambtenaar niet ironisch: “Dat snap ik wel, u leeft lekker op het salaris van uw man.” Toegegeven, ze woonden ergens in een klein dorp. In een grote stad zal dit niet snel gebeuren. Ondanks de relatief hoge arbeidsparticipatie van vrouwen1, werden ze lang vooral gezien als huisvrouwen. Pas in 1971 kregen ze landelijk stemrecht en het duurde tot 1990 (!) tot ze ook in alle kantons lokaal stemrecht hadden2. Een klein voordeel hadden de vrouwen tot begin dit jaar wel: ze mochten met 64 met pensioen tegenover 65 voor mannen. Tot slot hebben ze geen dienstplicht. Al zijn er wel regelmatig discussies of dit moet veranderen. https://ourworldindata.org/female-labor-supply &#8617; https://nl.m.wikipedia.org/wiki/Vrouwenstemrecht_in_Zwitserland &#8617;"
+//                   .Substring(0, ArticleDescriptionLength)
+//               + "..." }
+//           { PostDate = Some(DateTime(2024, 6, 16, 0, 0, 0))
+//             Title = "Promoveren"
+//             ArticleUrl = "https://roaldin.ch/promoveren"
+//             FeedUrl = feedUrl
+//             Text =
+//               "Recent had ik het genoegen om mijn eerste Zwitserse verdediging bij te wonen van een promovendus. Het viel me tegen hoe dit gevierd werd. Zelf ben ik in Groningen gepromoveerd en daar waren verschillende tradities en gewoonten. Zo kiest de promovendus twee paranimfen, een soort getuigen zoals bij huwelijken, die de promovendus helpen met allerlei zaken rondom de verdediging."
+//                   .Substring(0, ArticleDescriptionLength)
+//               + "..." } ]
+
+//     Assert.Equal(expected.Length, result.Length)
+//     List.iter2 (fun (exp: Article) (act: Article) -> Assert.Equal<Article>(exp, act)) expected result
+
+// [<Fact>]
+// let ``Test parseRss with zoesklot.xml`` () =
+//     let result =
+//         parseRssFromFile NullLogger.Instance (Uri "https://zoesklot.nl/feed/") "data/zoesklot.xml"
+
+//     let expectedFirst =
+//         { PostDate = Some(DateTime(2024, 8, 6, 13, 26, 32))
+//           Title = "Duitse shag"
+//           ArticleUrl = "https://www.zoesklot.nl/duitse-shag/"
+//           FeedUrl = "https://zoesklot.nl/feed/"
+//           Text =
+//             "Bij de kassa van de Jumbo ziet M. mij en ik kan niet meer vluchten naar een andere kassa. M., een magere vijftiger met donker achterovergekamd golvend haar; enkele tattoos, oorbel en kunstgebitje ken ik van de volkstuin. Als we oogcontact hebben dan word ik meegezogen in zijn persoonlijke wereld. “Het was zo druk man"
+//                 .Substring(0, ArticleDescriptionLength)
+//             + "..." }
+
+//     let expectedLast =
+//         { PostDate = Some(DateTime(2024, 7, 24, 21, 8, 2))
+//           Title = "Wolf"
+//           ArticleUrl = "https://www.zoesklot.nl/wolf/"
+//           FeedUrl = "https://zoesklot.nl/feed/"
+//           Text =
+//             "Het was even groot nieuws in Nederland. Een wolf heeft een meisje gebeten. “De wolf beet haar zeer kort in de zij, maar beet niet door”, volgens de ouders. Het Landgoed Den Treek werd daarop deels afgesloten voor publiek. Om dit bericht in perspectief te plaatsen ging ik op zoek naar bijtincidenten van onze geliefde"
+//                 .Substring(0, ArticleDescriptionLength)
+//             + "..." }
+
+//     Assert.Equal(5, result.Length)
+//     Assert.Equal<Article>(expectedFirst, List.head result)
+//     Assert.Equal<Article>(expectedLast, List.last result)
+
+// [<Fact>]
+// let ``Test parseRss with nature.rss`` () =
+//     let result =
+//         parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/nature.rss"
+
+//     let expectedFirst =
+//         { PostDate = Some(DateTime(2024, 8, 19))
+//           Title =
+//             "Author Correction: Anti-TIGIT antibody improves PD-L1 blockade through myeloid and T<sub>reg</sub> cells"
+//           ArticleUrl = "https://www.nature.com/articles/s41586-024-07956-2"
+//           FeedUrl = "https://example.com/"
+//           Text =
+//             "Nature, Published online: 20 August 2024; doi:10.1038/s41586-024-07956-2Author Correction: Anti-TIGIT antibody improves PD-L1 blockade through myeloid and Treg cells" }
+
+//     let actualFirst = result |> List.head
+
+//     let expectedLast =
+//         { PostDate = Some(DateTime(2024, 8, 13))
+//           Title = "Stonehenge’s enigmatic centre stone was hauled 800 kilometres from Scotland"
+//           ArticleUrl = "https://www.nature.com/articles/d41586-024-02584-2"
+//           FeedUrl = "https://example.com/"
+//           Text =
+//             "Nature, Published online: 14 August 2024; doi:10.1038/d41586-024-02584-2By assessing the age of ancient crystals, researchers have traced the monument’s greenish Altar Stone to a northern rock basin." }
+
+//     let actualLast = result |> List.last
+
+//     Assert.Equal(75, result.Length)
+
+//     Assert.Equal(expectedFirst.Title, actualFirst.Title)
+//     Assert.Equal(expectedFirst.Text, actualFirst.Text)
+//     Assert.Equal(expectedFirst.ArticleUrl, actualFirst.ArticleUrl)
+//     Assert.True((expectedFirst.PostDate.Value - actualFirst.PostDate.Value).TotalSeconds < 60.0 * 60.0 * 24.0)
+
+//     Assert.Equal(expectedLast.Title, actualLast.Title)
+//     Assert.Equal(expectedLast.Text, actualLast.Text)
+//     Assert.Equal(expectedLast.ArticleUrl, actualLast.ArticleUrl)
+    // Assert.True((expectedLast.PostDate.Value - actualLast.PostDate.Value).TotalSeconds < 60.0 * 60.0 * 24.0)
+
+// [<Fact>]
+// let ``Test parseRss with Failure feedContent`` () =
+//     let result =
+//         parseRss
+//             NullLogger.Instance
+//             (Failed(PreviousHttpRequestFailed(Uri "https://example.com", TimeSpan.FromHours 1.5)))
+
+//     let expected =
+//         { PostDate = Some DateTime.Now
+//           Title = "Error"
+//           ArticleUrl = "https://example.com/"
+//           FeedUrl = "https://example.com/"
+//           Text = "The example.com RSS feed seems to be offline. I'll retry in 1.5 hours." }
+
+//     Assert.Single result |> ignore
+//     let actual = List.head result
+//     Assert.Equal(expected.Title, actual.Title)
+//     Assert.StartsWith("The example.com RSS feed seems to be offline", actual.Text)
+//     Assert.Equal(expected.ArticleUrl, actual.ArticleUrl)
+//     Assert.Equal(expected.FeedUrl, actual.FeedUrl)
+//     Assert.True((expected.PostDate.Value - actual.PostDate.Value).TotalSeconds < 1.0)
+
+// [<Fact>]
+// let ``Test parsing date if only update date is available`` () =
+//     let result =
+//         parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/rachel.xml"
+
+//     let expectedFirst = Some(DateTime(2024, 8, 18, 23, 16, 27))
+//     let actualFirst = result |> List.head
+//     Assert.True actualFirst.PostDate.IsSome
+//     Assert.True((expectedFirst.Value - actualFirst.PostDate.Value).TotalSeconds < 1.0)
+
+//     let expectedLast = Some(DateTime(2023, 2, 24, 8, 45, 28))
+//     let actualLast = result |> List.last
+//     Assert.True((expectedLast.Value - actualLast.PostDate.Value).TotalSeconds < 1.0)
+
+// [<Fact>]
+// let ``Test get content for article text if description is empty`` () =
+//     let result =
+//         parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/rachel.xml"
+
+//     let actualFirst = result |> List.head
+
+//     let expectedText =
+//         "Yeah, it's another thing about feed readers. I don't blame you if you want to skip this one. A reader (that is, a person!) reached out earlier and asked me to look at a bug report for a feed reader. It seems they passed along some of the details from one of my ear"
+//             .Substring(0, ArticleDescriptionLength)
+//         + "..."
+
+//     Assert.Equal(expectedText, actualFirst.Text)
 
 [<Fact>]
-let ``Test parseRss with non-valid RSS feed`` () =
-    let invalidContent =
-        "<html><head><title>Not an RSS feed</title></head><body>This is a test.</body></html>"
+// let ``Test read from cache if available`` () =
+//     let cachedContent = File.ReadAllText "data/roaldinch.xml"
+//     let uri = Uri "https://roaldin.ch"
+//     let waitTime = TimeSpan.FromHours 1.5
 
-    let uri = Uri "https://example.com"
-    let result = parseRss NullLogger.Instance (FreshContent(invalidContent, uri))
+//     let result =
+//         parseRss
+//             NullLogger.Instance
+//             (CachedContent(cachedContent, PreviousHttpRequestFailedButPageCached(uri, waitTime)))
 
-    let expected =
-        { PostDate = Some DateTime.Now
-          Title = "Error"
-          ArticleUrl = "https://example.com/"
-          FeedUrl = "https://example.com/"
-          Text =
-            $"Ensure you entered the correct RSS feed address, the format of this feed was not recognized. Invalid RSS feed format for {uri}. FeedTypeNotSupportedException: unknown feed type html" }
+//     let expectedCachedArticles =
+//         parseRss NullLogger.Instance (FreshContent(cachedContent, uri))
 
-    Assert.Single result |> ignore
-    let actual = List.head result
-    Assert.Equal(expected.Title, actual.Title)
-    Assert.StartsWith("Ensure you entered the correct RSS feed address", actual.Text)
-    Assert.Equal(expected.ArticleUrl, actual.ArticleUrl)
-    Assert.Equal(expected.FeedUrl, actual.FeedUrl)
-    Assert.True((expected.PostDate.Value - actual.PostDate.Value).TotalSeconds < 1.0)
+//     Assert.Equal(expectedCachedArticles.Length + 1, result.Length)
+//     let actualError = List.last result
+//     Assert.Equal("Error", actualError.Title)
+//     Assert.Equal("https://roaldin.ch/", actualError.ArticleUrl)
+//     Assert.True((DateTime.Now - actualError.PostDate.Value).TotalSeconds < 1.0)
 
-let ``Test parseRss with roaldinch.xml`` () =
-    let feedUrl = "https://roaldin.ch/feed.xml"
+//     // Check the rest are the cached articles
+//     let actualCached = List.take expectedCachedArticles.Length result
+//     Assert.Equal(expectedCachedArticles.Length, actualCached.Length)
 
-    let result = parseRssFromFile NullLogger.Instance (Uri feedUrl) "data/roaldinch.xml"
-
-    let expected =
-        [ { PostDate = Some(DateTime(2024, 8, 6, 0, 0, 0))
-            Title = "Groepsreserveringen"
-            ArticleUrl = "https://roaldin.ch/groepsreserveringen"
-            FeedUrl = feedUrl
-            Text =
-              "Regelmatig zie ik hier treincoupés die zijn gereserveerd voor een groep. Vaak zijn dit schoolklassen op een uitje, maar soms ook andere groepen. Zo had ik laatst een wandeling met collega’s, waarvoor een gedeelte van de coupé was gereserveerd. In Nederlan..." }
-          { PostDate = Some(DateTime(2024, 8, 5, 0, 0, 0))
-            Title = "1 augustus brunch"
-            ArticleUrl = "https://roaldin.ch/1-augustus-brunch"
-            FeedUrl = feedUrl
-            Text =
-              "Normaal doen wij niets speciaals met 1 augustus1, maar deze keer kwam vriend T. met een idee: een 1 augustus brunch. I. en ik, hier al bijna negen en zeven jaar woonachtig, kenden dit concept nog niet. Op 1 augustus organiseren sommige boerderijen een bru..." }
-          { PostDate = Some(DateTime(2024, 7, 30, 0, 0, 0))
-            Title = "Geschakeld stopcontact"
-            ArticleUrl = "https://roaldin.ch/geschakeld-stopcontact"
-            FeedUrl = feedUrl
-            Text =
-              "Net als in Nederland hebben huizen hier dezelfde stopcontacten en lichtschakelaars. Stopcontacten hebben vaak ruimte voor drie stekkers, dankzij de kleinere vormfactor van geaarde stekkers1. Eén van de drie stekkers is soms geschakeld. Dit zie je aan het ..." }
-          { PostDate = Some(DateTime(2024, 7, 25, 0, 0, 0))
-            Title = "Voetbalfans"
-            ArticleUrl = "https://roaldin.ch/voetbalfans"
-            FeedUrl = feedUrl
-            Text =
-              "Toen ik in 2018 het WK voetbal vanuit Zwitserland meemaakte, was ik teleurgesteld. Het voetbal leek hier niet echt te leven. Afgezien van een enkeling met een voetbalshirt en winkels die iets met het WK deden, merkte je weinig van het toernooi. Het diepte..." }
-          { PostDate = Some(DateTime(2024, 7, 20, 0, 0, 0))
-            Title = "Canapé"
-            ArticleUrl = "https://roaldin.ch/canape"
-            FeedUrl = feedUrl
-            Text =
-              "Canapé1 zijn kleine hartige hapjes die tijdens een apéro2 worden geserveerd. Deze hapjes bestaan uit een basis van vers of getoast brood met daarop hartig beleg. Als je “canapé” googelt, zie je dat het geen specifiek Zwitsers fenomeen is. Wat echter wel t..." }
-          { PostDate = Some(DateTime(2024, 7, 14, 0, 0, 0))
-            Title = "Guillemets"
-            ArticleUrl = "https://roaldin.ch/guillemets"
-            FeedUrl = feedUrl
-            Text =
-              "Laatst was ik bij een tentoonstelling waar de guillemets andersom werden gebruikt dan ik gewend was. Guillemets zijn deze tekens: « ». Ze worden in sommige landen, waaronder Zwitserland, als aanhalingstekens gebruikt. In mijn herinnering werd geopend met ..." }
-          { PostDate = Some(DateTime(2024, 7, 1, 0, 0, 0))
-            Title = "Bevoegde kinderen"
-            ArticleUrl = "https://roaldin.ch/bevoegde-kinderen"
-            FeedUrl = feedUrl
-            Text =
-              "Dit bord kwam ik tegen in onze buurt: “Betreten des Gerüstes für Kinder und Unbefugte verboten” (Betreden van de steiger verboden voor kinderen en onbevoegden). De toevoeging van de kinderen vond ik opvallend. Waarom vallen zij niet onder de onbevoegden? ..." }
-          { PostDate = Some(DateTime(2024, 6, 27, 0, 0, 0))
-            Title = "Verkeerd om"
-            ArticleUrl = "https://roaldin.ch/verkeerd-om"
-            FeedUrl = feedUrl
-            Text =
-              "De eerste keer dat ik een kaartspel met Zwitsers speelde, ging er iets fout. Ik ging ervan uit dat we met de klok mee zouden spelen, maar dat bleek niet zo te zijn. De standaard richting hier is tegen de klok in. Het wordt ook wel “dr ohrfiige noch” genoemd. Dit betekent in de richting van een (rechtshandige) oorveeg. Op het werk was men verdeeld over de juiste volgorde. J. antwoordde dat het afhing of hij in Duitsland of Zwitserland speelde, S. zei dat hij in Oostenrijk de goede richting op speelde, met de klok mee, en A. uit Spanje dacht even na en kwam uit op tegen de klok in. In de rest van Europa is men ook niet eensgezind. Het hangt af van de regio, het land of het spel1. https://www.reddit.com/r/AskEurope/s/mIHUVNFwGH &#8617;"
-                  .Substring(0, ArticleDescriptionLength)
-              + "..." }
-          { PostDate = Some(DateTime(2024, 6, 22, 0, 0, 0))
-            Title = "Vrouwenemancipatie"
-            ArticleUrl = "https://roaldin.ch/vrouwenemancipatie"
-            FeedUrl = feedUrl
-            Text =
-              "Hoe hier over vrouwen wordt gedacht lijkt soms een generatie achter te lopen vergeleken met Nederland. Een vriendin vertelde dat een vriendin van haar, A., naar Zwitserland was verhuisd. A. was werkloos en moest iets bij de gemeente aanvragen. Toen ze vertelde dat ze geen werk had, zei de ambtenaar niet ironisch: “Dat snap ik wel, u leeft lekker op het salaris van uw man.” Toegegeven, ze woonden ergens in een klein dorp. In een grote stad zal dit niet snel gebeuren. Ondanks de relatief hoge arbeidsparticipatie van vrouwen1, werden ze lang vooral gezien als huisvrouwen. Pas in 1971 kregen ze landelijk stemrecht en het duurde tot 1990 (!) tot ze ook in alle kantons lokaal stemrecht hadden2. Een klein voordeel hadden de vrouwen tot begin dit jaar wel: ze mochten met 64 met pensioen tegenover 65 voor mannen. Tot slot hebben ze geen dienstplicht. Al zijn er wel regelmatig discussies of dit moet veranderen. https://ourworldindata.org/female-labor-supply &#8617; https://nl.m.wikipedia.org/wiki/Vrouwenstemrecht_in_Zwitserland &#8617;"
-                  .Substring(0, ArticleDescriptionLength)
-              + "..." }
-          { PostDate = Some(DateTime(2024, 6, 16, 0, 0, 0))
-            Title = "Promoveren"
-            ArticleUrl = "https://roaldin.ch/promoveren"
-            FeedUrl = feedUrl
-            Text =
-              "Recent had ik het genoegen om mijn eerste Zwitserse verdediging bij te wonen van een promovendus. Het viel me tegen hoe dit gevierd werd. Zelf ben ik in Groningen gepromoveerd en daar waren verschillende tradities en gewoonten. Zo kiest de promovendus twee paranimfen, een soort getuigen zoals bij huwelijken, die de promovendus helpen met allerlei zaken rondom de verdediging."
-                  .Substring(0, ArticleDescriptionLength)
-              + "..." } ]
-
-    Assert.Equal(expected.Length, result.Length)
-    List.iter2 (fun (exp: Article) (act: Article) -> Assert.Equal<Article>(exp, act)) expected result
-
-[<Fact>]
-let ``Test parseRss with zoesklot.xml`` () =
-    let result =
-        parseRssFromFile NullLogger.Instance (Uri "https://zoesklot.nl/feed/") "data/zoesklot.xml"
-
-    let expectedFirst =
-        { PostDate = Some(DateTime(2024, 8, 6, 13, 26, 32))
-          Title = "Duitse shag"
-          ArticleUrl = "https://www.zoesklot.nl/duitse-shag/"
-          FeedUrl = "https://zoesklot.nl/feed/"
-          Text =
-            "Bij de kassa van de Jumbo ziet M. mij en ik kan niet meer vluchten naar een andere kassa. M., een magere vijftiger met donker achterovergekamd golvend haar; enkele tattoos, oorbel en kunstgebitje ken ik van de volkstuin. Als we oogcontact hebben dan word ik meegezogen in zijn persoonlijke wereld. “Het was zo druk man"
-                .Substring(0, ArticleDescriptionLength)
-            + "..." }
-
-    let expectedLast =
-        { PostDate = Some(DateTime(2024, 7, 24, 21, 8, 2))
-          Title = "Wolf"
-          ArticleUrl = "https://www.zoesklot.nl/wolf/"
-          FeedUrl = "https://zoesklot.nl/feed/"
-          Text =
-            "Het was even groot nieuws in Nederland. Een wolf heeft een meisje gebeten. “De wolf beet haar zeer kort in de zij, maar beet niet door”, volgens de ouders. Het Landgoed Den Treek werd daarop deels afgesloten voor publiek. Om dit bericht in perspectief te plaatsen ging ik op zoek naar bijtincidenten van onze geliefde"
-                .Substring(0, ArticleDescriptionLength)
-            + "..." }
-
-    Assert.Equal(5, result.Length)
-    Assert.Equal<Article>(expectedFirst, List.head result)
-    Assert.Equal<Article>(expectedLast, List.last result)
-
-[<Fact>]
-let ``Test parseRss with nature.rss`` () =
-    let result =
-        parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/nature.rss"
-
-    let expectedFirst =
-        { PostDate = Some(DateTime(2024, 8, 19))
-          Title =
-            "Author Correction: Anti-TIGIT antibody improves PD-L1 blockade through myeloid and T<sub>reg</sub> cells"
-          ArticleUrl = "https://www.nature.com/articles/s41586-024-07956-2"
-          FeedUrl = "https://example.com/"
-          Text =
-            "Nature, Published online: 20 August 2024; doi:10.1038/s41586-024-07956-2Author Correction: Anti-TIGIT antibody improves PD-L1 blockade through myeloid and Treg cells" }
-
-    let actualFirst = result |> List.head
-
-    let expectedLast =
-        { PostDate = Some(DateTime(2024, 8, 13))
-          Title = "Stonehenge’s enigmatic centre stone was hauled 800 kilometres from Scotland"
-          ArticleUrl = "https://www.nature.com/articles/d41586-024-02584-2"
-          FeedUrl = "https://example.com/"
-          Text =
-            "Nature, Published online: 14 August 2024; doi:10.1038/d41586-024-02584-2By assessing the age of ancient crystals, researchers have traced the monument’s greenish Altar Stone to a northern rock basin." }
-
-    let actualLast = result |> List.last
-
-    Assert.Equal(75, result.Length)
-
-    Assert.Equal(expectedFirst.Title, actualFirst.Title)
-    Assert.Equal(expectedFirst.Text, actualFirst.Text)
-    Assert.Equal(expectedFirst.ArticleUrl, actualFirst.ArticleUrl)
-    Assert.True((expectedFirst.PostDate.Value - actualFirst.PostDate.Value).TotalSeconds < 60.0 * 60.0 * 24.0)
-
-    Assert.Equal(expectedLast.Title, actualLast.Title)
-    Assert.Equal(expectedLast.Text, actualLast.Text)
-    Assert.Equal(expectedLast.ArticleUrl, actualLast.ArticleUrl)
-    Assert.True((expectedLast.PostDate.Value - actualLast.PostDate.Value).TotalSeconds < 60.0 * 60.0 * 24.0)
-
-[<Fact>]
-let ``Test parseRss with Failure feedContent`` () =
-    let result =
-        parseRss
-            NullLogger.Instance
-            (Failed(PreviousHttpRequestFailed(Uri "https://example.com", TimeSpan.FromHours 1.5)))
-
-    let expected =
-        { PostDate = Some DateTime.Now
-          Title = "Error"
-          ArticleUrl = "https://example.com/"
-          FeedUrl = "https://example.com/"
-          Text = "The example.com RSS feed seems to be offline. I'll retry in 1.5 hours." }
-
-    Assert.Single result |> ignore
-    let actual = List.head result
-    Assert.Equal(expected.Title, actual.Title)
-    Assert.StartsWith("The example.com RSS feed seems to be offline", actual.Text)
-    Assert.Equal(expected.ArticleUrl, actual.ArticleUrl)
-    Assert.Equal(expected.FeedUrl, actual.FeedUrl)
-    Assert.True((expected.PostDate.Value - actual.PostDate.Value).TotalSeconds < 1.0)
-
-[<Fact>]
-let ``Test parsing date if only update date is available`` () =
-    let result =
-        parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/rachel.xml"
-
-    let expectedFirst = Some(DateTime(2024, 8, 18, 23, 16, 27))
-    let actualFirst = result |> List.head
-    Assert.True actualFirst.PostDate.IsSome
-    Assert.True((expectedFirst.Value - actualFirst.PostDate.Value).TotalSeconds < 1.0)
-
-    let expectedLast = Some(DateTime(2023, 2, 24, 8, 45, 28))
-    let actualLast = result |> List.last
-    Assert.True((expectedLast.Value - actualLast.PostDate.Value).TotalSeconds < 1.0)
-
-[<Fact>]
-let ``Test get content for article text if description is empty`` () =
-    let result =
-        parseRssFromFile NullLogger.Instance (Uri "https://example.com") "data/rachel.xml"
-
-    let actualFirst = result |> List.head
-
-    let expectedText =
-        "Yeah, it's another thing about feed readers. I don't blame you if you want to skip this one. A reader (that is, a person!) reached out earlier and asked me to look at a bug report for a feed reader. It seems they passed along some of the details from one of my ear"
-            .Substring(0, ArticleDescriptionLength)
-        + "..."
-
-    Assert.Equal(expectedText, actualFirst.Text)
-
-[<Fact>]
-let ``Test read from cache if available`` () =
-    let cachedContent = File.ReadAllText "data/roaldinch.xml"
-    let uri = Uri "https://roaldin.ch"
-    let waitTime = TimeSpan.FromHours 1.5
-
-    let result =
-        parseRss
-            NullLogger.Instance
-            (CachedContent(cachedContent, PreviousHttpRequestFailedButPageCached(uri, waitTime)))
-
-    let expectedCachedArticles =
-        parseRss NullLogger.Instance (FreshContent(cachedContent, uri))
-
-    Assert.Equal(expectedCachedArticles.Length + 1, result.Length)
-    let actualError = List.last result
-    Assert.Equal("Error", actualError.Title)
-    Assert.Equal("https://roaldin.ch/", actualError.ArticleUrl)
-    Assert.True((DateTime.Now - actualError.PostDate.Value).TotalSeconds < 1.0)
-
-    // Check the rest are the cached articles
-    let actualCached = List.take expectedCachedArticles.Length result
-    Assert.Equal(expectedCachedArticles.Length, actualCached.Length)
-
-    List.zip expectedCachedArticles actualCached
-    |> List.iter (fun (exp, act) ->
-        Assert.Equal(exp.Title, act.Title)
-        Assert.Equal(exp.ArticleUrl, act.ArticleUrl)
-        Assert.Equal(exp.FeedUrl, act.FeedUrl)
-        Assert.Equal(exp.Text, act.Text))
+//     List.zip expectedCachedArticles actualCached
+//     |> List.iter (fun (exp, act) ->
+//         Assert.Equal(exp.Title, act.Title)
+//         Assert.Equal(exp.ArticleUrl, act.ArticleUrl)
+//         Assert.Equal(exp.FeedUrl, act.FeedUrl)
+//         Assert.Equal(exp.Text, act.Text))
 
 let makeTempCacheConfig () =
     { Dir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
       Expiration = TimeSpan.FromHours 1.0 }
 
-[<Fact>]
-let ``parseFeedResult with valid FreshContent returns Ok and writes cache`` () =
-    let uri = Uri "https://example.com"
-    let content = File.ReadAllText "data/roaldinch.xml"
-    let cacheConfig = makeTempCacheConfig ()
-    Directory.CreateDirectory cacheConfig.Dir
+// [<Fact>]
+// let ``parseFeedResult with valid FreshContent returns Ok and writes cache`` () =
+//     let uri = Uri "https://example.com"
+//     let content = File.ReadAllText "data/roaldinch.xml"
+//     let cacheConfig = makeTempCacheConfig ()
+//     Directory.CreateDirectory cacheConfig.Dir
 
-    let result =
-        parseFeedResult NullLogger.Instance cacheConfig (FreshContent(content, uri))
+//     let result =
+//         parseFeedResult NullLogger.Instance cacheConfig (FreshContent(content, uri))
 
-    match result with
-    | Ok(feedUri, articles) ->
-        Assert.Equal(uri, feedUri.Uri)
-        Assert.NotEmpty articles
-        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
-        Assert.True(File.Exists cachePath, "Expected cache file to be written")
-        Assert.Equal(content, File.ReadAllText cachePath)
-    | Error _ -> Assert.Fail "Expected Ok"
+//     match result with
+//     | Ok(feedUri, articles) ->
+//         Assert.Equal(uri, feedUri.Uri)
+//         Assert.NotEmpty articles
+//         let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
+//         Assert.True(File.Exists cachePath, "Expected cache file to be written")
+//         Assert.Equal(content, File.ReadAllText cachePath)
+//     | Error _ -> Assert.Fail "Expected Ok"
 
-    Directory.DeleteRecursive cacheConfig.Dir
+//     Directory.DeleteRecursive cacheConfig.Dir
 
-[<Fact>]
-let ``parseFeedResult with invalid FreshContent returns Error and does not write cache`` () =
-    let uri = Uri "https://example.com"
-    let cacheConfig = makeTempCacheConfig ()
-    Directory.CreateDirectory cacheConfig.Dir
+// [<Fact>]
+// let ``parseFeedResult with invalid FreshContent returns Error and does not write cache`` () =
+//     let uri = Uri "https://example.com"
+//     let cacheConfig = makeTempCacheConfig ()
+//     Directory.CreateDirectory cacheConfig.Dir
 
-    let result =
-        parseFeedResult NullLogger.Instance cacheConfig (FreshContent("<html>not rss</html>", uri))
+//     let result =
+//         parseFeedResult NullLogger.Instance cacheConfig (FreshContent("<html>not rss</html>", uri))
 
-    match result with
-    | Error articles ->
-        Assert.Single articles |> ignore
-        Assert.Equal("Error", (List.head articles).Title)
-        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
-        Assert.False(File.Exists cachePath, "Expected no cache file to be written")
-    | Ok _ -> Assert.Fail "Expected Error"
+//     match result with
+//     | Error articles ->
+//         Assert.Single articles |> ignore
+//         Assert.Equal("Error", (List.head articles).Title)
+//         let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
+//         Assert.False(File.Exists cachePath, "Expected no cache file to be written")
+//     | Ok _ -> Assert.Fail "Expected Error"
 
-    Directory.DeleteRecursive cacheConfig.Dir
+//     Directory.DeleteRecursive cacheConfig.Dir
