@@ -24,7 +24,7 @@ let readFromCache (cacheConfig: CacheConfig) (uri: UriProcessState) : UriProcess
         let cache = readCache cachePath
 
         match cache with
-        | Some s -> CachedFeed s
+        | Some s -> CachedFeed(s, u)
         | None -> ValidUri(None, u)
     | _ -> uri
 
@@ -45,6 +45,10 @@ let parseFeedResult (logger: ILogger) (uri: UriProcessState) =
             match e with
             | InvalidRssFeedFormat _ -> ResponseCanContainsFeeds r
             | _ -> ProcessingError e
+    | CachedFeed(r, feedUri) ->
+        match tryParseFeed logger r feedUri with
+        | Ok f -> ParsedCachedFeed f
+        | Error e -> ProcessingError e
     | _ -> uri
 
 

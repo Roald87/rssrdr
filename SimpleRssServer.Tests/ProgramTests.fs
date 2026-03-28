@@ -272,7 +272,7 @@ let ``processRssRequest returns all articles for roaldin.ch feed`` () =
     let xmlContent = File.ReadAllText "data/roaldinch.xml"
     let client = httpOkClient xmlContent
     let cacheDir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
-    Directory.CreateDirectory(string cacheDir) |> ignore
+    Directory.CreateDirectory cacheDir
 
     let cacheConfig =
         { Dir = cacheDir
@@ -293,3 +293,30 @@ let ``processRssRequest returns all articles for roaldin.ch feed`` () =
 
     Assert.True(File.Exists expectedCachePath, "Expected cache file to be written")
     Assert.Equal(xmlContent, File.ReadAllText expectedCachePath)
+
+[<Fact>]
+let ``processRssRequest serves articles from cache and makes no HTTP request`` () =
+    // Arrange
+    let xmlContent = File.ReadAllText "data/roaldinch.xml"
+    let cacheDir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
+    Directory.CreateDirectory cacheDir
+
+    let cacheConfig =
+        { Dir = cacheDir
+          Expiration = TimeSpan.FromHours 1.0 }
+
+    // Pre-populate cache with a fresh write time
+    let cachePath =
+        Path.Combine(cacheDir, convertUrlToValidFilename (Uri "https://roaldin.ch/feed"))
+
+    File.WriteAllText(cachePath, xmlContent)
+
+    // Act
+    let articles =
+        processRssRequest mockClientThrowsWhenCalled cacheConfig "?rss=https://roaldin.ch/feed"
+        |> Seq.toArray
+
+    // Assert
+    Assert.Equal(10, articles.Length)
+    Assert.Equal("Groepsreserveringen", articles[0].Title)
+    Assert.Equal("Promoveren", articles[articles.Length - 1].Title)
