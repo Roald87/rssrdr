@@ -40,7 +40,12 @@ type MockHttpResponseHandler(response: HttpResponseMessage) =
 
 type MockHttpMessageHandler(sendAsyncImpl: HttpRequestMessage -> Task<HttpResponseMessage>) =
     inherit HttpMessageHandler()
-    override _.SendAsync(request, cancellationToken) = sendAsyncImpl request
+    let mutable callCount = 0
+    member _.CallCount = callCount
+
+    override _.SendAsync(request, cancellationToken) =
+        callCount <- callCount + 1
+        sendAsyncImpl request
 
 let httpOkClient content =
     let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)

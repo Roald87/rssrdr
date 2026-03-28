@@ -21,11 +21,15 @@ let readFromCache (cacheConfig: CacheConfig) (uri: UriProcessState) : UriProcess
     | ValidUri(_, u) ->
         let fname = convertUrlToValidFilename u
         let cachePath = Path.Combine(cacheConfig.Dir, fname)
-        let cache = readCache cachePath
+        let cacheModified = fileLastModified cachePath
 
-        match cache with
-        | Some s -> CachedFeed(s, u)
+        match cacheModified with
         | None -> ValidUri(None, u)
+        | Some modTime when (DateTimeOffset.Now - modTime) <= cacheConfig.Expiration ->
+            match readCache cachePath with
+            | Some s -> CachedFeed(s, u)
+            | None -> ValidUri(None, u)
+        | Some modTime -> ValidUri(Some modTime, u)
     | _ -> uri
 
 let toUriProcessState (uri: Result<Uri, UriError>) : UriProcessState =
@@ -84,7 +88,7 @@ let processRssRequest client cacheConfig (query: string) =
     getRssUrls query
     |> Array.map toUriProcessState
     |> Array.map (readFromCache cacheConfig)
-    |> fetchAllRssFeeds2 client logger
+    |> fetchAllRssFeeds2 client logger cacheConfig
     |> Async.RunSynchronously
     |> Array.map (parseFeedResult logger)
     // TODO do I want to show the discovery selection page?

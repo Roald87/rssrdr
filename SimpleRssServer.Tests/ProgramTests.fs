@@ -288,6 +288,40 @@ let ``processRssRequest returns all articles for roaldin.ch feed`` () =
     Assert.Equal("Groepsreserveringen", articles[0].Title)
     Assert.Equal("Promoveren", articles[articles.Length - 1].Title)
 
+[<Fact>]
+let ``processRssRequest uses cached content when HTTP returns 304 Not Modified`` () =
+    // Arrange
+    let xmlContent = File.ReadAllText "data/roaldinch.xml"
+    let cacheDir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
+    Directory.CreateDirectory cacheDir
+
+    let cacheConfig =
+        { Dir = cacheDir
+          Expiration = TimeSpan.FromHours 1.0 }
+
+    // Write an expired cache file
+    let cachePath =
+        Path.Combine(cacheDir, convertUrlToValidFilename (Uri "https://roaldin.ch/feed"))
+
+    createOutdatedCache cachePath xmlContent
+
+    // HTTP returns 304 Not Modified
+    let handler =
+        new MockHttpMessageHandler(fun _ -> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified)))
+
+    let client = new HttpClient(handler)
+
+    // Act
+    let articles =
+        processRssRequest client cacheConfig "?rss=https://roaldin.ch/feed"
+        |> Seq.toArray
+
+    // Assert
+    Assert.Equal(1, handler.CallCount)
+    Assert.Equal(10, articles.Length)
+    Assert.Equal("Groepsreserveringen", articles[0].Title)
+    Assert.Equal("Promoveren", articles[articles.Length - 1].Title)
+
     let expectedCachePath =
         Path.Combine(cacheDir, convertUrlToValidFilename (Uri "https://roaldin.ch/feed"))
 
