@@ -13,6 +13,7 @@ open Xunit
 open SimpleRssServer.Config
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
+open SimpleRssServer.Request
 open Program
 open RequestTests
 
@@ -272,7 +273,10 @@ let ``processRssRequest returns all articles for roaldin.ch feed`` () =
     let client = httpOkClient xmlContent
     let cacheDir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
     Directory.CreateDirectory(string cacheDir) |> ignore
-    let cacheConfig = { Dir = cacheDir; Expiration = TimeSpan.FromHours 1.0 }
+
+    let cacheConfig =
+        { Dir = cacheDir
+          Expiration = TimeSpan.FromHours 1.0 }
 
     // Act
     let articles =
@@ -283,3 +287,9 @@ let ``processRssRequest returns all articles for roaldin.ch feed`` () =
     Assert.Equal(10, articles.Length)
     Assert.Equal("Groepsreserveringen", articles[0].Title)
     Assert.Equal("Promoveren", articles[articles.Length - 1].Title)
+
+    let expectedCachePath =
+        Path.Combine(cacheDir, convertUrlToValidFilename (Uri "https://roaldin.ch/feed"))
+
+    Assert.True(File.Exists expectedCachePath, "Expected cache file to be written")
+    Assert.Equal(xmlContent, File.ReadAllText expectedCachePath)

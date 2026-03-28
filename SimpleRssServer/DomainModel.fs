@@ -82,9 +82,8 @@ type UnparsedXml =
 type UriProcessState =
     | ValidUri of (DateTimeOffset option) * Uri // Process further
     | CachedFeed of string // in case there is a cached feed, read it
-    | Response of string // if valid url, and succefull fetch
+    | Response of string * Uri // if valid url, and succefull fetch
     | ResponseCanContainsFeeds of string
     | ParsedFeed of UnparsedXml * Feed
     | ProcessingError of DomainMessage
     | FeedArticles of Article array
-

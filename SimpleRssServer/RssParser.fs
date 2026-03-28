@@ -96,8 +96,8 @@ let parseFeedItems (feed: Feed) =
 
 
 let feedToArticles (ups: UriProcessState) : UriProcessState =
-    match ups with 
-    | ParsedFeed (_, feed) -> parseFeedItems feed |> FeedArticles
+    match ups with
+    | ParsedFeed(_, feed) -> parseFeedItems feed |> FeedArticles
     | ProcessingError err -> [| createErrorArticle err |] |> FeedArticles
     | x -> x
 

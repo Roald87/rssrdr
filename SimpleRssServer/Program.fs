@@ -16,31 +16,32 @@ open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 
-let readFromCache (cacheConfig: CacheConfig) (uri : UriProcessState) : UriProcessState =
+let readFromCache (cacheConfig: CacheConfig) (uri: UriProcessState) : UriProcessState =
     match uri with
-    | ValidUri (_, u) -> 
+    | ValidUri(_, u) ->
         let fname = convertUrlToValidFilename u
         let cachePath = Path.Combine(cacheConfig.Dir, fname)
         let cache = readCache cachePath
+
         match cache with
-        | Some s  -> CachedFeed s
-        | None -> ProcessingError (CacheReadFailed(u, cachePath))
+        | Some s -> CachedFeed s
+        | None -> ValidUri(None, u)
     | _ -> uri
 
-let toUriProcessState (uri: Result<Uri, UriError> ) : UriProcessState =
+let toUriProcessState (uri: Result<Uri, UriError>) : UriProcessState =
     match uri with
     | Ok u -> ValidUri(Some DateTimeOffset.Now, u)
-    | Error u -> 
-        match u with 
-        | HostNameMustContainDot iu -> ProcessingError (InvalidUriHostname iu)
-        | UriFormatException (iu, ex) -> ProcessingError (InvalidUriFormat(iu, ex))
+    | Error u ->
+        match u with
+        | HostNameMustContainDot iu -> ProcessingError(InvalidUriHostname iu)
+        | UriFormatException(iu, ex) -> ProcessingError(InvalidUriFormat(iu, ex))
 
 let parseFeedResult (logger: ILogger) (uri: UriProcessState) =
     match uri with
-    | Response r -> 
-        match tryParseFeed logger r (Uri "uri") with
-        | Ok f -> ParsedFeed (UnparsedXml r, f)
-        | Error e -> 
+    | Response(r, feedUri) ->
+        match tryParseFeed logger r feedUri with
+        | Ok f -> ParsedFeed(UnparsedXml r, f)
+        | Error e ->
             match e with
             | InvalidRssFeedFormat _ -> ResponseCanContainsFeeds r
             | _ -> ProcessingError e
@@ -49,17 +50,23 @@ let parseFeedResult (logger: ILogger) (uri: UriProcessState) =
 
 let checkIfDiscoveryFeeds uri =
     match uri with
-    | ResponseCanContainsFeeds s -> 
+    | ResponseCanContainsFeeds s ->
         let feed = FeedReader.ParseFeedUrlsFromHtml s |> Seq.toArray
+
         match feed with
-        | [||] -> [| ProcessingError (InvalidRssFeedFormat (Uri "tbd", Exception "tbd")) |]
+        // TODO get real uri and exception
+        | [||] -> [| ProcessingError(InvalidRssFeedFormat(Uri "tbd", Exception "tbd")) |]
         | x -> x |> Array.map (fun u -> ValidUri(None, Uri u.Url))
     | x -> [| x |]
 
 
 let cacheSuccessfulFetch cacheConfig uri =
     match uri with
-    | ParsedFeed (xml, _) -> writeCache cacheConfig.Dir xml.Value
+    | ParsedFeed(xml, feed) ->
+        let cachePath =
+            Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feed.Link))
+
+        writeCache cachePath xml.Value
     | _ -> ()
 
     uri
@@ -78,7 +85,7 @@ let processRssRequest client cacheConfig (query: string) =
     |> Array.map (parseFeedResult logger)
     // TODO do I want to show the discovery selection page?
     |> Array.collect checkIfDiscoveryFeeds // if there are the following steps will be bypassed this should return Html?
-    |> Array.map (parseFeedResult logger) 
+    |> Array.map (parseFeedResult logger)
     |> Array.map (cacheSuccessfulFetch cacheConfig)
     |> Array.map feedToArticles
     |> Array.collect onlyFeedArticles
@@ -89,8 +96,9 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
         logger.LogDebug $"Received request {context.Request.Url}"
 
         let rssUris = getRssUrls context.Request.Url.Query
-    
-        let processRssRequest = processRssRequest client cacheConfig context.Request.Url.Query 
+
+        let processRssRequest =
+            processRssRequest client cacheConfig context.Request.Url.Query
 
         // TODO this probably needs to come from the processRssRequest, such that it filters out old stuff and removed invalid urls
         let query = Query.Create context.Request.Url.Query

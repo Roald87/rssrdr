@@ -204,7 +204,7 @@ let ``tryParseFeed returns Ok Feed for valid RSS content`` () =
 //     Assert.Equal(expectedLast.Title, actualLast.Title)
 //     Assert.Equal(expectedLast.Text, actualLast.Text)
 //     Assert.Equal(expectedLast.ArticleUrl, actualLast.ArticleUrl)
-    // Assert.True((expectedLast.PostDate.Value - actualLast.PostDate.Value).TotalSeconds < 60.0 * 60.0 * 24.0)
+// Assert.True((expectedLast.PostDate.Value - actualLast.PostDate.Value).TotalSeconds < 60.0 * 60.0 * 24.0)
 
 // [<Fact>]
 // let ``Test parseRss with Failure feedContent`` () =

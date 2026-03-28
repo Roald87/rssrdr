@@ -114,18 +114,33 @@ let fetchAllRssFeeds client (cacheConfig: CacheConfig) (uris: Result<Uri, UriErr
     uris |> Array.map (fetchUrlWithCacheAsync client cacheConfig) |> Async.Parallel
 
 let fetchAllRssFeeds2 client logger (uris: UriProcessState array) =
-    let validUris = uris |> Array.choose (function ValidUri (dt, uri) -> Some (dt, uri) | _ -> None)
-    let rest = uris |> Array.filter (function ValidUri _ -> false | _ -> true)                                             
-                  
-    async {                                                                                                                
+    let validUris =
+        uris
+        |> Array.choose (function
+            | ValidUri(dt, uri) -> Some(dt, uri)
+            | _ -> None)
+
+    let rest =
+        uris
+        |> Array.filter (function
+            | ValidUri _ -> false
+            | _ -> true)
+
+    async {
         let! results =
             validUris
-            |> Array.map (fun (dt, uri) -> fetchUrlAsync client logger uri dt RequestTimeout)
-            |> Async.Parallel                                                                                              
+            |> Array.map (fun (dt, uri) ->
+                async {
+                    let! r = fetchUrlAsync client logger uri dt RequestTimeout
+                    return uri, r
+                })
+            |> Async.Parallel
 
-        let processed =                                                                                                    
-            results |> Array.map (function Ok content -> Response content | Error e -> ProcessingError e)
+        let processed =
+            results
+            |> Array.map (function
+                | (uri, Ok content) -> Response(content, uri)
+                | (_, Error e) -> ProcessingError e)
 
         return Array.append processed rest
     }
-                                                                                          
