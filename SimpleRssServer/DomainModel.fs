@@ -45,32 +45,12 @@ and DomainMessage =
         | CacheReadFailed(uri, _) -> Some uri.AbsoluteUri
         | CacheReadFailedWithException(uri, _, _) -> Some uri.AbsoluteUri
 
-type DiscoveredFeed = { Title: string; Url: string }
-
-type FetchResult =
-    | FreshContent of string * Uri
-    | CachedContent of string * DomainMessage
-    | Failed of DomainMessage
-
-type FeedOrder =
-    | Chronological
-    | Shuffle
-
-type AssembleResult =
-    | FeedsReady of Uri[] * Html
-    | NeedsSelection of confirmedRss: Uri[] * toSelect: DiscoveredFeed list
-
 type Article =
     { PostDate: DateTime option
       Title: string
       ArticleUrl: string
       FeedUrl: string
       Text: string }
-
-type FetchParseResult =
-    | ValidFeed of Uri * Article list
-    | MultiDiscovered of DiscoveredFeed list
-    | ErrorArticles of Article list
 
 type UnparsedXml =
     | UnparsedXml of string
@@ -80,9 +60,9 @@ type UnparsedXml =
         x
 
 type UriProcessState =
-    | ValidUri of (DateTimeOffset option) * Uri // Process further
-    | CachedFeed of string * Uri // in case there is a cached feed, read it
-    | Response of string * Uri // if valid url, and succefull fetch
+    | ValidUri of (DateTimeOffset option) * Uri
+    | CachedFeed of string * Uri
+    | Response of string * Uri
     | ResponseCanContainsFeeds of string * Uri
     | ParsedFeed of UnparsedXml * Feed
     | ParsedCachedFeed of Feed

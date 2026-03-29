@@ -9,7 +9,6 @@ open Xunit
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.HtmlRenderer
-open SimpleRssServer.RssParser
 
 [<Fact>]
 let ``Test convertArticleToHtml encodes special characters`` () =
@@ -102,38 +101,3 @@ let ``Test configPage prefills textarea with valid URIs`` () =
             failwith "Textarea not found"
 
     Assert.Equal("example.com/feed1\nhttp://example.com/feed2", textareaValue)
-
-[<Fact>]
-let ``Test feedDiscoveryPage renders confirmed feeds in textarea and checkboxes for toSelect`` () =
-    let confirmedUris =
-        [| Uri "https://example.com/feed1"; Uri "http://example.com/feed2" |]
-
-    let toSelect =
-        [ { Title = "RSS Feed"
-            Url = "https://site.com/rss.xml" }
-          { Title = "Atom Feed"
-            Url = "https://site.com/atom.xml" } ]
-
-    let resultHtml = feedDiscoveryPage confirmedUris toSelect |> string
-
-    let textareaValue =
-        let m =
-            RegularExpressions.Regex.Match(
-                resultHtml,
-                "<textarea id='feeds'[^>]*>(.*?)</textarea>",
-                RegularExpressions.RegexOptions.Singleline
-            )
-
-        if m.Success then
-            m.Groups.[1].Value
-        else
-            failwith "Textarea not found in feedDiscoveryPage"
-
-    Assert.Contains("example.com/feed1", textareaValue)
-    Assert.Contains("http://example.com/feed2", textareaValue)
-
-    Assert.Contains("value='https://site.com/rss.xml'", resultHtml)
-    Assert.Contains("RSS Feed", resultHtml)
-    Assert.Contains("value='https://site.com/atom.xml'", resultHtml)
-    Assert.Contains("Atom Feed", resultHtml)
-    Assert.Contains("site.com", resultHtml)

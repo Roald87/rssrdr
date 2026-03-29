@@ -128,27 +128,6 @@ let configPage (rssUrls: Result<Uri, UriError> array) : Html =
 
     head + aboveFeedInput + feedsForm validRssUris Html.Empty + belowFeedInput
 
-let feedDiscoveryPage (confirmedRss: Uri[]) (toSelect: DiscoveredFeed list) : Html =
-    let confirmedUris =
-        confirmedRss
-        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
-        |> String.concat "\n"
-
-    let checkboxItems =
-        toSelect
-        |> List.map (fun feed ->
-            $"<label><input type='checkbox' name='discovered' value='{feed.Url}'> {Uri.BaseUrl feed.Url}: <a href='{feed.Url}'>{WebUtility.HtmlEncode feed.Title}</a></label>")
-        |> String.concat "\n"
-
-    let extras =
-        $"""
-        Select feeds:</br>
-        {checkboxItems}
-        """
-        |> Html
-
-    head + aboveFeedInput + feedsForm confirmedUris extras + belowFeedInput
-
 let footer =
     """
     </body>

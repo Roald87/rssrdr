@@ -96,17 +96,18 @@ let onlyFeedArticles ups =
     | FeedArticles articles -> articles
     | _ -> [||]
 
+// TODO check if we properly test the different cache age scenarios.
 let processRssRequest client cacheConfig (query: string) =
     getRssUrls query
     |> Array.map toUriProcessState
     |> Array.map (readFromCache cacheConfig)
-    |> fetchAllRssFeeds2 client logger cacheConfig
+    |> fetchAllRssFeeds client logger cacheConfig
     |> Async.RunSynchronously
     |> Array.map (readFromCache cacheConfig)
     |> Array.map (parseFeedResult logger)
     |> Array.collect checkIfDiscoveryFeeds
     |> Array.map (readFromCache cacheConfig)
-    |> fetchAllRssFeeds2 client logger cacheConfig
+    |> fetchAllRssFeeds client logger cacheConfig
     |> Async.RunSynchronously
     |> Array.map (readFromCache cacheConfig)
     |> Array.map (parseFeedResult logger)
@@ -124,7 +125,7 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
         let processRssRequest =
             processRssRequest client cacheConfig context.Request.Url.Query
 
-        // TODO this probably needs to come from the processRssRequest, such that it filters out old stuff and removed invalid urls
+        // TODO this probably needs to come from the processRssRequest, such that it filters out old stuff and removes invalid urls
         let query = Query.Create context.Request.Url.Query
 
         let! responseString =
@@ -147,15 +148,29 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
         context.Response.OutputStream.Close()
     }
 
-let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.CacheConfig) =
+// TODO create tests for this. We need to test the different scenarios:
+// - 304,
+// - no cache file available (not sure if possible, but might be good to go anyway)
+// - different cache ages (currently cahce age is not used here, this needs to be implemented here)
+// order is something like readRequestLog, get cache file ages of urls, fetch rss feeds, parse (probably not even needed, but could be a safe option), cache
+let updateCache client cacheConfig =
+    // TODO why is all this converted to Ok?
+    let urls = readRequestLog RequestLogPath
+
+    if urls.Length > 0 then
+        urls
+        |> Array.map (fun url -> ValidUri(Some DateTimeOffset.Now, url))
+        |> fetchAllRssFeeds client logger cacheConfig
+        |> Async.RunSynchronously
+        |> Array.map (parseFeedResult logger)
+        |> Array.map (cacheSuccessfulFetch cacheConfig)
+        |> ignore
+
+let updateRssFeedsPeriodically client (cacheConfig: CacheConfig) =
     async {
         while true do
-            // TODO why is all this converted to Ok?
-            let urls = readRequestLog RequestLogPath |> Array.map Ok
-
-            if urls.Length > 0 then
-                logger.LogDebug $"Periodically updating {urls.Length} RSS feeds."
-                do! fetchAllRssFeeds client cacheConfig urls |> Async.Ignore
+            logger.LogDebug "Periodically updating RSS feeds."
+            updateCache client cacheConfig
 
             do! Async.Sleep cacheConfig.Expiration
     }
@@ -163,7 +178,7 @@ let updateRssFeedsPeriodically client (cacheConfig: SimpleRssServer.Config.Cache
 let clearCachePeriodically (cacheDir: OsPath) (retention: TimeSpan) (period: TimeSpan) =
     async {
         while true do
-            logger.LogDebug "Clearing expired cache files (older than 7 days)."
+            logger.LogDebug("Clearing cache files older than {retention} days.", retention.Days)
             clearExpiredCache cacheDir retention
 
             do! Async.Sleep period
