@@ -16,6 +16,7 @@ open SimpleRssServer.DomainModel
 open SimpleRssServer.Request
 open Program
 open RequestTests
+open TestHelpers
 
 let minimalRss =
     """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Test</title><link>https://example.com</link><description>Test</description></channel></rss>"""
@@ -266,91 +267,82 @@ let guids (count: int) =
 //         Assert.Equal(2, toSelect.Length)
 //     | FeedsReady _ -> failwith "Expected NeedsSelection but got FeedsReady"
 
-[<Fact>]
-let ``processRssRequest returns all articles for roaldin.ch feed`` () =
-    // Arrange
-    let xmlContent = File.ReadAllText "data/roaldinch.xml"
-    let client = httpOkClient xmlContent
+let makeCacheConfig () =
     let cacheDir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
     Directory.CreateDirectory cacheDir
 
-    let cacheConfig =
-        { Dir = cacheDir
-          Expiration = TimeSpan.FromHours 1.0 }
+    { Dir = cacheDir
+      Expiration = TimeSpan.FromHours 1.0 }
+
+[<Fact>]
+let ``processRssRequest fetches feed, returns all articles, and writes cache`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 5
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
+    let client = httpOkClient xmlContent
 
     // Act
-    let articles =
-        processRssRequest client cacheConfig "?rss=https://roaldin.ch/feed"
-        |> Seq.toArray
+    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
 
     // Assert
-    Assert.Equal(10, articles.Length)
-    Assert.Equal("Groepsreserveringen", articles[0].Title)
-    Assert.Equal("Promoveren", articles[articles.Length - 1].Title)
+    Assert.Equal(articleCount, articles.Length)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle articleCount, articles[articles.Length - 1].Title)
+
+    let expectedCachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
+
+    Assert.True(File.Exists expectedCachePath, "Expected cache file to be written")
+    Assert.Equal(xmlContent, File.ReadAllText expectedCachePath)
 
 [<Fact>]
 let ``processRssRequest uses cached content when HTTP returns 304 Not Modified`` () =
     // Arrange
-    let xmlContent = File.ReadAllText "data/roaldinch.xml"
-    let cacheDir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
-    Directory.CreateDirectory cacheDir
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 5
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
 
-    let cacheConfig =
-        { Dir = cacheDir
-          Expiration = TimeSpan.FromHours 1.0 }
-
-    // Write an expired cache file
     let cachePath =
-        Path.Combine(cacheDir, convertUrlToValidFilename (Uri "https://roaldin.ch/feed"))
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
 
     createOutdatedCache cachePath xmlContent
 
-    // HTTP returns 304 Not Modified
     let handler =
         new MockHttpMessageHandler(fun _ -> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified)))
 
     let client = new HttpClient(handler)
 
     // Act
-    let articles =
-        processRssRequest client cacheConfig "?rss=https://roaldin.ch/feed"
-        |> Seq.toArray
+    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
 
     // Assert
     Assert.Equal(1, handler.CallCount)
-    Assert.Equal(10, articles.Length)
-    Assert.Equal("Groepsreserveringen", articles[0].Title)
-    Assert.Equal("Promoveren", articles[articles.Length - 1].Title)
-
-    let expectedCachePath =
-        Path.Combine(cacheDir, convertUrlToValidFilename (Uri "https://roaldin.ch/feed"))
-
-    Assert.True(File.Exists expectedCachePath, "Expected cache file to be written")
-    Assert.Equal(xmlContent, File.ReadAllText expectedCachePath)
+    Assert.Equal(articleCount, articles.Length)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle articleCount, articles[articles.Length - 1].Title)
 
 [<Fact>]
 let ``processRssRequest serves articles from cache and makes no HTTP request`` () =
     // Arrange
-    let xmlContent = File.ReadAllText "data/roaldinch.xml"
-    let cacheDir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
-    Directory.CreateDirectory cacheDir
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 5
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
 
-    let cacheConfig =
-        { Dir = cacheDir
-          Expiration = TimeSpan.FromHours 1.0 }
-
-    // Pre-populate cache with a fresh write time
     let cachePath =
-        Path.Combine(cacheDir, convertUrlToValidFilename (Uri "https://roaldin.ch/feed"))
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
 
     File.WriteAllText(cachePath, xmlContent)
 
     // Act
     let articles =
-        processRssRequest mockClientThrowsWhenCalled cacheConfig "?rss=https://roaldin.ch/feed"
+        processRssRequest mockClientThrowsWhenCalled cacheConfig $"?rss={feedUrl}"
         |> Seq.toArray
 
     // Assert
-    Assert.Equal(10, articles.Length)
-    Assert.Equal("Groepsreserveringen", articles[0].Title)
-    Assert.Equal("Promoveren", articles[articles.Length - 1].Title)
+    Assert.Equal(articleCount, articles.Length)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle articleCount, articles[articles.Length - 1].Title)
