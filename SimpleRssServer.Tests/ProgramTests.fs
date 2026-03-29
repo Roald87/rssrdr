@@ -4,15 +4,19 @@ module SimpleRssServer.Tests.ProgramTests
 
 open Microsoft.Extensions.Logging.Abstractions
 open System
+open System.IO
 open System.Net
 open System.Net.Http
 open System.Threading.Tasks
 open Xunit
 
+open SimpleRssServer.Config
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
+open SimpleRssServer.Request
 open Program
 open RequestTests
+open TestHelpers
 
 let minimalRss =
     """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Test</title><link>https://example.com</link><description>Test</description></channel></rss>"""
@@ -33,230 +37,392 @@ let httpClientWithResponses (responses: Map<string, HttpResponseMessage>) =
 let guids (count: int) =
     [| for i in 1..count -> Guid.NewGuid().ToString() |]
 
-[<Fact>]
-let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
-    // Arrange
-    let client = httpOkClient ""
+// [<Fact>]
+// let ``Test assembleRssFeeds with empty rssUrls results in empty query`` () =
+//     // Arrange
+//     let client = httpOkClient ""
 
-    let rssUrls = [||]
+//     let rssUrls = [||]
+
+//     // Act
+//     let (FeedsReady(_, page)) =
+//         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+//         |> Async.RunSynchronously
+
+//     let result = page |> string
+
+//     // Assert
+//     Assert.Contains("<a href=\"config.html/\">rssrdr</a>", result)
+
+// [<Fact>]
+// let ``Test assembleRssFeeds includes config link with query and removes https prefix`` () =
+//     // Arrange
+//     let client = httpOkClient ""
+
+//     let ids = guids 3
+
+//     let urls =
+//         [| $"https://example.com/feed{ids[0]}"
+//            $"https://example.com/feed{ids[1]}"
+//            $"http://example.com/feed{ids[2]}" |]
+
+//     let rssUrls = urls |> Array.map Uri.Create
+
+//     // Act
+//     let (FeedsReady(_, page)) =
+//         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+//         |> Async.RunSynchronously
+
+//     let result = page |> string
+
+//     let expectedQuery =
+//         $"?rss=example.com/feed{ids[0]}&rss=example.com/feed{ids[1]}&rss=http://example.com/feed{ids[2]}"
+
+//     Assert.Contains($"<a href=\"config.html/%s{expectedQuery}\">rssrdr</a>", result)
+
+// [<Fact>]
+// let ``Test assembleRssFeeds returns successful URIs for happy path with two valid URIs`` () =
+//     // Arrange
+//     let client = httpOkClient minimalRss
+
+//     let urls = guids 2 |> Array.map (fun id -> Uri $"https://example.com/feed{id}")
+//     let rssUrls = urls |> Array.map Ok
+
+//     // Act
+//     let (FeedsReady(successfulUris, _)) =
+//         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+//         |> Async.RunSynchronously
+
+//     // Assert
+//     Assert.Equal(2, successfulUris.Length)
+//     Assert.Contains(urls[0], successfulUris)
+//     Assert.Contains(urls[1], successfulUris)
+
+// [<Fact>]
+// let ``Test assembleRssFeeds returns only successful URIs for mix of invalid and failed fetches`` () =
+//     // Arrange
+//     let okResponse = new HttpResponseMessage(HttpStatusCode.OK)
+//     okResponse.Content <- new StringContent(minimalRss)
+
+//     let errorResponse = new HttpResponseMessage(HttpStatusCode.InternalServerError)
+
+//     let urls = guids 3 |> Array.map (fun id -> $"https://example.com/feed{id}")
+
+//     let responses =
+//         Map.ofList [ urls[0], okResponse; urls[1], errorResponse; urls[2], okResponse ]
+
+//     let client = httpClientWithResponses responses
+
+//     let rssUrls =
+//         [| Uri.Create "invalid"
+//            Uri.Create urls[0] // valid and success
+//            Uri.Create urls[1] // valid but fetch fails
+//            Uri.Create urls[2] |] // valid and success
+
+//     // Act
+//     let (FeedsReady(successfulUris, _)) =
+//         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+//         |> Async.RunSynchronously
+
+//     // Assert
+//     Assert.Equal(2, successfulUris.Length)
+//     Assert.Contains(Uri urls[0], successfulUris)
+//     Assert.Contains(Uri urls[2], successfulUris)
+
+// [<Fact>]
+// let ``Test assembleRssFeeds excludes URI that returns HTML from successful URIs`` () =
+//     // Arrange
+//     let htmlContent =
+//         "<html><head><title>Not RSS</title></head><body>Test</body></html>"
+
+//     let ids = guids 2
+
+//     let rssUrl = Uri $"https://example.com/feed{ids[0]}"
+//     let htmlUrl = Uri $"https://example.com/feed{ids[1]}"
+
+//     let responses =
+//         Map.ofList
+//             [ rssUrl.AbsoluteUri,
+//               (let r = new HttpResponseMessage(HttpStatusCode.OK) in
+//                r.Content <- new StringContent(minimalRss)
+//                r)
+//               htmlUrl.AbsoluteUri,
+//               (let r = new HttpResponseMessage(HttpStatusCode.OK) in
+//                r.Content <- new StringContent(htmlContent)
+//                r) ]
+
+//     let client = httpClientWithResponses responses
+//     let rssUrls = [| Ok rssUrl; Ok htmlUrl |]
+
+//     // Act
+//     let (FeedsReady(successfulUris, _)) =
+//         assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
+//         |> Async.RunSynchronously
+
+//     // Assert
+//     Assert.Equal(1, successfulUris.Length)
+//     Assert.Contains(rssUrl, successfulUris)
+//     Assert.DoesNotContain(htmlUrl, successfulUris)
+
+let makeCacheConfig () =
+    let cacheDir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
+    Directory.CreateDirectory cacheDir
+
+    { Dir = cacheDir
+      Expiration = TimeSpan.FromHours 1.0 }
+
+[<Fact>]
+let ``processRssRequest fetches feed, returns all articles, and writes cache`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 5
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
+    let client = httpOkClient xmlContent
 
     // Act
-    let (FeedsReady(_, page)) =
-        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
-        |> Async.RunSynchronously
-
-    let result = page |> string
+    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
 
     // Assert
-    Assert.Contains("<a href=\"config.html/\">rssrdr</a>", result)
+    Assert.Equal(articleCount, articles.Length)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle articleCount, articles[articles.Length - 1].Title)
+
+    let expectedCachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
+
+    Assert.True(File.Exists expectedCachePath, "Expected cache file to be written")
+    Assert.Equal(xmlContent, File.ReadAllText expectedCachePath)
 
 [<Fact>]
-let ``Test assembleRssFeeds includes config link with query and removes https prefix`` () =
+let ``processRssRequest uses cached content when HTTP returns 304 Not Modified`` () =
     // Arrange
-    let client = httpOkClient ""
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 5
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
 
-    let ids = guids 3
+    let cachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
 
-    let urls =
-        [| $"https://example.com/feed{ids[0]}"
-           $"https://example.com/feed{ids[1]}"
-           $"http://example.com/feed{ids[2]}" |]
+    createOutdatedCache cachePath xmlContent
 
-    let rssUrls = urls |> Array.map Uri.Create
+    let handler =
+        new MockHttpMessageHandler(fun _ -> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified)))
+
+    let client = new HttpClient(handler)
 
     // Act
-    let (FeedsReady(_, page)) =
-        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
-        |> Async.RunSynchronously
-
-    let result = page |> string
-
-    let expectedQuery =
-        $"?rss=example.com/feed{ids[0]}&rss=example.com/feed{ids[1]}&rss=http://example.com/feed{ids[2]}"
-
-    Assert.Contains($"<a href=\"config.html/%s{expectedQuery}\">rssrdr</a>", result)
-
-[<Fact>]
-let ``Test assembleRssFeeds returns successful URIs for happy path with two valid URIs`` () =
-    // Arrange
-    let client = httpOkClient minimalRss
-
-    let urls = guids 2 |> Array.map (fun id -> Uri $"https://example.com/feed{id}")
-    let rssUrls = urls |> Array.map Ok
-
-    // Act
-    let (FeedsReady(successfulUris, _)) =
-        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
-        |> Async.RunSynchronously
+    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
 
     // Assert
-    Assert.Equal(2, successfulUris.Length)
-    Assert.Contains(urls[0], successfulUris)
-    Assert.Contains(urls[1], successfulUris)
+    Assert.Equal(1, handler.CallCount)
+    Assert.Equal(articleCount, articles.Length)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle articleCount, articles[articles.Length - 1].Title)
 
 [<Fact>]
-let ``Test assembleRssFeeds returns only successful URIs for mix of invalid and failed fetches`` () =
+let ``processRssRequest serves articles from cache and makes no HTTP request`` () =
     // Arrange
-    let okResponse = new HttpResponseMessage(HttpStatusCode.OK)
-    okResponse.Content <- new StringContent(minimalRss)
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 5
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
 
-    let errorResponse = new HttpResponseMessage(HttpStatusCode.InternalServerError)
+    let cachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
 
-    let urls = guids 3 |> Array.map (fun id -> $"https://example.com/feed{id}")
-
-    let responses =
-        Map.ofList [ urls[0], okResponse; urls[1], errorResponse; urls[2], okResponse ]
-
-    let client = httpClientWithResponses responses
-
-    let rssUrls =
-        [| Uri.Create "invalid"
-           Uri.Create urls[0] // valid and success
-           Uri.Create urls[1] // valid but fetch fails
-           Uri.Create urls[2] |] // valid and success
+    File.WriteAllText(cachePath, xmlContent)
 
     // Act
-    let (FeedsReady(successfulUris, _)) =
-        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
-        |> Async.RunSynchronously
+    let articles =
+        processRssRequest mockClientThrowsWhenCalled cacheConfig $"?rss={feedUrl}"
+        |> Seq.toArray
 
     // Assert
-    Assert.Equal(2, successfulUris.Length)
-    Assert.Contains(Uri urls[0], successfulUris)
-    Assert.Contains(Uri urls[2], successfulUris)
+    Assert.Equal(articleCount, articles.Length)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle articleCount, articles[articles.Length - 1].Title)
 
 [<Fact>]
-let ``Test assembleRssFeeds excludes URI that returns HTML from successful URIs`` () =
+let ``processRssRequest fetches via HTTP only on first call, subsequent calls read from cache`` () =
     // Arrange
+    let feedUrl1 = $"https://example.com/feed/{Guid.NewGuid()}"
+    let feedUrl2 = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 3
+    let xml1 = DummyXmlFeedFactory.create feedUrl1 articleCount
+    let xml2 = DummyXmlFeedFactory.create feedUrl2 articleCount
+    let cacheConfig = makeCacheConfig ()
+
+    let handler =
+        new MockHttpMessageHandler(fun request ->
+            let xml =
+                if request.RequestUri.AbsoluteUri = feedUrl1 then
+                    xml1
+                elif request.RequestUri.AbsoluteUri = feedUrl2 then
+                    xml2
+                else
+                    failwith $"Unexpected URL: {request.RequestUri.AbsoluteUri}"
+
+            let response = new HttpResponseMessage(HttpStatusCode.OK)
+            response.Content <- new StringContent(xml)
+            Task.FromResult response)
+
+    let client = new HttpClient(handler)
+    let query = $"?rss={feedUrl1}&rss={feedUrl2}"
+
+    // Act & Assert — first call fetches both feeds
+    let articles1 = processRssRequest client cacheConfig query |> Seq.toArray
+    Assert.Equal(2, handler.CallCount)
+    Assert.Equal(articleCount * 2, articles1.Length)
+
+    // Second and third calls must read from cache — HTTP call count stays at 2
+    let articles2 = processRssRequest client cacheConfig query |> Seq.toArray
+    Assert.Equal(2, handler.CallCount)
+    Assert.Equal(articleCount * 2, articles2.Length)
+
+    let articles3 = processRssRequest client cacheConfig query |> Seq.toArray
+    Assert.Equal(2, handler.CallCount)
+    Assert.Equal(articleCount * 2, articles3.Length)
+
+let timeoutHandler () =
+    new MockHttpMessageHandler(fun _ ->
+        Task.FromException<HttpResponseMessage>(Threading.Tasks.TaskCanceledException "Simulated timeout"))
+
+[<Fact>]
+let ``processRssRequest shows stale cache articles and error article on HTTP timeout`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 3
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
+
+    let cachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
+
+    createOutdatedCache cachePath xmlContent
+
+    let client = new HttpClient(timeoutHandler ())
+
+    // Act
+    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
+
+    // Assert: stale cached articles + one error article
+    Assert.Equal(articleCount + 1, articles.Length)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
+    Assert.Equal("Error", articles[articles.Length - 1].Title)
+
+[<Fact>]
+let ``processRssRequest shows only error article on HTTP timeout with no cache`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let cacheConfig = makeCacheConfig ()
+    let client = new HttpClient(timeoutHandler ())
+
+    // Act
+    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
+
+    // Assert: only one error article, no cache to fall back on
+    Assert.Equal(1, articles.Length)
+    Assert.Equal("Error", articles[0].Title)
+    Assert.Equal(Directory.GetFiles(cacheConfig.Dir).Length, 0)
+
+[<Fact>]
+let ``processRssRequest shows error article when HTML page has no feed links`` () =
+    // Arrange
+    let htmlUrl = $"https://example.com/page/{Guid.NewGuid()}"
+
     let htmlContent =
-        "<html><head><title>Not RSS</title></head><body>Test</body></html>"
+        "<html><head><title>No feeds here</title></head><body></body></html>"
 
-    let ids = guids 2
-
-    let rssUrl = Uri $"https://example.com/feed{ids[0]}"
-    let htmlUrl = Uri $"https://example.com/feed{ids[1]}"
+    let cacheConfig = makeCacheConfig ()
 
     let responses =
         Map.ofList
-            [ rssUrl.AbsoluteUri,
-              (let r = new HttpResponseMessage(HttpStatusCode.OK) in
-               r.Content <- new StringContent(minimalRss)
-               r)
-              htmlUrl.AbsoluteUri,
-              (let r = new HttpResponseMessage(HttpStatusCode.OK) in
+            [ htmlUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
                r.Content <- new StringContent(htmlContent)
                r) ]
 
     let client = httpClientWithResponses responses
-    let rssUrls = [| Ok rssUrl; Ok htmlUrl |]
 
     // Act
-    let (FeedsReady(successfulUris, _)) =
-        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
-        |> Async.RunSynchronously
+    let articles = processRssRequest client cacheConfig $"?rss={htmlUrl}" |> Seq.toArray
 
     // Assert
-    Assert.Equal(1, successfulUris.Length)
-    Assert.Contains(rssUrl, successfulUris)
-    Assert.DoesNotContain(htmlUrl, successfulUris)
+    Assert.Equal(1, articles.Length)
+    Assert.Equal("Error", articles[0].Title)
+    Assert.Equal(Directory.GetFiles(cacheConfig.Dir).Length, 0)
 
 [<Fact>]
-let ``Test assembleRssFeeds with HTML page containing single discovered feed returns FeedsReady`` () =
+let ``processRssRequest shows articles when HTML page has single feed link`` () =
     // Arrange
-    let ids = guids 2
-    let htmlUrl = Uri $"https://example.com/page{ids[0]}"
-    let feedUrl = $"https://example.com/feed{ids[1]}"
+    let htmlUrl = $"https://example.com/page/{Guid.NewGuid()}"
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 3
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
 
     let htmlContent =
         $"""<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="{feedUrl}"></head><body></body></html>"""
 
-    let htmlResponse = new HttpResponseMessage(HttpStatusCode.OK)
-    htmlResponse.Content <- new StringContent(htmlContent)
-
-    let feedResponse = new HttpResponseMessage(HttpStatusCode.OK)
-    feedResponse.Content <- new StringContent(minimalRss)
-
     let responses =
-        Map.ofList [ htmlUrl.AbsoluteUri, htmlResponse; feedUrl, feedResponse ]
+        Map.ofList
+            [ htmlUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(htmlContent)
+               r)
+              feedUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(xmlContent)
+               r) ]
 
     let client = httpClientWithResponses responses
-    let rssUrls = [| Ok htmlUrl |]
 
     // Act
-    let result =
-        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
-        |> Async.RunSynchronously
+    let articles = processRssRequest client cacheConfig $"?rss={htmlUrl}" |> Seq.toArray
 
-    // Assert
-    match result with
-    | FeedsReady(uris, _) ->
-        Assert.Equal(1, uris.Length)
-        Assert.Contains(Uri feedUrl, uris)
-    | NeedsSelection _ -> failwith "Expected FeedsReady but got NeedsSelection"
+    // Assert: articles from discovered feed, no error
+    Assert.Equal(articleCount, articles.Length)
+    Assert.DoesNotContain(articles, fun a -> a.Title = "Error")
 
 [<Fact>]
-let ``Test assembleRssFeeds with HTML page containing two discovered feeds returns NeedsSelection`` () =
+let ``processRssRequest shows articles from both feeds when HTML page has two feed links`` () =
     // Arrange
-    let id = Guid.NewGuid().ToString()
-    let htmlUrl = Uri $"https://example.com/page{id}"
+    let htmlUrl = $"https://example.com/page/{Guid.NewGuid()}"
+    let feedUrl1 = $"https://example.com/feed/{Guid.NewGuid()}"
+    let feedUrl2 = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 3
+    let xml1 = DummyXmlFeedFactory.create feedUrl1 articleCount
+    let xml2 = DummyXmlFeedFactory.create feedUrl2 articleCount
+    let cacheConfig = makeCacheConfig ()
 
     let htmlContent =
-        """<html><head>
-        <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://example.com/rss.xml">
-        <link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://example.com/atom.xml">
+        $"""<html><head>
+        <link rel="alternate" type="application/rss+xml" title="Feed 1" href="{feedUrl1}">
+        <link rel="alternate" type="application/atom+xml" title="Feed 2" href="{feedUrl2}">
         </head><body></body></html>"""
-
-    let htmlResponse = new HttpResponseMessage(HttpStatusCode.OK)
-    htmlResponse.Content <- new StringContent(htmlContent)
-
-    let responses = Map.ofList [ htmlUrl.AbsoluteUri, htmlResponse ]
-    let client = httpClientWithResponses responses
-    let rssUrls = [| Ok htmlUrl |]
-
-    // Act
-    let result =
-        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
-        |> Async.RunSynchronously
-
-    // Assert
-    match result with
-    | NeedsSelection(_, toSelect) -> Assert.Equal(2, toSelect.Length)
-    | FeedsReady _ -> failwith "Expected NeedsSelection but got FeedsReady (two discovered feeds)"
-
-[<Fact>]
-let ``Test assembleRssFeeds with mix of valid RSS and HTML with two feeds returns NeedsSelection`` () =
-    // Arrange
-    let ids = guids 2
-    let rssUrl = Uri $"https://example.com/feed{ids[0]}"
-    let htmlUrl = Uri $"https://example.com/page{ids[1]}"
-
-    let htmlContent =
-        """<html><head>
-        <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://example.com/rss.xml">
-        <link rel="alternate" type="application/atom+xml" title="Atom Feed" href="https://example.com/atom.xml">
-        </head><body></body></html>"""
-
-    let rssResponse = new HttpResponseMessage(HttpStatusCode.OK)
-    rssResponse.Content <- new StringContent(minimalRss)
-
-    let htmlResponse = new HttpResponseMessage(HttpStatusCode.OK)
-    htmlResponse.Content <- new StringContent(htmlContent)
 
     let responses =
-        Map.ofList [ rssUrl.AbsoluteUri, rssResponse; htmlUrl.AbsoluteUri, htmlResponse ]
+        Map.ofList
+            [ htmlUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(htmlContent)
+               r)
+              feedUrl1,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(xml1)
+               r)
+              feedUrl2,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(xml2)
+               r) ]
 
     let client = httpClientWithResponses responses
-    let rssUrls = [| Ok rssUrl; Ok htmlUrl |]
 
     // Act
-    let result =
-        assembleRssFeeds NullLogger.Instance Chronological client cacheConfig rssUrls
-        |> Async.RunSynchronously
+    let articles = processRssRequest client cacheConfig $"?rss={htmlUrl}" |> Seq.toArray
 
-    // Assert
-    match result with
-    | NeedsSelection(confirmedRss, toSelect) ->
-        Assert.Equal(1, confirmedRss.Length)
-        Assert.Contains(rssUrl, confirmedRss)
-        Assert.Equal(2, toSelect.Length)
-    | FeedsReady _ -> failwith "Expected NeedsSelection but got FeedsReady"
+    // Assert: articles from both discovered feeds, no error
+    Assert.Equal(articleCount * 2, articles.Length)
+    Assert.DoesNotContain(articles, fun a -> a.Title = "Error")

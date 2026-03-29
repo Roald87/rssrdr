@@ -4,6 +4,7 @@ open System
 
 open SimpleRssServer.DomainPrimitiveTypes
 open System.Net
+open Roald87.FeedReader
 
 type FeedUri =
     | FeedUri of Uri
@@ -70,3 +71,22 @@ type FetchParseResult =
     | ValidFeed of Uri * Article list
     | MultiDiscovered of DiscoveredFeed list
     | ErrorArticles of Article list
+
+type UnparsedXml =
+    | UnparsedXml of string
+
+    member this.Value =
+        let (UnparsedXml x) = this
+        x
+
+type UriProcessState =
+    | ValidUri of (DateTimeOffset option) * Uri // Process further
+    | CachedFeed of string * Uri // in case there is a cached feed, read it
+    | Response of string * Uri // if valid url, and succefull fetch
+    | ResponseCanContainsFeeds of string * Uri
+    | ParsedFeed of UnparsedXml * Feed
+    | ParsedCachedFeed of Feed
+    | StaleHitWithError of string * Uri * DomainMessage
+    | ParsedStaleHit of Feed * DomainMessage
+    | ProcessingError of DomainMessage
+    | FeedArticles of Article array

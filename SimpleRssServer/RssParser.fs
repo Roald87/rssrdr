@@ -6,7 +6,6 @@ open System
 
 open SimpleRssServer.DomainModel
 open SimpleRssServer.Helper
-open SimpleRssServer.Request
 open SimpleRssServer.Config
 
 let stripHtml (input: string) : string =
@@ -84,7 +83,7 @@ let private getArticleText (entry: FeedItem) =
     else
         cleaned
 
-let feedToArticles (feed: Feed) : Article list =
+let toArticles (feed: Feed) =
     feed.Items
     |> Seq.map (fun entry ->
         { PostDate = getPostDate feed entry
@@ -92,34 +91,13 @@ let feedToArticles (feed: Feed) : Article list =
           ArticleUrl = entry.Link
           FeedUrl = feed.Link
           Text = getArticleText entry })
-    |> Seq.toList
+    |> Seq.toArray
 
-let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
-    match fetchResult with
-    | FreshContent(content, uri) ->
-        match tryParseFeed logger content uri with
-        | Ok feed -> feedToArticles feed
-        | Error err -> [ createErrorArticle err ]
-    | CachedContent(content, warning) ->
-        let errorArticle = createErrorArticle warning
 
-        let feedArticles =
-            warning.Uri
-            |> Option.map Uri
-            |> Option.bind (fun uri -> tryParseFeed logger content uri |> Result.toOption |> Option.map feedToArticles)
-            |> Option.defaultValue []
-
-        feedArticles @ [ errorArticle ]
-    | Failed e -> [ createErrorArticle e ]
-
-let parseFeedResult (logger: ILogger) (cacheConfig: CacheConfig) (fetchResult: FetchResult) =
-    match fetchResult with
-    | FreshContent(content, uri) ->
-        let feedUri = FeedUri uri
-
-        match tryParseFeed logger content uri with
-        | Ok feed ->
-            cacheSuccessfulFetch cacheConfig feedUri content
-            Ok(feedUri, feedToArticles feed)
-        | Error err -> Error [ createErrorArticle err ]
-    | other -> Error(parseRss logger other)
+let feedToArticles (ups: UriProcessState) : UriProcessState =
+    match ups with
+    | ParsedFeed(_, feed)
+    | ParsedCachedFeed feed -> toArticles feed |> FeedArticles
+    | ParsedStaleHit(feed, err) -> Array.append (toArticles feed) [| createErrorArticle err |] |> FeedArticles
+    | ProcessingError err -> [| createErrorArticle err |] |> FeedArticles
+    | x -> x

@@ -112,3 +112,42 @@ let cacheSuccessfulFetch (cacheConfig: CacheConfig) (feedUri: FeedUri) (content:
 
 let fetchAllRssFeeds client (cacheConfig: CacheConfig) (uris: Result<Uri, UriError> array) =
     uris |> Array.map (fetchUrlWithCacheAsync client cacheConfig) |> Async.Parallel
+
+let fetchAllRssFeeds2 client logger (cacheConfig: CacheConfig) (uris: UriProcessState array) =
+    let validUris =
+        uris
+        |> Array.choose (function
+            | ValidUri(dt, uri) -> Some(dt, uri)
+            | _ -> None)
+
+    let rest =
+        uris
+        |> Array.filter (function
+            | ValidUri _ -> false
+            | _ -> true)
+
+    async {
+        let! results =
+            validUris
+            |> Array.map (fun (dt, uri) ->
+                async {
+                    let! r = fetchUrlAsync client logger uri dt RequestTimeout
+                    return uri, r
+                })
+            |> Async.Parallel
+
+        let processed =
+            results
+            |> Array.map (function
+                | (uri, Ok "No changes") ->
+                    let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
+                    File.SetLastWriteTime(cachePath, DateTime.Now)
+
+                    match readCache cachePath with
+                    | Some content -> CachedFeed(content, uri)
+                    | None -> ProcessingError(CacheReadFailed(uri, cachePath))
+                | (uri, Ok content) -> Response(content, uri)
+                | (_, Error e) -> ProcessingError e)
+
+        return Array.append processed rest
+    }
