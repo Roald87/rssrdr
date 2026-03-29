@@ -428,3 +428,102 @@ let ``processRssRequest shows only error article on HTTP timeout with no cache``
     // Assert: only one error article, no cache to fall back on
     Assert.Equal(1, articles.Length)
     Assert.Equal("Error", articles[0].Title)
+
+[<Fact>]
+let ``processRssRequest shows error article when HTML page has no feed links`` () =
+    // Arrange
+    let htmlUrl = $"https://example.com/page/{Guid.NewGuid()}"
+
+    let htmlContent =
+        "<html><head><title>No feeds here</title></head><body></body></html>"
+
+    let cacheConfig = makeCacheConfig ()
+
+    let responses =
+        Map.ofList
+            [ htmlUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(htmlContent)
+               r) ]
+
+    let client = httpClientWithResponses responses
+
+    // Act
+    let articles = processRssRequest client cacheConfig $"?rss={htmlUrl}" |> Seq.toArray
+
+    // Assert
+    Assert.Equal(1, articles.Length)
+    Assert.Equal("Error", articles[0].Title)
+
+[<Fact>]
+let ``processRssRequest shows articles when HTML page has single feed link`` () =
+    // Arrange
+    let htmlUrl = $"https://example.com/page/{Guid.NewGuid()}"
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 3
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
+
+    let htmlContent =
+        $"""<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="{feedUrl}"></head><body></body></html>"""
+
+    let responses =
+        Map.ofList
+            [ htmlUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(htmlContent)
+               r)
+              feedUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(xmlContent)
+               r) ]
+
+    let client = httpClientWithResponses responses
+
+    // Act
+    let articles = processRssRequest client cacheConfig $"?rss={htmlUrl}" |> Seq.toArray
+
+    // Assert: articles from discovered feed, no error
+    Assert.Equal(articleCount, articles.Length)
+    Assert.DoesNotContain(articles, fun a -> a.Title = "Error")
+
+[<Fact>]
+let ``processRssRequest shows articles from both feeds when HTML page has two feed links`` () =
+    // Arrange
+    let htmlUrl = $"https://example.com/page/{Guid.NewGuid()}"
+    let feedUrl1 = $"https://example.com/feed/{Guid.NewGuid()}"
+    let feedUrl2 = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 3
+    let xml1 = DummyXmlFeedFactory.create feedUrl1 articleCount
+    let xml2 = DummyXmlFeedFactory.create feedUrl2 articleCount
+    let cacheConfig = makeCacheConfig ()
+
+    let htmlContent =
+        $"""<html><head>
+        <link rel="alternate" type="application/rss+xml" title="Feed 1" href="{feedUrl1}">
+        <link rel="alternate" type="application/atom+xml" title="Feed 2" href="{feedUrl2}">
+        </head><body></body></html>"""
+
+    let responses =
+        Map.ofList
+            [ htmlUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(htmlContent)
+               r)
+              feedUrl1,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(xml1)
+               r)
+              feedUrl2,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(xml2)
+               r) ]
+
+    let client = httpClientWithResponses responses
+
+    // Act
+    let articles = processRssRequest client cacheConfig $"?rss={htmlUrl}" |> Seq.toArray
+
+    // Assert: articles from both discovered feeds, no error
+    Assert.Equal(articleCount * 2, articles.Length)
+    Assert.DoesNotContain(articles, fun a -> a.Title = "Error")

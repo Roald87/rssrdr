@@ -56,7 +56,7 @@ let parseFeedResult (logger: ILogger) (uri: UriProcessState) =
         | Ok f -> ParsedFeed(UnparsedXml r, f)
         | Error e ->
             match e with
-            | InvalidRssFeedFormat _ -> ResponseCanContainsFeeds r
+            | InvalidRssFeedFormat _ -> ResponseCanContainsFeeds(r, feedUri)
             | _ -> ProcessingError e
     | CachedFeed(r, feedUri) ->
         match tryParseFeed logger r feedUri with
@@ -71,12 +71,11 @@ let parseFeedResult (logger: ILogger) (uri: UriProcessState) =
 
 let checkIfDiscoveryFeeds uri =
     match uri with
-    | ResponseCanContainsFeeds s ->
+    | ResponseCanContainsFeeds(s, originalUri) ->
         let feed = FeedReader.ParseFeedUrlsFromHtml s |> Seq.toArray
 
         match feed with
-        // TODO get real uri and exception
-        | [||] -> [| ProcessingError(InvalidRssFeedFormat(Uri "tbd", Exception "tbd")) |]
+        | [||] -> [| ProcessingError(InvalidRssFeedFormat(originalUri, Exception "No RSS feeds found in page")) |]
         | x -> x |> Array.map (fun u -> ValidUri(None, Uri u.Url))
     | x -> [| x |]
 
@@ -105,8 +104,11 @@ let processRssRequest client cacheConfig (query: string) =
     |> Async.RunSynchronously
     |> Array.map (readFromCache cacheConfig)
     |> Array.map (parseFeedResult logger)
-    // TODO do I want to show the discovery selection page?
-    |> Array.collect checkIfDiscoveryFeeds // if there are the following steps will be bypassed this should return Html?
+    |> Array.collect checkIfDiscoveryFeeds
+    |> Array.map (readFromCache cacheConfig)
+    |> fetchAllRssFeeds2 client logger cacheConfig
+    |> Async.RunSynchronously
+    |> Array.map (readFromCache cacheConfig)
     |> Array.map (parseFeedResult logger)
     |> Array.map (cacheSuccessfulFetch cacheConfig)
     |> Array.map feedToArticles

@@ -83,7 +83,7 @@ type UriProcessState =
     | ValidUri of (DateTimeOffset option) * Uri // Process further
     | CachedFeed of string * Uri // in case there is a cached feed, read it
     | Response of string * Uri // if valid url, and succefull fetch
-    | ResponseCanContainsFeeds of string
+    | ResponseCanContainsFeeds of string * Uri
     | ParsedFeed of UnparsedXml * Feed
     | ParsedCachedFeed of Feed
     | StaleHitWithError of string * Uri * DomainMessage

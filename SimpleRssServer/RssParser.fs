@@ -6,7 +6,6 @@ open System
 
 open SimpleRssServer.DomainModel
 open SimpleRssServer.Helper
-open SimpleRssServer.Request
 open SimpleRssServer.Config
 
 let stripHtml (input: string) : string =
@@ -84,7 +83,7 @@ let private getArticleText (entry: FeedItem) =
     else
         cleaned
 
-let parseFeedItems (feed: Feed) =
+let private parseFeedItems (feed: Feed) =
     feed.Items
     |> Seq.map (fun entry ->
         { PostDate = getPostDate feed entry
@@ -102,33 +101,3 @@ let feedToArticles (ups: UriProcessState) : UriProcessState =
     | ParsedStaleHit(feed, err) -> Array.append (parseFeedItems feed) [| createErrorArticle err |] |> FeedArticles
     | ProcessingError err -> [| createErrorArticle err |] |> FeedArticles
     | x -> x
-
-// let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
-//     match fetchResult with
-//     | FreshContent(content, uri) ->
-//         match tryParseFeed logger content uri with
-//         | Ok feed -> feedToArticles feed
-//         | Error err -> [ createErrorArticle err ]
-//     | CachedContent(content, warning) ->
-//         let errorArticle = createErrorArticle warning
-
-//         let feedArticles =
-//             warning.Uri
-//             |> Option.map Uri
-//             |> Option.bind (fun uri -> tryParseFeed logger content uri |> Result.toOption |> Option.map feedToArticles)
-//             |> Option.defaultValue []
-
-//         feedArticles @ [ errorArticle ]
-//     | Failed e -> [ createErrorArticle e ]
-
-// let parseFeedResult (logger: ILogger) (cacheConfig: CacheConfig) (fetchResult: FetchResult) =
-//     match fetchResult with
-//     | FreshContent(content, uri) ->
-//         let feedUri = FeedUri uri
-
-//         match tryParseFeed logger content uri with
-//         | Ok feed ->
-//             cacheSuccessfulFetch cacheConfig feedUri content
-//             Ok(feedUri, feedToArticles feed)
-//         | Error err -> Error [ createErrorArticle err ]
-//     | other -> Error(parseRss logger other)
