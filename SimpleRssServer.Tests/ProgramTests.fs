@@ -171,6 +171,9 @@ let makeCacheConfig () =
     { Dir = cacheDir
       Expiration = TimeSpan.FromHours 1.0 }
 
+let makeTempLogPath () =
+    OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".txt"))
+
 [<Fact>]
 let ``processRssRequest fetches feed, returns all articles, and writes cache`` () =
     // Arrange
@@ -178,10 +181,12 @@ let ``processRssRequest fetches feed, returns all articles, and writes cache`` (
     let articleCount = 5
     let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
     let cacheConfig = makeCacheConfig ()
+    let logPath = makeTempLogPath ()
     let client = httpOkClient xmlContent
 
     // Act
-    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
+    let articles =
+        processRssRequest client cacheConfig logPath $"?rss={feedUrl}" |> Seq.toArray
 
     // Assert
     Assert.Equal(articleCount, articles.Length)
@@ -193,6 +198,7 @@ let ``processRssRequest fetches feed, returns all articles, and writes cache`` (
 
     Assert.True(File.Exists expectedCachePath, "Expected cache file to be written")
     Assert.Equal(xmlContent, File.ReadAllText expectedCachePath)
+    Assert.Contains(feedUrl, File.ReadAllText logPath)
 
 [<Fact>]
 let ``processRssRequest uses cached content when HTTP returns 304 Not Modified`` () =
@@ -201,6 +207,7 @@ let ``processRssRequest uses cached content when HTTP returns 304 Not Modified``
     let articleCount = 5
     let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
     let cacheConfig = makeCacheConfig ()
+    let logPath = makeTempLogPath ()
 
     let cachePath =
         Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
@@ -213,13 +220,15 @@ let ``processRssRequest uses cached content when HTTP returns 304 Not Modified``
     let client = new HttpClient(handler)
 
     // Act
-    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
+    let articles =
+        processRssRequest client cacheConfig logPath $"?rss={feedUrl}" |> Seq.toArray
 
     // Assert
     Assert.Equal(1, handler.CallCount)
     Assert.Equal(articleCount, articles.Length)
     Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
     Assert.Equal(DummyXmlFeedFactory.articleTitle articleCount, articles[articles.Length - 1].Title)
+    Assert.Contains(feedUrl, File.ReadAllText logPath)
 
 [<Fact>]
 let ``processRssRequest serves articles from cache and makes no HTTP request`` () =
@@ -228,6 +237,7 @@ let ``processRssRequest serves articles from cache and makes no HTTP request`` (
     let articleCount = 5
     let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
     let cacheConfig = makeCacheConfig ()
+    let logPath = makeTempLogPath ()
 
     let cachePath =
         Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
@@ -236,13 +246,14 @@ let ``processRssRequest serves articles from cache and makes no HTTP request`` (
 
     // Act
     let articles =
-        processRssRequest mockClientThrowsWhenCalled cacheConfig $"?rss={feedUrl}"
+        processRssRequest mockClientThrowsWhenCalled cacheConfig logPath $"?rss={feedUrl}"
         |> Seq.toArray
 
     // Assert
     Assert.Equal(articleCount, articles.Length)
     Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
     Assert.Equal(DummyXmlFeedFactory.articleTitle articleCount, articles[articles.Length - 1].Title)
+    Assert.Contains(feedUrl, File.ReadAllText logPath)
 
 [<Fact>]
 let ``processRssRequest fetches via HTTP only on first call, subsequent calls read from cache`` () =
@@ -270,18 +281,21 @@ let ``processRssRequest fetches via HTTP only on first call, subsequent calls re
 
     let client = new HttpClient(handler)
     let query = $"?rss={feedUrl1}&rss={feedUrl2}"
+    let logPath = makeTempLogPath ()
 
     // Act & Assert — first call fetches both feeds
-    let articles1 = processRssRequest client cacheConfig query |> Seq.toArray
+    let articles1 = processRssRequest client cacheConfig logPath query |> Seq.toArray
     Assert.Equal(2, handler.CallCount)
     Assert.Equal(articleCount * 2, articles1.Length)
+    Assert.Contains(feedUrl1, File.ReadAllText logPath)
+    Assert.Contains(feedUrl2, File.ReadAllText logPath)
 
     // Second and third calls must read from cache — HTTP call count stays at 2
-    let articles2 = processRssRequest client cacheConfig query |> Seq.toArray
+    let articles2 = processRssRequest client cacheConfig logPath query |> Seq.toArray
     Assert.Equal(2, handler.CallCount)
     Assert.Equal(articleCount * 2, articles2.Length)
 
-    let articles3 = processRssRequest client cacheConfig query |> Seq.toArray
+    let articles3 = processRssRequest client cacheConfig logPath query |> Seq.toArray
     Assert.Equal(2, handler.CallCount)
     Assert.Equal(articleCount * 2, articles3.Length)
 
@@ -305,7 +319,9 @@ let ``processRssRequest shows stale cache articles and error article on HTTP tim
     let client = new HttpClient(timeoutHandler ())
 
     // Act
-    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
+    let articles =
+        processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
+        |> Seq.toArray
 
     // Assert: stale cached articles + one error article
     Assert.Equal(articleCount + 1, articles.Length)
@@ -320,7 +336,9 @@ let ``processRssRequest shows only error article on HTTP timeout with no cache``
     let client = new HttpClient(timeoutHandler ())
 
     // Act
-    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
+    let articles =
+        processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
+        |> Seq.toArray
 
     // Assert: only one error article, no cache to fall back on
     Assert.Equal(1, articles.Length)
@@ -347,7 +365,9 @@ let ``processRssRequest shows error article when HTML page has no feed links`` (
     let client = httpClientWithResponses responses
 
     // Act
-    let articles = processRssRequest client cacheConfig $"?rss={htmlUrl}" |> Seq.toArray
+    let articles =
+        processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={htmlUrl}"
+        |> Seq.toArray
 
     // Assert
     Assert.Equal(1, articles.Length)
@@ -362,6 +382,7 @@ let ``processRssRequest shows articles when HTML page has single feed link`` () 
     let articleCount = 3
     let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
     let cacheConfig = makeCacheConfig ()
+    let logPath = makeTempLogPath ()
 
     let htmlContent =
         $"""<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="{feedUrl}"></head><body></body></html>"""
@@ -380,11 +401,13 @@ let ``processRssRequest shows articles when HTML page has single feed link`` () 
     let client = httpClientWithResponses responses
 
     // Act
-    let articles = processRssRequest client cacheConfig $"?rss={htmlUrl}" |> Seq.toArray
+    let articles =
+        processRssRequest client cacheConfig logPath $"?rss={htmlUrl}" |> Seq.toArray
 
     // Assert: articles from discovered feed, no error
     Assert.Equal(articleCount, articles.Length)
     Assert.DoesNotContain(articles, fun a -> a.Title = "Error")
+    Assert.Contains(feedUrl, File.ReadAllText logPath)
 
 [<Fact>]
 let ``updateCache fetches new feed content and overwrites stale cache files`` () =
@@ -528,6 +551,7 @@ let ``processRssRequest shows articles from both feeds when HTML page has two fe
     let xml1 = DummyXmlFeedFactory.create feedUrl1 articleCount
     let xml2 = DummyXmlFeedFactory.create feedUrl2 articleCount
     let cacheConfig = makeCacheConfig ()
+    let logPath = makeTempLogPath ()
 
     let htmlContent =
         $"""<html><head>
@@ -553,8 +577,11 @@ let ``processRssRequest shows articles from both feeds when HTML page has two fe
     let client = httpClientWithResponses responses
 
     // Act
-    let articles = processRssRequest client cacheConfig $"?rss={htmlUrl}" |> Seq.toArray
+    let articles =
+        processRssRequest client cacheConfig logPath $"?rss={htmlUrl}" |> Seq.toArray
 
     // Assert: articles from both discovered feeds, no error
     Assert.Equal(articleCount * 2, articles.Length)
     Assert.DoesNotContain(articles, fun a -> a.Title = "Error")
+    Assert.Contains(feedUrl1, File.ReadAllText logPath)
+    Assert.Contains(feedUrl2, File.ReadAllText logPath)

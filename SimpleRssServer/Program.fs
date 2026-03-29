@@ -96,8 +96,18 @@ let onlyFeedArticles ups =
     | FeedArticles articles -> articles
     | _ -> [||]
 
+let logSuccessfulFeedRequestsAndParses (logPath: OsPath) (states: UriProcessState array) =
+    states
+    |> Array.choose (function
+        | ParsedFeed(_, feed) -> Some(Uri feed.Link)
+        | ParsedCachedFeed feed -> Some(Uri feed.Link)
+        | _ -> None)
+    |> updateRequestLog logPath RequestLogRetention
+
+    states
+
 // TODO check if we properly test the different cache age scenarios.
-let processRssRequest client cacheConfig (query: string) =
+let processRssRequest client cacheConfig (logPath: OsPath) (query: string) =
     getRssUrls query
     |> Array.map toUriProcessState
     |> Array.map (readFromCache cacheConfig)
@@ -112,6 +122,7 @@ let processRssRequest client cacheConfig (query: string) =
     |> Array.map (readFromCache cacheConfig)
     |> Array.map (parseFeedResult logger)
     |> Array.map (cacheSuccessfulFetch cacheConfig)
+    |> logSuccessfulFeedRequestsAndParses logPath
     |> Array.map feedToArticles
     |> Array.collect onlyFeedArticles
     |> Array.toSeq
@@ -123,7 +134,7 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
         let rssUris = getRssUrls context.Request.Url.Query
 
         let processRssRequest =
-            processRssRequest client cacheConfig context.Request.Url.Query
+            processRssRequest client cacheConfig RequestLogPath context.Request.Url.Query
 
         // TODO this probably needs to come from the processRssRequest, such that it filters out old stuff and removes invalid urls
         let query = Query.Create context.Request.Url.Query
@@ -171,8 +182,7 @@ let updateCache client cacheConfig (urls: Uri array) =
         |> fetchAllRssFeeds client logger cacheConfig
         |> Async.RunSynchronously
         |> Array.map (parseFeedResult logger)
-        |> Array.map (cacheSuccessfulFetch cacheConfig)
-        |> ignore
+        |> Array.iter (cacheSuccessfulFetch cacheConfig >> ignore)
 
 let updateRssFeedsPeriodically client (cacheConfig: CacheConfig) =
     async {
