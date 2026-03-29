@@ -346,3 +346,44 @@ let ``processRssRequest serves articles from cache and makes no HTTP request`` (
     Assert.Equal(articleCount, articles.Length)
     Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
     Assert.Equal(DummyXmlFeedFactory.articleTitle articleCount, articles[articles.Length - 1].Title)
+
+[<Fact>]
+let ``processRssRequest fetches via HTTP only on first call, subsequent calls read from cache`` () =
+    // Arrange
+    let feedUrl1 = $"https://example.com/feed/{Guid.NewGuid()}"
+    let feedUrl2 = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 3
+    let xml1 = DummyXmlFeedFactory.create feedUrl1 articleCount
+    let xml2 = DummyXmlFeedFactory.create feedUrl2 articleCount
+    let cacheConfig = makeCacheConfig ()
+
+    let handler =
+        new MockHttpMessageHandler(fun request ->
+            let xml =
+                if request.RequestUri.AbsoluteUri = feedUrl1 then
+                    xml1
+                elif request.RequestUri.AbsoluteUri = feedUrl2 then
+                    xml2
+                else
+                    failwith $"Unexpected URL: {request.RequestUri.AbsoluteUri}"
+
+            let response = new HttpResponseMessage(HttpStatusCode.OK)
+            response.Content <- new StringContent(xml)
+            Task.FromResult response)
+
+    let client = new HttpClient(handler)
+    let query = $"?rss={feedUrl1}&rss={feedUrl2}"
+
+    // Act & Assert — first call fetches both feeds
+    let articles1 = processRssRequest client cacheConfig query |> Seq.toArray
+    Assert.Equal(2, handler.CallCount)
+    Assert.Equal(articleCount * 2, articles1.Length)
+
+    // Second and third calls must read from cache — HTTP call count stays at 2
+    let articles2 = processRssRequest client cacheConfig query |> Seq.toArray
+    Assert.Equal(2, handler.CallCount)
+    Assert.Equal(articleCount * 2, articles2.Length)
+
+    let articles3 = processRssRequest client cacheConfig query |> Seq.toArray
+    Assert.Equal(2, handler.CallCount)
+    Assert.Equal(articleCount * 2, articles3.Length)
