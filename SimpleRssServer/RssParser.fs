@@ -99,6 +99,7 @@ let feedToArticles (ups: UriProcessState) : UriProcessState =
     match ups with
     | ParsedFeed(_, feed)
     | ParsedCachedFeed feed -> parseFeedItems feed |> FeedArticles
+    | ParsedStaleHit(feed, err) -> Array.append (parseFeedItems feed) [| createErrorArticle err |] |> FeedArticles
     | ProcessingError err -> [| createErrorArticle err |] |> FeedArticles
     | x -> x
 

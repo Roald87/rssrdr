@@ -387,3 +387,44 @@ let ``processRssRequest fetches via HTTP only on first call, subsequent calls re
     let articles3 = processRssRequest client cacheConfig query |> Seq.toArray
     Assert.Equal(2, handler.CallCount)
     Assert.Equal(articleCount * 2, articles3.Length)
+
+let timeoutHandler () =
+    new MockHttpMessageHandler(fun _ ->
+        Task.FromException<HttpResponseMessage>(Threading.Tasks.TaskCanceledException "Simulated timeout"))
+
+[<Fact>]
+let ``processRssRequest shows stale cache articles and error article on HTTP timeout`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 3
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
+
+    let cachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
+
+    createOutdatedCache cachePath xmlContent
+
+    let client = new HttpClient(timeoutHandler ())
+
+    // Act
+    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
+
+    // Assert: stale cached articles + one error article
+    Assert.Equal(articleCount + 1, articles.Length)
+    Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
+    Assert.Equal("Error", articles[articles.Length - 1].Title)
+
+[<Fact>]
+let ``processRssRequest shows only error article on HTTP timeout with no cache`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let cacheConfig = makeCacheConfig ()
+    let client = new HttpClient(timeoutHandler ())
+
+    // Act
+    let articles = processRssRequest client cacheConfig $"?rss={feedUrl}" |> Seq.toArray
+
+    // Assert: only one error article, no cache to fall back on
+    Assert.Equal(1, articles.Length)
+    Assert.Equal("Error", articles[0].Title)

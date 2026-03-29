@@ -86,5 +86,7 @@ type UriProcessState =
     | ResponseCanContainsFeeds of string
     | ParsedFeed of UnparsedXml * Feed
     | ParsedCachedFeed of Feed
+    | StaleHitWithError of string * Uri * DomainMessage
+    | ParsedStaleHit of Feed * DomainMessage
     | ProcessingError of DomainMessage
     | FeedArticles of Article array

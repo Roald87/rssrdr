@@ -19,8 +19,7 @@ open SimpleRssServer.DomainPrimitiveTypes
 let readFromCache (cacheConfig: CacheConfig) (uri: UriProcessState) : UriProcessState =
     match uri with
     | ValidUri(_, u) ->
-        let fname = convertUrlToValidFilename u
-        let cachePath = Path.Combine(cacheConfig.Dir, fname)
+        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename u)
         let cacheModified = fileLastModified cachePath
 
         match cacheModified with
@@ -30,6 +29,16 @@ let readFromCache (cacheConfig: CacheConfig) (uri: UriProcessState) : UriProcess
             | Some s -> CachedFeed(s, u)
             | None -> ValidUri(None, u)
         | Some modTime -> ValidUri(Some modTime, u)
+    | ProcessingError e ->
+        match e.Uri with
+        | Some uriStr ->
+            let feedUri = Uri uriStr
+            let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename feedUri)
+
+            match readCache cachePath with
+            | Some content -> StaleHitWithError(content, feedUri, e)
+            | None -> ProcessingError e
+        | None -> ProcessingError e
     | _ -> uri
 
 let toUriProcessState (uri: Result<Uri, UriError>) : UriProcessState =
@@ -53,6 +62,10 @@ let parseFeedResult (logger: ILogger) (uri: UriProcessState) =
         match tryParseFeed logger r feedUri with
         | Ok f -> ParsedCachedFeed f
         | Error e -> ProcessingError e
+    | StaleHitWithError(r, feedUri, err) ->
+        match tryParseFeed logger r feedUri with
+        | Ok f -> ParsedStaleHit(f, err)
+        | Error _ -> ProcessingError err
     | _ -> uri
 
 
@@ -90,6 +103,7 @@ let processRssRequest client cacheConfig (query: string) =
     |> Array.map (readFromCache cacheConfig)
     |> fetchAllRssFeeds2 client logger cacheConfig
     |> Async.RunSynchronously
+    |> Array.map (readFromCache cacheConfig)
     |> Array.map (parseFeedResult logger)
     // TODO do I want to show the discovery selection page?
     |> Array.collect checkIfDiscoveryFeeds // if there are the following steps will be bypassed this should return Html?
