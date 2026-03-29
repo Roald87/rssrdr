@@ -153,13 +153,15 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
 // - no cache file available (not sure if possible, but might be good to go anyway)
 // - different cache ages (currently cahce age is not used here, this needs to be implemented here)
 // order is something like readRequestLog, get cache file ages of urls, fetch rss feeds, parse (probably not even needed, but could be a safe option), cache
-let updateCache client cacheConfig =
-    // TODO why is all this converted to Ok?
-    let urls = readRequestLog RequestLogPath
-
+let updateCache client cacheConfig (urls: Uri array) =
     if urls.Length > 0 then
         urls
-        |> Array.map (fun url -> ValidUri(Some DateTimeOffset.Now, url))
+        |> Array.map (fun url ->
+            let cacheAge =
+                Path.Combine(cacheConfig.Dir, url |> convertUrlToValidFilename)
+                |> fileLastModified
+
+            ValidUri(cacheAge, url))
         |> fetchAllRssFeeds client logger cacheConfig
         |> Async.RunSynchronously
         |> Array.map (parseFeedResult logger)
@@ -170,7 +172,8 @@ let updateRssFeedsPeriodically client (cacheConfig: CacheConfig) =
     async {
         while true do
             logger.LogDebug "Periodically updating RSS feeds."
-            updateCache client cacheConfig
+
+            uniqueValidRequestLogUrls RequestLogPath |> updateCache client cacheConfig
 
             do! Async.Sleep cacheConfig.Expiration
     }

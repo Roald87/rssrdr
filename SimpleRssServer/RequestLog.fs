@@ -32,7 +32,7 @@ let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri a
     let updatedEntries = Array.append existingEntries newEntries
     File.WriteAllLines(requestLogPath, updatedEntries)
 
-let readRequestLog (logPath: OsPath) =
+let uniqueValidRequestLogUrls (logPath: OsPath) =
     if File.Exists logPath then
         let expectedColumns = 2
 

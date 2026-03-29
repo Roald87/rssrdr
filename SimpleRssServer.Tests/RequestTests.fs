@@ -89,7 +89,7 @@ let mockClientThrowsWhenCalled =
 let ``Test requestUrls returns two URLs from request-log.txt`` () =
     let logFilePath = OsPath "data/request-log.txt"
 
-    let urls = readRequestLog logFilePath
+    let urls = uniqueValidRequestLogUrls logFilePath
 
     Assert.Equal(2, Array.length urls)
     Assert.Contains(Uri "https://example.com/feed1", urls)
@@ -587,7 +587,7 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
 
     let urls =
         try
-            readRequestLog filename
+            uniqueValidRequestLogUrls filename
         with _ ->
             [||]
 
