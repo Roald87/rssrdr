@@ -83,7 +83,7 @@ let private getArticleText (entry: FeedItem) =
     else
         cleaned
 
-let private parseFeedItems (feed: Feed) =
+let toArticles (feed: Feed) =
     feed.Items
     |> Seq.map (fun entry ->
         { PostDate = getPostDate feed entry
@@ -97,7 +97,7 @@ let private parseFeedItems (feed: Feed) =
 let feedToArticles (ups: UriProcessState) : UriProcessState =
     match ups with
     | ParsedFeed(_, feed)
-    | ParsedCachedFeed feed -> parseFeedItems feed |> FeedArticles
-    | ParsedStaleHit(feed, err) -> Array.append (parseFeedItems feed) [| createErrorArticle err |] |> FeedArticles
+    | ParsedCachedFeed feed -> toArticles feed |> FeedArticles
+    | ParsedStaleHit(feed, err) -> Array.append (toArticles feed) [| createErrorArticle err |] |> FeedArticles
     | ProcessingError err -> [| createErrorArticle err |] |> FeedArticles
     | x -> x
