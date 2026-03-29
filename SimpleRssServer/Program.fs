@@ -148,20 +148,26 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
         context.Response.OutputStream.Close()
     }
 
-// TODO create tests for this. We need to test the different scenarios:
-// - 304,
-// - no cache file available (not sure if possible, but might be good to go anyway)
-// - different cache ages (currently cahce age is not used here, this needs to be implemented here)
-// order is something like readRequestLog, get cache file ages of urls, fetch rss feeds, parse (probably not even needed, but could be a safe option), cache
+let private getCacheAge cacheConfig url =
+    let cacheAge =
+        Path.Combine(cacheConfig.Dir, url |> convertUrlToValidFilename)
+        |> fileLastModified
+
+    match cacheAge with
+    | None ->
+        logger.LogWarning(
+            "No cache file found for {Url}, which is unexpected during a periodic update. Updating cache regardless.",
+            url
+        )
+
+        Some(ValidUri(None, url))
+    | Some modTime when (DateTimeOffset.Now - modTime) > cacheConfig.Expiration -> Some(ValidUri(cacheAge, url))
+    | _ -> None
+
 let updateCache client cacheConfig (urls: Uri array) =
     if urls.Length > 0 then
         urls
-        |> Array.map (fun url ->
-            let cacheAge =
-                Path.Combine(cacheConfig.Dir, url |> convertUrlToValidFilename)
-                |> fileLastModified
-
-            ValidUri(cacheAge, url))
+        |> Array.choose (getCacheAge cacheConfig)
         |> fetchAllRssFeeds client logger cacheConfig
         |> Async.RunSynchronously
         |> Array.map (parseFeedResult logger)

@@ -387,6 +387,138 @@ let ``processRssRequest shows articles when HTML page has single feed link`` () 
     Assert.DoesNotContain(articles, fun a -> a.Title = "Error")
 
 [<Fact>]
+let ``updateCache fetches new feed content and overwrites stale cache files`` () =
+    // Arrange
+    let feedUrl1 = $"https://example.com/feed/{Guid.NewGuid()}"
+    let feedUrl2 = $"https://example.com/feed/{Guid.NewGuid()}"
+    let cacheConfig = makeCacheConfig ()
+
+    let oldXml1 = DummyXmlFeedFactory.create feedUrl1 2
+    let oldXml2 = DummyXmlFeedFactory.create feedUrl2 2
+    let newXml1 = DummyXmlFeedFactory.create feedUrl1 5
+    let newXml2 = DummyXmlFeedFactory.create feedUrl2 5
+
+    let cachePath1 =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl1))
+
+    let cachePath2 =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl2))
+
+    let oneDayAgo = DateTime.Now.AddDays(-1.0)
+    File.WriteAllText(cachePath1, oldXml1)
+    File.SetLastWriteTime(cachePath1, oneDayAgo)
+    File.WriteAllText(cachePath2, oldXml2)
+    File.SetLastWriteTime(cachePath2, oneDayAgo)
+
+    let handler =
+        new MockHttpMessageHandler(fun request ->
+            let xml =
+                if request.RequestUri.AbsoluteUri = feedUrl1 then
+                    newXml1
+                elif request.RequestUri.AbsoluteUri = feedUrl2 then
+                    newXml2
+                else
+                    failwith $"Unexpected URL: {request.RequestUri.AbsoluteUri}"
+
+            let response = new HttpResponseMessage(HttpStatusCode.OK)
+            response.Content <- new StringContent(xml)
+            Task.FromResult response)
+
+    let client = new HttpClient(handler)
+
+    // Act
+    updateCache client cacheConfig [| Uri feedUrl1; Uri feedUrl2 |]
+
+    // Assert — new content is written to both cache files
+    Assert.Equal(newXml1, File.ReadAllText cachePath1)
+    Assert.Equal(newXml2, File.ReadAllText cachePath2)
+
+    // Assert — last modification time is updated beyond the old cache age
+    Assert.True(File.GetLastWriteTime cachePath1 > oneDayAgo)
+    Assert.True(File.GetLastWriteTime cachePath2 > oneDayAgo)
+
+[<Fact>]
+let ``updateCache updates file write time but keeps cache content when server returns 304`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let cacheConfig = makeCacheConfig ()
+
+    let cachedXml = DummyXmlFeedFactory.create feedUrl 3
+
+    let cachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
+
+    let oneDayAgo = DateTime.Now.AddDays(-1.0)
+    File.WriteAllText(cachePath, cachedXml)
+    File.SetLastWriteTime(cachePath, oneDayAgo)
+
+    let handler =
+        new MockHttpMessageHandler(fun _ -> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified)))
+
+    let client = new HttpClient(handler)
+
+    // Act
+    updateCache client cacheConfig [| Uri feedUrl |]
+
+    // Assert — cache content is unchanged
+    Assert.Equal(cachedXml, File.ReadAllText cachePath)
+
+    // Assert — last modification time is updated
+    Assert.True(File.GetLastWriteTime cachePath > oneDayAgo)
+
+[<Fact>]
+let ``updateCache fetches and saves feed when no cache file exists`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let cacheConfig = makeCacheConfig ()
+    let xmlContent = DummyXmlFeedFactory.create feedUrl 3
+
+    let cachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
+
+    // No cache file created — absence is the precondition
+    Assert.False(File.Exists cachePath)
+
+    let client = httpOkClient xmlContent
+
+    // Act
+    updateCache client cacheConfig [| Uri feedUrl |]
+
+    // Assert — cache file is created with fetched content
+    Assert.True(File.Exists cachePath)
+    Assert.Equal(xmlContent, File.ReadAllText cachePath)
+
+[<Fact>]
+let ``updateCache skips HTTP request and does not touch file when cache is still fresh`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let cacheConfig = makeCacheConfig ()
+    let cachedXml = DummyXmlFeedFactory.create feedUrl 3
+
+    let cachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
+
+    let halfExpiration = cacheConfig.Expiration / 2.0
+    let recentWriteTime = DateTime.Now - halfExpiration
+    File.WriteAllText(cachePath, cachedXml)
+    File.SetLastWriteTime(cachePath, recentWriteTime)
+
+    let handler =
+        new MockHttpMessageHandler(fun _ -> failwith "HTTP request not expected")
+
+    let client = new HttpClient(handler)
+
+    // Act
+    updateCache client cacheConfig [| Uri feedUrl |]
+
+    // Assert — no HTTP request was made
+    Assert.Equal(0, handler.CallCount)
+
+    // Assert — cache content and write time are unchanged
+    Assert.Equal(cachedXml, File.ReadAllText cachePath)
+    Assert.Equal(recentWriteTime, File.GetLastWriteTime cachePath)
+
+[<Fact>]
 let ``processRssRequest shows articles from both feeds when HTML page has two feed links`` () =
     // Arrange
     let htmlUrl = $"https://example.com/page/{Guid.NewGuid()}"
