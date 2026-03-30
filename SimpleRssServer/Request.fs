@@ -63,10 +63,7 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
                 | Ok "No changes" ->
                     File.SetLastWriteTime(cachePath, DateTime.Now)
                     clearFailure cachePath
-                    // TODO there should not be any cache reading in this method, move up
-                    match readCache cachePath with
-                    | Some content -> CachedFeed(content, uri)
-                    | None -> ProcessingError(CacheReadFailed(uri, cachePath))
+                    ValidUri(Some DateTimeOffset.Now, uri)
                 | Ok content ->
                     clearFailure cachePath
                     Response(content, uri)
