@@ -108,16 +108,16 @@ let logSuccessfulFeedRequestsAndParses (logPath: OsPath) (upss: UriProcessState 
 
 let processRssRequest client cacheConfig (logPath: OsPath) (query: string) =
     getRssUrls query
-    |> Array.map (toUriProcessState >> readFromCache cacheConfig)
+    |> Array.map (toUriProcessState >> readFromCache cacheConfig) // try read cache before first fetch
     |> fetchAllRssFeeds client logger cacheConfig
     |> Async.RunSynchronously
-    |> Array.map (readFromCache cacheConfig >> parseFeedResult logger)
+    |> Array.map (readFromCache cacheConfig >> parseFeedResult logger) // read from cache in case of 304 Not modified
     |> Array.collect checkIfDiscoveryFeeds
-    |> Array.map (readFromCache cacheConfig)
+    |> Array.map (readFromCache cacheConfig) // read discovered feeds from cache
     |> fetchAllRssFeeds client logger cacheConfig
     |> Async.RunSynchronously
     |> Array.map (
-        readFromCache cacheConfig
+        readFromCache cacheConfig // previous fetch could again return 304
         >> parseFeedResult logger
         >> cacheSuccessfulFetch cacheConfig
     )
