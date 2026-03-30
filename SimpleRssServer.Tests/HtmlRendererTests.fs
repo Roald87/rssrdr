@@ -101,3 +101,9 @@ let ``Test configPage prefills textarea with valid URIs`` () =
             failwith "Textarea not found"
 
     Assert.Equal("example.com/feed1\nhttp://example.com/feed2", textareaValue)
+
+[<Fact>]
+let ``chronologicalFeedsPage with empty query shows config link without query string`` () =
+    let result = chronologicalFeedsPage (Query.Create "") Seq.empty |> string
+
+    Assert.Contains("""href="config.html/">rssrdr""", result)

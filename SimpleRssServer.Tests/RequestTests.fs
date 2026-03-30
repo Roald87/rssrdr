@@ -6,7 +6,6 @@ open System.Net
 open System.Net.Http
 open System.Globalization
 open System.Threading.Tasks
-open System.Text.Json
 open Microsoft.Extensions.Logging.Abstractions
 
 open Xunit
@@ -14,11 +13,9 @@ open Xunit
 open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
 open SimpleRssServer.Request
-open SimpleRssServer.RssParser
 open SimpleRssServer.RequestLog
 open SimpleRssServer.HttpClient
 open SimpleRssServer.HtmlRenderer
-open SimpleRssServer.Cache
 open SimpleRssServer.DomainPrimitiveTypes
 open TestHelpers
 
@@ -294,31 +291,6 @@ let ``GetAsync returns timeout error when request takes too long`` () =
     | Error error -> failwithf $"Got unexpected error: {error}"
     | Ok x -> failwithf $"Expected timeout failure but got success {x}"
 
-// [<Fact>]
-// let ``cacheSuccessfulFetch creates cache file with correct content`` () =
-//     let url = Uri "http://example.com/cache-write-test"
-//     let content = "Fresh RSS content"
-//     let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
-//     deleteFile filePath
-
-//     cacheSuccessfulFetch cacheConfig (FeedUri url) content
-
-//     Assert.True(File.Exists filePath, "Expected cache file to be created")
-//     Assert.Equal(content, File.ReadAllText filePath)
-//     deleteFile filePath
-
-// [<Fact>]
-// let ``cacheSuccessfulFetch overwrites stale cache file with new content`` () =
-//     let url = Uri "http://example.com/cache-overwrite-test"
-//     let oldContent = "Old cached content"
-//     let newContent = "New RSS content"
-//     let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
-//     createOutdatedCache filePath oldContent
-
-//     cacheSuccessfulFetch cacheConfig (FeedUri url) newContent
-
-//     Assert.Equal(newContent, File.ReadAllText filePath)
-//     deleteFile filePath
 
 [<Fact>]
 let ``Test requestUrls skips invalid URLs in log file`` () =
