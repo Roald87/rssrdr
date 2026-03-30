@@ -108,19 +108,19 @@ let logSuccessfulFeedRequestsAndParses (logPath: OsPath) (upss: UriProcessState 
 
 let processRssRequest client cacheConfig (logPath: OsPath) (query: string) =
     getRssUrls query
-    |> Array.map toUriProcessState
-    |> Array.map (readFromCache cacheConfig)
+    |> Array.map (toUriProcessState >> readFromCache cacheConfig)
     |> fetchAllRssFeeds client logger cacheConfig
     |> Async.RunSynchronously
-    |> Array.map (readFromCache cacheConfig)
-    |> Array.map (parseFeedResult logger)
+    |> Array.map (readFromCache cacheConfig >> parseFeedResult logger)
     |> Array.collect checkIfDiscoveryFeeds
     |> Array.map (readFromCache cacheConfig)
     |> fetchAllRssFeeds client logger cacheConfig
     |> Async.RunSynchronously
-    |> Array.map (readFromCache cacheConfig)
-    |> Array.map (parseFeedResult logger)
-    |> Array.map (cacheSuccessfulFetch cacheConfig)
+    |> Array.map (
+        readFromCache cacheConfig
+        >> parseFeedResult logger
+        >> cacheSuccessfulFetch cacheConfig
+    )
     |> logSuccessfulFeedRequestsAndParses logPath
     |> Array.map feedToArticles
     |> Array.collect onlyFeedArticles
