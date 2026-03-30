@@ -232,6 +232,37 @@ let ``processRssRequest uses cached content when HTTP returns 304 Not Modified``
     Assert.Contains(feedUrl, File.ReadAllText logPath)
 
 [<Fact>]
+let ``processRssRequest clears failure file when HTTP returns 304`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let xmlContent = DummyXmlFeedFactory.create feedUrl 3
+    let cacheConfig = makeCacheConfig ()
+
+    let cachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
+
+    createOutdatedCache cachePath xmlContent
+
+    let failure =
+        { LastFailure = DateTimeOffset.Now.AddHours -3.0
+          ConsecutiveFailures = 2 }
+
+    File.WriteAllText(failureFilePath cachePath, System.Text.Json.JsonSerializer.Serialize failure)
+
+    let handler =
+        new MockHttpMessageHandler(fun _ -> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified)))
+
+    let client = new HttpClient(handler)
+
+    // Act
+    processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
+    |> Seq.toArray
+    |> ignore
+
+    // Assert
+    Assert.False(File.Exists(failureFilePath cachePath), "Expected failure file to be removed after 304")
+
+[<Fact>]
 let ``processRssRequest serves articles from cache and makes no HTTP request`` () =
     // Arrange
     let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
@@ -429,6 +460,37 @@ let ``processRssRequest shows PreviousHttpRequestFailedButPageCached and skips H
     Assert.Equal("Error", articles2[articles2.Length - 1].Title)
     Assert.Contains("There is a saved version of the feed", articles2[articles2.Length - 1].Text)
 
+[<Fact>]
+let ``processRssRequest retries and clears failure file when backoff period has expired`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 3
+    let newXml = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
+
+    let cachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
+
+    createOutdatedCache cachePath (DummyXmlFeedFactory.create feedUrl 1)
+
+    // 2 consecutive failures → 2h backoff; LastFailure 3h ago → backoff has passed
+    let failure =
+        { LastFailure = DateTimeOffset.Now.AddHours -3.0
+          ConsecutiveFailures = 2 }
+
+    File.WriteAllText(failureFilePath cachePath, System.Text.Json.JsonSerializer.Serialize failure)
+
+    let client = httpOkClient newXml
+
+    // Act
+    let articles =
+        processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
+        |> Seq.toArray
+
+    // Assert — new content returned and failure file cleared
+    Assert.Equal(articleCount, articles.Length)
+    Assert.DoesNotContain(articles, fun a -> a.Title = "Error")
+    Assert.False(File.Exists(failureFilePath cachePath), "Expected failure file to be cleared after successful retry")
 
 [<Fact>]
 let ``processRssRequest shows error article when HTML page has no feed links`` () =
