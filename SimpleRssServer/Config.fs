@@ -11,7 +11,6 @@ let DefaultCacheConfig =
 
 let RequestTimeout = TimeSpan.FromSeconds 5.0
 let RequestLogPath = OsPath "rss-cache/request-log.txt"
-// TODO why is this not used anywhere?
 let RequestLogRetention = TimeSpan.FromDays 7.0
 let CacheRetention = TimeSpan.FromDays 7.0
 

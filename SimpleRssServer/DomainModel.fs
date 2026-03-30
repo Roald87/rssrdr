@@ -28,10 +28,6 @@ and DomainMessage =
     | HttpRequestNonSuccessStatus of Uri * HttpStatusCode
     | HttpException of Uri * Exception
 
-    // Cache errors
-    | CacheReadFailed of Uri * OsPath
-    | CacheReadFailedWithException of Uri * OsPath * Exception
-
     member this.Uri =
         match this with
         | InvalidUriHostname invalid -> Some invalid.Value
@@ -42,8 +38,6 @@ and DomainMessage =
         | HttpRequestNonSuccessStatus(uri, _) -> Some uri.AbsoluteUri
         | HttpException(uri, _) -> Some uri.AbsoluteUri
         | InvalidRssFeedFormat(uri, _) -> Some uri.AbsoluteUri
-        | CacheReadFailed(uri, _) -> Some uri.AbsoluteUri
-        | CacheReadFailedWithException(uri, _, _) -> Some uri.AbsoluteUri
 
 type Article =
     { PostDate: DateTime option

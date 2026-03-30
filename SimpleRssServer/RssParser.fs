@@ -24,9 +24,6 @@ let createErrorArticle (errorType: DomainMessage) : Article =
 
     let text =
         match errorType with
-        | CacheReadFailed(uri, cachePath) -> $"Failed to read cached file from {cachePath} for {uri}."
-        | CacheReadFailedWithException(uri, cachePath, ex) ->
-            $"Failed to read cached file from {cachePath} for {uri}. {ex.GetType().Name}: {ex.Message}"
         | InvalidUriHostname u ->
             $"Ensure that you're using a valid address for this RSS feed. Invalid URI: {u.Value}. Host name must contain a dot."
         | InvalidUriFormat(u, ex) ->

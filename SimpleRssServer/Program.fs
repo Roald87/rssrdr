@@ -16,8 +16,8 @@ open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 
-let readFromCache (cacheConfig: CacheConfig) (uri: UriProcessState) : UriProcessState =
-    match uri with
+let readFromCache (cacheConfig: CacheConfig) (ups: UriProcessState) : UriProcessState =
+    match ups with
     | ValidUri(_, u) ->
         let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename u)
         let cacheModified = fileLastModified cachePath
@@ -39,7 +39,7 @@ let readFromCache (cacheConfig: CacheConfig) (uri: UriProcessState) : UriProcess
             | Some content -> StaleHitWithError(content, feedUri, e)
             | None -> ProcessingError e
         | None -> ProcessingError e
-    | _ -> uri
+    | _ -> ups
 
 let toUriProcessState (uri: Result<Uri, UriError>) : UriProcessState =
     match uri with
@@ -49,8 +49,8 @@ let toUriProcessState (uri: Result<Uri, UriError>) : UriProcessState =
         | HostNameMustContainDot iu -> ProcessingError(InvalidUriHostname iu)
         | UriFormatException(iu, ex) -> ProcessingError(InvalidUriFormat(iu, ex))
 
-let parseFeedResult (logger: ILogger) (uri: UriProcessState) =
-    match uri with
+let parseFeedResult (logger: ILogger) (ups: UriProcessState) =
+    match ups with
     | Response(r, feedUri) ->
         match tryParseFeed logger r feedUri with
         | Ok f -> ParsedFeed(UnparsedXml r, f)
@@ -66,11 +66,11 @@ let parseFeedResult (logger: ILogger) (uri: UriProcessState) =
         match tryParseFeed logger r feedUri with
         | Ok f -> ParsedStaleHit(f, err)
         | Error _ -> ProcessingError err
-    | _ -> uri
+    | _ -> ups
 
 
-let checkIfDiscoveryFeeds uri =
-    match uri with
+let checkIfDiscoveryFeeds ups =
+    match ups with
     | ResponseCanContainsFeeds(s, originalUri) ->
         let feed = FeedReader.ParseFeedUrlsFromHtml s |> Seq.toArray
 
@@ -80,8 +80,8 @@ let checkIfDiscoveryFeeds uri =
     | x -> [| x |]
 
 
-let cacheSuccessfulFetch cacheConfig uri =
-    match uri with
+let cacheSuccessfulFetch cacheConfig ups =
+    match ups with
     | ParsedFeed(xml, feed) ->
         let cachePath =
             Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feed.Link))
@@ -89,24 +89,23 @@ let cacheSuccessfulFetch cacheConfig uri =
         writeCache cachePath xml.Value
     | _ -> ()
 
-    uri
+    ups
 
 let onlyFeedArticles ups =
     match ups with
     | FeedArticles articles -> articles
     | _ -> [||]
 
-let logSuccessfulFeedRequestsAndParses (logPath: OsPath) (states: UriProcessState array) =
-    states
+let logSuccessfulFeedRequestsAndParses (logPath: OsPath) (upss: UriProcessState array) =
+    upss
     |> Array.choose (function
         | ParsedFeed(_, feed) -> Some(Uri feed.Link)
         | ParsedCachedFeed feed -> Some(Uri feed.Link)
         | _ -> None)
     |> updateRequestLog logPath RequestLogRetention
 
-    states
+    upss
 
-// TODO check if we properly test the different cache age scenarios.
 let processRssRequest client cacheConfig (logPath: OsPath) (query: string) =
     getRssUrls query
     |> Array.map toUriProcessState
