@@ -32,7 +32,7 @@ type CacheState =
     | InBackoffNoCache of waitTime: TimeSpan
     | CacheHit
 
-let computeCacheState
+let computeCacheAndBackoffState
     (cacheModified: DateTimeOffset option)
     (nextAttempt: DateTimeOffset option)
     (expiration: TimeSpan)
@@ -45,43 +45,50 @@ let computeCacheState
     | _, Some na -> InBackoffNoCache(TimeSpan.FromHours (na - DateTimeOffset.Now).TotalHours)
     | Some _, None -> CacheHit
 
-let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) (uris: UriProcessState array) =
-    let validUris =
-        uris
-        |> Array.choose (function
-            | ValidUri(dt, uri) -> Some(dt, uri)
-            | _ -> None)
-
-    let rest =
-        uris
-        |> Array.filter (function
-            | ValidUri _ -> false
-            | _ -> true)
-
-    // TODO double async needed?
+let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
     async {
-        let! results =
-            validUris
-            |> Array.map (fun (dt, uri) ->
-                async {
-                    let! r = fetchUrlAsync client logger uri dt RequestTimeout
-                    return uri, r
-                })
-            |> Async.Parallel
+        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
 
-        let processed =
-            results
-            |> Array.map (function
-                | uri, Ok "No changes" ->
-                    let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
+        let cacheState =
+            computeCacheAndBackoffState dt (nextRetry cachePath) cacheConfig.Expiration
+
+        match cacheState with
+        | InBackoffWithCache waitTime -> return ProcessingError(PreviousHttpRequestFailedButPageCached(uri, waitTime))
+        | InBackoffNoCache waitTime -> return ProcessingError(PreviousHttpRequestFailed(uri, waitTime))
+        | _ ->
+            let! r = fetchUrlAsync client logger uri dt RequestTimeout
+
+            return
+                match r with
+                | Ok "No changes" ->
                     File.SetLastWriteTime(cachePath, DateTime.Now)
-
+                    clearFailure cachePath
                     // TODO there should not be any cache reading in this method, move up
                     match readCache cachePath with
                     | Some content -> CachedFeed(content, uri)
                     | None -> ProcessingError(CacheReadFailed(uri, cachePath))
-                | uri, Ok content -> Response(content, uri)
-                | _, Error e -> ProcessingError e)
+                | Ok content ->
+                    clearFailure cachePath
+                    Response(content, uri)
+                | Error e ->
+                    recordFailure cachePath
+                    ProcessingError e
+    }
 
-        return Array.append processed rest
+let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) (ups: UriProcessState array) =
+    let validUris =
+        ups
+        |> Array.choose (function
+            | ValidUri(dt, uri) -> Some(dt, uri)
+            | _ -> None)
+
+    let invalidUrls =
+        ups
+        |> Array.filter (function
+            | ValidUri _ -> false
+            | _ -> true)
+
+    async {
+        let! processed = validUris |> Array.map (fetchUri client logger cacheConfig) |> Async.Parallel
+        return Array.append processed invalidUrls
     }

@@ -44,7 +44,7 @@ type MockHttpMessageHandler(sendAsyncImpl: HttpRequestMessage -> Task<HttpRespon
     member _.CallCount = callCount
 
     override _.SendAsync(request, cancellationToken) =
-        callCount <- callCount + 1
+        Threading.Interlocked.Increment(&callCount) |> ignore
         sendAsyncImpl request
 
 let httpOkClient content =

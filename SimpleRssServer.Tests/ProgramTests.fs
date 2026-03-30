@@ -10,6 +10,7 @@ open System.Net.Http
 open System.Threading.Tasks
 open Xunit
 
+open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
@@ -343,7 +344,91 @@ let ``processRssRequest shows only error article on HTTP timeout with no cache``
     // Assert: only one error article, no cache to fall back on
     Assert.Equal(1, articles.Length)
     Assert.Equal("Error", articles[0].Title)
-    Assert.Equal(Directory.GetFiles(cacheConfig.Dir).Length, 0)
+
+    let cacheFiles =
+        Directory.GetFiles(cacheConfig.Dir)
+        |> Array.filter (fun f -> not (f.EndsWith ".failures"))
+
+    Assert.Equal(0, cacheFiles.Length)
+
+[<Fact>]
+let ``processRssRequest shows PreviousHttpRequestFailed and skips HTTP on second call when no cache exists`` () =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let cacheConfig = makeCacheConfig ()
+
+    let cachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
+
+    let handler =
+        new MockHttpMessageHandler(fun _ ->
+            Task.FromException<HttpResponseMessage>(Threading.Tasks.TaskCanceledException "Simulated timeout"))
+
+    let client = new HttpClient(handler)
+
+    // Act — first call: HTTP times out, failure file should be created
+    let articles1 =
+        processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
+        |> Seq.toArray
+
+    Assert.Equal(1, handler.CallCount)
+    Assert.Equal(1, articles1.Length)
+    Assert.Equal("Error", articles1[0].Title)
+    Assert.True(File.Exists(failureFilePath cachePath), "Expected failure file to be created after HTTP error")
+
+    // Act — second call: should skip HTTP due to backoff
+    let articles2 =
+        processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
+        |> Seq.toArray
+
+    // Assert: no new HTTP request made, error article reflects backoff
+    Assert.Equal(1, handler.CallCount)
+    Assert.Equal(1, articles2.Length)
+    Assert.Equal("Error", articles2[0].Title)
+    Assert.Contains("Retrying in", articles2[0].Text)
+
+[<Fact>]
+let ``processRssRequest shows PreviousHttpRequestFailedButPageCached and skips HTTP on second call when stale cache exists``
+    ()
+    =
+    // Arrange
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 3
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
+
+    let cachePath =
+        Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
+
+    createOutdatedCache cachePath xmlContent
+
+    let handler =
+        new MockHttpMessageHandler(fun _ ->
+            Task.FromException<HttpResponseMessage>(Threading.Tasks.TaskCanceledException "Simulated timeout"))
+
+    let client = new HttpClient(handler)
+
+    // Act — first call: HTTP times out, stale cache shown, failure file should be created
+    let articles1 =
+        processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
+        |> Seq.toArray
+
+    Assert.Equal(1, handler.CallCount)
+    Assert.Equal(articleCount + 1, articles1.Length)
+    Assert.Equal("Error", articles1[articles1.Length - 1].Title)
+    Assert.True(File.Exists(failureFilePath cachePath), "Expected failure file to be created after HTTP error")
+
+    // Act — second call: should skip HTTP due to backoff
+    let articles2 =
+        processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
+        |> Seq.toArray
+
+    // Assert: no new HTTP request made, stale articles shown with backoff error
+    Assert.Equal(1, handler.CallCount)
+    Assert.Equal(articleCount + 1, articles2.Length)
+    Assert.Equal("Error", articles2[articles2.Length - 1].Title)
+    Assert.Contains("There is a saved version of the feed", articles2[articles2.Length - 1].Text)
+
 
 [<Fact>]
 let ``processRssRequest shows error article when HTML page has no feed links`` () =
