@@ -135,7 +135,7 @@ let footer =
     """
     |> Html
 
-let chronologicalFeedsPage (query: Query) (rssItems: Article seq) : Html =
+let chronologicalFeedsPage (query: Query) (rssItems: Article array) : Html =
     let body =
         $"""
     <body>
@@ -149,13 +149,13 @@ let chronologicalFeedsPage (query: Query) (rssItems: Article seq) : Html =
 
     let rssFeeds =
         rssItems
-        |> Seq.sortByDescending (fun a -> a.PostDate)
-        |> Seq.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
-        |> Seq.fold (+) Html.Empty
+        |> Array.sortByDescending (fun a -> a.PostDate)
+        |> Array.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
+        |> Array.fold (+) Html.Empty
 
     head + body + rssFeeds + removeFeedScript + footer
 
-let shuffledFeedsPage (query: Query) (rssItems: Article seq) : Html =
+let shuffledFeedsPage (query: Query) (rssItems: Article array) : Html =
     let body =
         $"""
     <body>
@@ -169,9 +169,8 @@ let shuffledFeedsPage (query: Query) (rssItems: Article seq) : Html =
 
     let shuffledFeeds =
         rssItems
-        |> Seq.toArray
         |> Array.randomShuffle
-        |> Seq.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
-        |> Seq.fold (+) Html.Empty
+        |> Array.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
+        |> Array.fold (+) Html.Empty
 
     head + body + shuffledFeeds + removeFeedScript + footer

@@ -104,6 +104,6 @@ let ``Test configPage prefills textarea with valid URIs`` () =
 
 [<Fact>]
 let ``chronologicalFeedsPage with empty query shows config link without query string`` () =
-    let result = chronologicalFeedsPage (Query.Create "") Seq.empty |> string
+    let result = chronologicalFeedsPage (Query.Create "") [||] |> string
 
     Assert.Contains("""href="config.html/">rssrdr""", result)

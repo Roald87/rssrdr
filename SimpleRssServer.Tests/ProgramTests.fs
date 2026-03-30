@@ -58,8 +58,7 @@ let ``processRssRequest fetches feed, returns all articles, and writes cache`` (
     let client = httpOkClient xmlContent
 
     // Act
-    let articles =
-        processRssRequest client cacheConfig logPath $"?rss={feedUrl}" |> Seq.toArray
+    let articles = processRssRequest client cacheConfig logPath $"?rss={feedUrl}"
 
     // Assert
     Assert.Equal(articleCount, articles.Length)
@@ -93,8 +92,7 @@ let ``processRssRequest uses cached content when HTTP returns 304 Not Modified``
     let client = new HttpClient(handler)
 
     // Act
-    let articles =
-        processRssRequest client cacheConfig logPath $"?rss={feedUrl}" |> Seq.toArray
+    let articles = processRssRequest client cacheConfig logPath $"?rss={feedUrl}"
 
     // Assert
     Assert.Equal(1, handler.CallCount)
@@ -128,7 +126,7 @@ let ``processRssRequest clears failure file when HTTP returns 304`` () =
 
     // Act
     processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
-    |> Seq.toArray
+
     |> ignore
 
     // Assert
@@ -151,7 +149,7 @@ let ``processRssRequest serves articles from cache and makes no HTTP request`` (
     // Act
     let articles =
         processRssRequest mockClientThrowsWhenCalled cacheConfig logPath $"?rss={feedUrl}"
-        |> Seq.toArray
+
 
     // Assert
     Assert.Equal(articleCount, articles.Length)
@@ -188,18 +186,18 @@ let ``processRssRequest fetches via HTTP only on first call, subsequent calls re
     let logPath = makeTempLogPath ()
 
     // Act & Assert — first call fetches both feeds
-    let articles1 = processRssRequest client cacheConfig logPath query |> Seq.toArray
+    let articles1 = processRssRequest client cacheConfig logPath query
     Assert.Equal(2, handler.CallCount)
     Assert.Equal(articleCount * 2, articles1.Length)
     Assert.Contains(feedUrl1, File.ReadAllText logPath)
     Assert.Contains(feedUrl2, File.ReadAllText logPath)
 
     // Second and third calls must read from cache — HTTP call count stays at 2
-    let articles2 = processRssRequest client cacheConfig logPath query |> Seq.toArray
+    let articles2 = processRssRequest client cacheConfig logPath query
     Assert.Equal(2, handler.CallCount)
     Assert.Equal(articleCount * 2, articles2.Length)
 
-    let articles3 = processRssRequest client cacheConfig logPath query |> Seq.toArray
+    let articles3 = processRssRequest client cacheConfig logPath query
     Assert.Equal(2, handler.CallCount)
     Assert.Equal(articleCount * 2, articles3.Length)
 
@@ -225,7 +223,7 @@ let ``processRssRequest shows stale cache articles and error article on HTTP tim
     // Act
     let articles =
         processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
-        |> Seq.toArray
+
 
     // Assert: stale cached articles + one error article
     Assert.Equal(articleCount + 1, articles.Length)
@@ -242,7 +240,7 @@ let ``processRssRequest shows only error article on HTTP timeout with no cache``
     // Act
     let articles =
         processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
-        |> Seq.toArray
+
 
     // Assert: only one error article, no cache to fall back on
     Assert.Equal(1, articles.Length)
@@ -272,7 +270,7 @@ let ``processRssRequest shows PreviousHttpRequestFailed and skips HTTP on second
     // Act — first call: HTTP times out, failure file should be created
     let articles1 =
         processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
-        |> Seq.toArray
+
 
     Assert.Equal(1, handler.CallCount)
     Assert.Equal(1, articles1.Length)
@@ -282,7 +280,7 @@ let ``processRssRequest shows PreviousHttpRequestFailed and skips HTTP on second
     // Act — second call: should skip HTTP due to backoff
     let articles2 =
         processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
-        |> Seq.toArray
+
 
     // Assert: no new HTTP request made, error article reflects backoff
     Assert.Equal(1, handler.CallCount)
@@ -314,7 +312,7 @@ let ``processRssRequest shows PreviousHttpRequestFailedButPageCached and skips H
     // Act — first call: HTTP times out, stale cache shown, failure file should be created
     let articles1 =
         processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
-        |> Seq.toArray
+
 
     Assert.Equal(1, handler.CallCount)
     Assert.Equal(articleCount + 1, articles1.Length)
@@ -324,7 +322,7 @@ let ``processRssRequest shows PreviousHttpRequestFailedButPageCached and skips H
     // Act — second call: should skip HTTP due to backoff
     let articles2 =
         processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
-        |> Seq.toArray
+
 
     // Assert: no new HTTP request made, stale articles shown with backoff error
     Assert.Equal(1, handler.CallCount)
@@ -357,7 +355,7 @@ let ``processRssRequest retries and clears failure file when backoff period has 
     // Act
     let articles =
         processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={feedUrl}"
-        |> Seq.toArray
+
 
     // Assert — new content returned and failure file cleared
     Assert.Equal(articleCount, articles.Length)
@@ -386,7 +384,7 @@ let ``processRssRequest shows error article when HTML page has no feed links`` (
     // Act
     let articles =
         processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={htmlUrl}"
-        |> Seq.toArray
+
 
     // Assert
     Assert.Equal(1, articles.Length)
@@ -420,8 +418,7 @@ let ``processRssRequest shows articles when HTML page has single feed link`` () 
     let client = httpClientWithResponses responses
 
     // Act
-    let articles =
-        processRssRequest client cacheConfig logPath $"?rss={htmlUrl}" |> Seq.toArray
+    let articles = processRssRequest client cacheConfig logPath $"?rss={htmlUrl}"
 
     // Assert: articles from discovered feed, no error
     Assert.Equal(articleCount, articles.Length)
@@ -596,8 +593,7 @@ let ``processRssRequest shows articles from both feeds when HTML page has two fe
     let client = httpClientWithResponses responses
 
     // Act
-    let articles =
-        processRssRequest client cacheConfig logPath $"?rss={htmlUrl}" |> Seq.toArray
+    let articles = processRssRequest client cacheConfig logPath $"?rss={htmlUrl}"
 
     // Assert: articles from both discovered feeds, no error
     Assert.Equal(articleCount * 2, articles.Length)

@@ -124,7 +124,6 @@ let processRssRequest client cacheConfig (logPath: OsPath) (query: string) =
     |> logSuccessfulFeedRequestsAndParses logPath
     |> Array.map feedToArticles
     |> Array.collect onlyFeedArticles
-    |> Array.toSeq
 
 let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContext) =
     async {
