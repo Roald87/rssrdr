@@ -2,12 +2,12 @@ module SimpleRssServer.Tests.CacheTests
 
 open System
 open System.IO
+open System.Text.Json
 open Xunit
 
 open SimpleRssServer.Cache
-open TestHelpers
-open System.Text.Json
 open SimpleRssServer.DomainPrimitiveTypes
+open TestHelpers
 
 [<Fact>]
 let ``Test clearFailure deletes failure record`` () =
@@ -221,3 +221,12 @@ let ``Test clearExpiredCache keeps empty directory`` () =
 
     // Cleanup
     Directory.DeleteRecursive cacheDir
+
+[<Fact>]
+let ``Test convertUrlToFilename`` () =
+    Assert.Equal(Filename "https_abc_com_test", convertUrlToValidFilename (Uri "https://abc.com/test"))
+
+    Assert.Equal(
+        Filename "https_abc_com_test_rss_blabla",
+        convertUrlToValidFilename (Uri "https://abc.com/test?rss=blabla")
+    )

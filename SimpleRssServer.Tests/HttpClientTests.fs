@@ -5,20 +5,20 @@ open System
 open System.Net
 open System.Net.Http
 open System.Threading.Tasks
-
 open Xunit
 
-open SimpleRssServer.HttpClient
 open SimpleRssServer.DomainModel
+open SimpleRssServer.HttpClient
+open TestHelpers
 
 type MockHttpResponseHandler(response: HttpResponseMessage) =
     inherit HttpMessageHandler()
-    override _.SendAsync(request, cancellationToken) = Task.FromResult(response)
+    override _.SendAsync(_, _) = Task.FromResult response
 
 type FailingHttpMessageHandler() =
     inherit HttpMessageHandler()
 
-    override _.SendAsync(request, cancellationToken) =
+    override _.SendAsync(_, _) =
         Task.FromException<HttpResponseMessage>(HttpRequestException("Simulated network failure"))
 
 [<Fact>]
@@ -57,3 +57,82 @@ let ``Test fetchUrlAsync with unsuccessful response`` () =
     | Error(HttpException _) -> Assert.True(true, "timed out")
     | Error error -> failwithf $"Got unexpected error: {error}"
     | Ok x -> failwithf $"Expected Error but got OK {x}"
+
+let createDynamicResponse (lastModifiedDate: DateTimeOffset) =
+    new MockHttpMessageHandler(fun request ->
+        let ifModifiedSince = request.Headers.IfModifiedSince
+
+        if ifModifiedSince.HasValue && ifModifiedSince.Value >= lastModifiedDate then
+            new HttpResponseMessage(HttpStatusCode.NotModified) |> Task.FromResult
+        else
+            let response = new HttpResponseMessage(HttpStatusCode.OK)
+            response.Content <- new StringContent "Content has changed since the last modification date"
+            response.Content.Headers.LastModified <- Nullable lastModifiedDate
+            response |> Task.FromResult)
+
+[<Fact>]
+let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
+    // Arrange
+    let url = Uri "http://example.com"
+    let lastModifiedDate = DateTimeOffset(DateTime(2023, 1, 1))
+    let client = new HttpClient(createDynamicResponse lastModifiedDate)
+    let logger = NullLogger.Instance
+
+    // Case 1: When If-Modified-Since is equal to lastModifiedDate
+    let result1 =
+        fetchUrlAsync client logger url (Some lastModifiedDate) (TimeSpan.FromSeconds 5.0)
+        |> Async.RunSynchronously
+
+    match result1 with
+    | Ok content -> Assert.Equal("No changes", content)
+    | Error error -> failwithf $"Expected success, but got failure: {error}"
+
+    // Case 2: When If-Modified-Since is before lastModifiedDate
+    let earlierDate = lastModifiedDate.AddDays -1.0
+
+    let result2 =
+        fetchUrlAsync client logger url (Some earlierDate) (TimeSpan.FromSeconds 5.0)
+        |> Async.RunSynchronously
+
+    match result2 with
+    | Ok content -> Assert.Equal("Content has changed since the last modification date", content)
+    | Error error -> failwithf $"Expected success, but got failure: {error}"
+
+    // Case 3: When If-Modified-Since is not provided
+    let result3 =
+        fetchUrlAsync client logger url None (TimeSpan.FromSeconds 5.0)
+        |> Async.RunSynchronously
+
+    match result3 with
+    | Ok content -> Assert.Equal("Content has changed since the last modification date", content)
+    | Error error -> failwithf $"Expected success, but got failure: {error}"
+
+type DelayedResponseHandler(delay: TimeSpan) =
+    inherit HttpMessageHandler()
+
+    override _.SendAsync(request, cancellationToken) =
+        async {
+            do! Task.Delay(delay, cancellationToken) |> Async.AwaitTask
+
+            let response = new HttpResponseMessage(HttpStatusCode.OK)
+            response.Content <- new StringContent "Delayed response"
+            return response
+        }
+        |> Async.StartAsTask
+
+[<Fact>]
+let ``GetAsync returns timeout error when request takes too long`` () =
+    let timeout = TimeSpan.FromSeconds 1.0
+    let delay = TimeSpan.FromSeconds(timeout.TotalSeconds + 0.2) // Longer than the timeout
+    let handler = new DelayedResponseHandler(delay)
+    let client = new HttpClient(handler)
+    let logger = NullLogger.Instance
+
+    let result =
+        fetchUrlAsync client logger (Uri "http://example.com") None timeout
+        |> Async.RunSynchronously
+
+    match result with
+    | Error(HttpRequestTimedOut _) -> Assert.True(true, "Got expected timeout error")
+    | Error error -> failwithf $"Got unexpected error: {error}"
+    | Ok x -> failwithf $"Expected timeout failure but got success {x}"
