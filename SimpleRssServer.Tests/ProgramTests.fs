@@ -1,7 +1,5 @@
 module SimpleRssServer.Tests.ProgramTests
 
-#nowarn "25" // Incomplete pattern matches are intentional in tests asserting specific DU cases
-
 open System
 open System.IO
 open System.Net
@@ -13,13 +11,8 @@ open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
-open SimpleRssServer.Request
 open Program
-open RequestTests
 open TestHelpers
-
-let minimalRss =
-    """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Test</title><link>https://example.com</link><description>Test</description></channel></rss>"""
 
 let httpClientWithResponses (responses: Map<string, HttpResponseMessage>) =
     let handler =
@@ -32,17 +25,18 @@ let httpClientWithResponses (responses: Map<string, HttpResponseMessage>) =
 
     new HttpClient(handler)
 
-// Generate unique URIs for test, because it is not possible to reuse a URI
-// and give it a different response.
-let guids (count: int) =
-    [| for i in 1..count -> Guid.NewGuid().ToString() |]
-
 let makeCacheConfig () =
     let cacheDir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
     Directory.CreateDirectory cacheDir
 
     { Dir = cacheDir
       Expiration = TimeSpan.FromHours 1.0 }
+
+let createOutdatedCache (cachePath: OsPath) (content: string) =
+    File.WriteAllText(cachePath, content)
+    let cacheConfig = makeCacheConfig ()
+    let cacheAge = DateTime.Now - 2.0 * cacheConfig.Expiration
+    File.SetLastWriteTime(cachePath, cacheAge)
 
 let makeTempLogPath () =
     OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".txt"))
@@ -132,6 +126,12 @@ let ``processRssRequest clears failure file when HTTP returns 304`` () =
     // Assert
     Assert.False(File.Exists(failureFilePath cachePath), "Expected failure file to be removed after 304")
 
+let mockClientThrowsWhenCalled =
+    let handler =
+        new MockHttpMessageHandler(fun _ -> failwith "HTTP request not expected to be made")
+
+    new HttpClient(handler)
+
 [<Fact>]
 let ``processRssRequest serves articles from cache and makes no HTTP request`` () =
     // Arrange
@@ -149,7 +149,6 @@ let ``processRssRequest serves articles from cache and makes no HTTP request`` (
     // Act
     let articles =
         processRssRequest mockClientThrowsWhenCalled cacheConfig logPath $"?rss={feedUrl}"
-
 
     // Assert
     Assert.Equal(articleCount, articles.Length)

@@ -1,9 +1,9 @@
 module SimpleRssServer.Tests.Roald87FeedReaderTests
 
 open System
+open Xunit
 
 open Roald87.FeedReader
-open Xunit
 
 [<Fact>]
 let ``test Roald87.FeedReader with roaldinch`` () =
