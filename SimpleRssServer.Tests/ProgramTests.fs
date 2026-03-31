@@ -426,6 +426,41 @@ let ``processRssRequest shows articles when HTML page has single feed link`` () 
     Assert.Contains(feedUrl, File.ReadAllText logPath)
 
 [<Fact>]
+let ``processRssRequest resolves relative feed URL in discovered feed against original page URL`` () =
+    // Arrange
+    let htmlUrl = $"https://example.com/page/{Guid.NewGuid()}"
+    let relativeFeedPath = "/feed/relative"
+    let resolvedFeedUrl = $"https://example.com{relativeFeedPath}"
+    let articleCount = 3
+    let xmlContent = DummyXmlFeedFactory.create resolvedFeedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
+    let logPath = makeTempLogPath ()
+
+    let htmlContent =
+        $"""<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="{relativeFeedPath}"></head><body></body></html>"""
+
+    let responses =
+        Map.ofList
+            [ htmlUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(htmlContent)
+               r)
+              resolvedFeedUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(xmlContent)
+               r) ]
+
+    let client = httpClientWithResponses responses
+
+    // Act
+    let articles = processRssRequest client cacheConfig logPath $"?rss={htmlUrl}"
+
+    // Assert: relative feed URL was resolved, articles returned with no error
+    Assert.Contains(articles, fun a -> a.FeedUrl = resolvedFeedUrl)
+    Assert.Equal(articleCount, articles.Length)
+    Assert.DoesNotContain(articles, fun a -> a.Title = "Error")
+
+[<Fact>]
 let ``updateCache fetches new feed content and overwrites stale cache files`` () =
     // Arrange
     let feedUrl1 = $"https://example.com/feed/{Guid.NewGuid()}"

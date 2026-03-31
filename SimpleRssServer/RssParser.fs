@@ -124,7 +124,7 @@ let checkIfDiscoveryFeeds ups =
 
         match feed with
         | [||] -> [| ProcessingError(InvalidRssFeedFormat(originalUri, Exception "No RSS feeds found in page")) |]
-        | x -> x |> Array.map (fun u -> ValidUri(None, Uri u.Url))
+        | x -> x |> Array.map (fun u -> ValidUri(None, Uri(originalUri, u.Url)))
     | x -> [| x |]
 
 let onlyFeedArticles ups =
