@@ -6,7 +6,6 @@ open System
 
 open SimpleRssServer.DomainModel
 open SimpleRssServer.Helper
-open SimpleRssServer.Request
 open SimpleRssServer.Config
 
 let stripHtml (input: string) : string =
@@ -25,9 +24,6 @@ let createErrorArticle (errorType: DomainMessage) : Article =
 
     let text =
         match errorType with
-        | CacheReadFailed(uri, cachePath) -> $"Failed to read cached file from {cachePath} for {uri}."
-        | CacheReadFailedWithException(uri, cachePath, ex) ->
-            $"Failed to read cached file from {cachePath} for {uri}. {ex.GetType().Name}: {ex.Message}"
         | InvalidUriHostname u ->
             $"Ensure that you're using a valid address for this RSS feed. Invalid URI: {u.Value}. Host name must contain a dot."
         | InvalidUriFormat(u, ex) ->
@@ -84,7 +80,7 @@ let private getArticleText (entry: FeedItem) =
     else
         cleaned
 
-let feedToArticles (feed: Feed) : Article list =
+let toArticles (feed: Feed) =
     feed.Items
     |> Seq.map (fun entry ->
         { PostDate = getPostDate feed entry
@@ -92,34 +88,46 @@ let feedToArticles (feed: Feed) : Article list =
           ArticleUrl = entry.Link
           FeedUrl = feed.Link
           Text = getArticleText entry })
-    |> Seq.toList
+    |> Seq.toArray
 
-let parseRss (logger: ILogger) (fetchResult: FetchResult) : Article list =
-    match fetchResult with
-    | FreshContent(content, uri) ->
-        match tryParseFeed logger content uri with
-        | Ok feed -> feedToArticles feed
-        | Error err -> [ createErrorArticle err ]
-    | CachedContent(content, warning) ->
-        let errorArticle = createErrorArticle warning
+let feedToArticles (ups: UriProcessState) : UriProcessState =
+    match ups with
+    | ParsedFeed(_, feed)
+    | ParsedCachedFeed feed -> toArticles feed |> FeedArticles
+    | ParsedStaleHit(feed, err) -> Array.append (toArticles feed) [| createErrorArticle err |] |> FeedArticles
+    | ProcessingError err -> [| createErrorArticle err |] |> FeedArticles
+    | x -> x
 
-        let feedArticles =
-            warning.Uri
-            |> Option.map Uri
-            |> Option.bind (fun uri -> tryParseFeed logger content uri |> Result.toOption |> Option.map feedToArticles)
-            |> Option.defaultValue []
+let parseFeedResult (logger: ILogger) (ups: UriProcessState) =
+    match ups with
+    | Response(r, feedUri) ->
+        match tryParseFeed logger r feedUri with
+        | Ok f -> ParsedFeed(UnparsedXml r, f)
+        | Error e ->
+            match e with
+            | InvalidRssFeedFormat _ -> ResponseCanContainsFeeds(r, feedUri)
+            | _ -> ProcessingError e
+    | CachedFeed(r, feedUri) ->
+        match tryParseFeed logger r feedUri with
+        | Ok f -> ParsedCachedFeed f
+        | Error e -> ProcessingError e
+    | StaleHitWithError(r, feedUri, err) ->
+        match tryParseFeed logger r feedUri with
+        | Ok f -> ParsedStaleHit(f, err)
+        | Error _ -> ProcessingError err
+    | _ -> ups
 
-        feedArticles @ [ errorArticle ]
-    | Failed e -> [ createErrorArticle e ]
+let checkIfDiscoveryFeeds ups =
+    match ups with
+    | ResponseCanContainsFeeds(s, originalUri) ->
+        let feed = FeedReader.ParseFeedUrlsFromHtml s |> Seq.toArray
 
-let parseFeedResult (logger: ILogger) (cacheConfig: CacheConfig) (fetchResult: FetchResult) =
-    match fetchResult with
-    | FreshContent(content, uri) ->
-        let feedUri = FeedUri uri
+        match feed with
+        | [||] -> [| ProcessingError(InvalidRssFeedFormat(originalUri, Exception "No RSS feeds found in page")) |]
+        | x -> x |> Array.map (fun u -> ValidUri(None, Uri u.Url))
+    | x -> [| x |]
 
-        match tryParseFeed logger content uri with
-        | Ok feed ->
-            cacheSuccessfulFetch cacheConfig feedUri content
-            Ok(feedUri, feedToArticles feed)
-        | Error err -> Error [ createErrorArticle err ]
-    | other -> Error(parseRss logger other)
+let onlyFeedArticles ups =
+    match ups with
+    | FeedArticles articles -> articles
+    | _ -> [||]

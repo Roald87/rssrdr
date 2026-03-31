@@ -128,27 +128,6 @@ let configPage (rssUrls: Result<Uri, UriError> array) : Html =
 
     head + aboveFeedInput + feedsForm validRssUris Html.Empty + belowFeedInput
 
-let feedDiscoveryPage (confirmedRss: Uri[]) (toSelect: DiscoveredFeed list) : Html =
-    let confirmedUris =
-        confirmedRss
-        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
-        |> String.concat "\n"
-
-    let checkboxItems =
-        toSelect
-        |> List.map (fun feed ->
-            $"<label><input type='checkbox' name='discovered' value='{feed.Url}'> {Uri.BaseUrl feed.Url}: <a href='{feed.Url}'>{WebUtility.HtmlEncode feed.Title}</a></label>")
-        |> String.concat "\n"
-
-    let extras =
-        $"""
-        Select feeds:</br>
-        {checkboxItems}
-        """
-        |> Html
-
-    head + aboveFeedInput + feedsForm confirmedUris extras + belowFeedInput
-
 let footer =
     """
     </body>
@@ -156,7 +135,7 @@ let footer =
     """
     |> Html
 
-let chronologicalFeedsPage (query: Query) (rssItems: Article seq) : Html =
+let chronologicalFeedsPage (query: Query) (rssItems: Article array) : Html =
     let body =
         $"""
     <body>
@@ -170,13 +149,13 @@ let chronologicalFeedsPage (query: Query) (rssItems: Article seq) : Html =
 
     let rssFeeds =
         rssItems
-        |> Seq.sortByDescending (fun a -> a.PostDate)
-        |> Seq.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
-        |> Seq.fold (+) Html.Empty
+        |> Array.sortByDescending (fun a -> a.PostDate)
+        |> Array.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
+        |> Array.fold (+) Html.Empty
 
     head + body + rssFeeds + removeFeedScript + footer
 
-let shuffledFeedsPage (query: Query) (rssItems: Article seq) : Html =
+let shuffledFeedsPage (query: Query) (rssItems: Article array) : Html =
     let body =
         $"""
     <body>
@@ -190,9 +169,8 @@ let shuffledFeedsPage (query: Query) (rssItems: Article seq) : Html =
 
     let shuffledFeeds =
         rssItems
-        |> Seq.toArray
         |> Array.randomShuffle
-        |> Seq.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
-        |> Seq.fold (+) Html.Empty
+        |> Array.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
+        |> Array.fold (+) Html.Empty
 
     head + body + shuffledFeeds + removeFeedScript + footer

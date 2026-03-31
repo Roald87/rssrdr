@@ -71,5 +71,4 @@ let ``test Roald87.FeedReader with wikenigma content`` () =
     Assert.Equal(10, feed.Items.Count)
 
     Assert.Equal("'Penguin' etymology - external edit", feed.Items[0].Title)
-    // 2024-03-01T13:26:09+00:00
     Assert.Equal(DateTime(2024, 3, 1, 13, 26, 9) |> Nullable, feed.Items[0].PublishingDate)

@@ -6,21 +6,19 @@ open System.Net
 open System.Net.Http
 open System.Globalization
 open System.Threading.Tasks
-open System.Text.Json
 open Microsoft.Extensions.Logging.Abstractions
 
 open Xunit
+open TestHelpers
 
+open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
-open SimpleRssServer.Request
-open SimpleRssServer.RssParser
-open SimpleRssServer.RequestLog
+open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.HttpClient
 open SimpleRssServer.HtmlRenderer
-open SimpleRssServer.Cache
-open SimpleRssServer.DomainPrimitiveTypes
-open TestHelpers
+open SimpleRssServer.Request
+open SimpleRssServer.RequestLog
 
 let cacheConfig =
     let tempDir = Path.Combine(Path.GetTempPath(), "rssrdr_test_cache")
@@ -40,7 +38,12 @@ type MockHttpResponseHandler(response: HttpResponseMessage) =
 
 type MockHttpMessageHandler(sendAsyncImpl: HttpRequestMessage -> Task<HttpResponseMessage>) =
     inherit HttpMessageHandler()
-    override _.SendAsync(request, cancellationToken) = sendAsyncImpl request
+    let mutable callCount = 0
+    member _.CallCount = callCount
+
+    override _.SendAsync(request, cancellationToken) =
+        Threading.Interlocked.Increment(&callCount) |> ignore
+        sendAsyncImpl request
 
 let httpOkClient content =
     let responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
@@ -84,7 +87,7 @@ let mockClientThrowsWhenCalled =
 let ``Test requestUrls returns two URLs from request-log.txt`` () =
     let logFilePath = OsPath "data/request-log.txt"
 
-    let urls = readRequestLog logFilePath
+    let urls = uniqueValidRequestLogUrls logFilePath
 
     Assert.Equal(2, Array.length urls)
     Assert.Contains(Uri "https://example.com/feed1", urls)
@@ -253,254 +256,6 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
     | Error error -> failwithf $"Expected success, but got failure: {error}"
 
 [<Fact>]
-let ``Test fetchWithCache with no cache`` () =
-    let url = Uri "http://example.com/test"
-    let expectedContent = "Mock response content"
-    let client = httpOkClient expectedContent
-
-    let filename = convertUrlToValidFilename url
-
-    let filePath = Path.Combine(cacheConfig.Dir, filename)
-
-    // Ensure the file does not exist before the test
-    deleteFile filePath
-
-    let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
-
-    match result with
-    | FreshContent(content, _) -> Assert.Equal(expectedContent, content)
-    | other -> failwithf $"Expected FreshContent but got: {other}"
-
-    deleteFile filePath
-
-[<Fact>]
-let ``Test fetchWithCache with non expired cache`` () =
-    let url = Uri "http://example.com/testabc123"
-    let expectedContent = "Cached response content"
-
-    // Create a mock handler that throws an exception if called
-    let handler =
-        new MockHttpMessageHandler(fun _ -> failwith "HTTP request should not be made")
-
-    let client = new HttpClient(handler)
-
-    let filename = convertUrlToValidFilename url
-
-    let filePath = Path.Combine(cacheConfig.Dir, filename)
-
-    // Write the expected content to the file and set its last write time to less than 1 hour ago
-    File.WriteAllText(filePath, expectedContent)
-    let cacheAge = DateTime.Now - cacheConfig.Expiration * 0.5
-    File.SetLastWriteTime(filePath, cacheAge)
-
-    let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
-
-    match result with
-    | FreshContent(content, _) -> Assert.Equal(expectedContent, content)
-    | other -> failwithf $"Expected FreshContent but got: {other}"
-
-    deleteFile filePath
-
-[<Fact>]
-let ``Test fetchWithCache with expired cache`` () =
-    let url = Uri "http://example.com/testxyz789"
-    let cachedContent = "Old cached response content"
-    let newContent = "New response content"
-    let client = httpOkClient newContent
-
-    let filename = convertUrlToValidFilename url
-
-    let filePath = Path.Combine(cacheConfig.Dir, filename)
-
-    createOutdatedCache filePath cachedContent
-
-    let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
-
-    match result with
-    | FreshContent(content, _) -> Assert.Equal(newContent, content)
-    | other -> failwithf $"Expected FreshContent but got: {other}"
-
-    deleteFile filePath
-
-[<Fact>]
-let ``Test fetchWithCache with expired cache and 304 response`` () =
-    let url = Uri "http://example.com/testasdf456"
-    let cachedContent = "Old cached response content"
-    let responseMessage = new HttpResponseMessage(HttpStatusCode.NotModified)
-
-    let handler = new MockHttpResponseHandler(responseMessage)
-    let client = new HttpClient(handler)
-
-    let filename = convertUrlToValidFilename url
-
-    let filePath = Path.Combine(cacheConfig.Dir, filename)
-
-    // Write the cached content to the file and set its last write time to more than 1 hour ago
-    File.WriteAllText(filePath, cachedContent)
-    let oldWriteTime = DateTime.Now - 2.0 * cacheConfig.Expiration
-    File.SetLastWriteTime(filePath, oldWriteTime)
-
-    let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
-
-    match result with
-    | FreshContent(content, _) ->
-        Assert.Equal(cachedContent, content)
-        let newWriteTime = File.GetLastWriteTime filePath
-        Assert.True(newWriteTime > oldWriteTime, "Expected file write time to be updated")
-    | other -> failwithf $"Expected FreshContent but got: {other}"
-
-    deleteFile filePath
-
-[<Fact>]
-let ``Test fetchWithCache with expired cache and 304 NotModified should clear failure record`` () =
-    let url = Uri "http://example.com/test-304"
-    let cachedContent = "Old cached content"
-
-    let filename = convertUrlToValidFilename url
-
-    let filePath = Path.Combine(cacheConfig.Dir, filename)
-    let failurePath = filePath + ".failures"
-
-    createOutdatedCache filePath cachedContent
-
-    // Create a failure record indicating previous failures
-    let failure =
-        { LastFailure = DateTimeOffset.Now.AddHours -3.0
-          ConsecutiveFailures = 2 }
-
-    let json = System.Text.Json.JsonSerializer.Serialize failure
-    File.WriteAllText(failurePath, json)
-
-    // Handler returns 304 Not Modified
-    let responseMessage = new HttpResponseMessage(HttpStatusCode.NotModified)
-    let handler = new MockHttpResponseHandler(responseMessage)
-    let client = new HttpClient(handler)
-
-    let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
-
-    match result with
-    | FreshContent(content, _) ->
-        Assert.Equal(cachedContent, content)
-        Assert.False(File.Exists failurePath, "Expected failure record to be removed after successful fetch")
-    | other -> failwithf $"Expected FreshContent but got: {other}"
-
-    deleteFile filePath
-    deleteFile failurePath
-
-[<Fact>]
-let ``Test fetchWithCache respects failure backoff when retry is not allowed and cache is expired`` () =
-    let url = Uri "http://example.com/test-backoff"
-    let cachedContent = "Cached response content"
-
-    let filename = convertUrlToValidFilename url
-
-    let filePath = Path.Combine(cacheConfig.Dir, filename)
-    let failurePath = filePath + ".failures"
-
-    createOutdatedCache filePath cachedContent
-
-    // Create a failure record indicating 2 failures (should wait 2 hours)
-    let failure =
-        { LastFailure = DateTimeOffset.Now.AddMinutes -30.0 // Only 30 minutes ago
-          ConsecutiveFailures = 2 }
-
-    let json = System.Text.Json.JsonSerializer.Serialize failure
-    File.WriteAllText(failurePath, json)
-
-    // Act
-    let result =
-        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (Ok url)
-        |> Async.RunSynchronously
-
-    // Assert
-    match result with
-    | CachedContent(_, PreviousHttpRequestFailedButPageCached _) -> Assert.True(true, "Got expected error")
-    | other -> failwithf $"Expected CachedContent with PreviousHttpRequestFailedButPageCached but got: {other}"
-
-    // Cleanup
-    deleteFile filePath
-    deleteFile failurePath
-
-[<Fact>]
-let ``Test fetchWithCache attempts retry when backoff period has passed and cache is expired`` () =
-    let url = Uri "http://example.com/test-retry"
-    let cachedContent = "Old cached content"
-    let newContent = "New content after retry"
-
-    let client = httpOkClient newContent
-
-    let filename = convertUrlToValidFilename url
-
-    let filePath = Path.Combine(cacheConfig.Dir, filename)
-    let failurePath = filePath + ".failures"
-
-    createOutdatedCache filePath cachedContent
-
-    // Create a failure record that's old enough to allow retry
-    let failure =
-        { LastFailure = DateTimeOffset.Now.AddHours -3.0 // 3 hours ago
-          ConsecutiveFailures = 2 // Would normally require 2 hour wait
-        }
-
-    let json = System.Text.Json.JsonSerializer.Serialize(failure)
-    File.WriteAllText(failurePath, json)
-
-    // Act
-    let result =
-        fetchUrlWithCacheAsync client cacheConfig (Ok url) |> Async.RunSynchronously
-
-    // Assert - should have attempted HTTP request and got new content
-    match result with
-    | FreshContent(content, _) ->
-        Assert.Equal(newContent, content)
-        // Failure record should be deleted after successful fetch
-        Assert.False(File.Exists failurePath, "Expected failure record to be cleared after successful fetch")
-    | other -> failwithf $"Expected FreshContent with new content but got: {other}"
-
-    // Cleanup
-    deleteFile filePath
-    deleteFile failurePath
-
-[<Fact>]
-let ``Test fetchWithCache returns error with expired cache and cooldown time when retrying too soon`` () =
-    let url = Uri "http://example.com/test-cooldown"
-    let cachedContent = "Cached response content"
-
-    let filename = convertUrlToValidFilename url
-
-    let filePath = Path.Combine(cacheConfig.Dir, filename)
-    let failurePath = failureFilePath filePath
-
-    createOutdatedCache filePath cachedContent
-
-    // Create failure record with 2 consecutive failures (should wait 2 hours)
-    let failure =
-        { LastFailure = DateTimeOffset.Now.AddMinutes -30.0 // Only 30 minutes ago
-          ConsecutiveFailures = 2 }
-
-    let json = JsonSerializer.Serialize(failure)
-    File.WriteAllText(failurePath, json)
-
-    // Act
-    let result =
-        fetchUrlWithCacheAsync mockClientThrowsWhenCalled cacheConfig (Ok url)
-        |> Async.RunSynchronously
-
-    // Assert
-    match result with
-    | CachedContent(_, PreviousHttpRequestFailedButPageCached _) -> Assert.True(true, "Got expected error")
-    | other -> failwithf $"Expected CachedContent with PreviousHttpRequestFailedButPageCached but got: {other}"
-
-    // Cleanup
-    deleteFile filePath
-    deleteFile failurePath
-
-[<Fact>]
 let ``Test Html encoding of special characters`` () =
     let actual =
         { Title = "1 << n vs. 1U << n and a cell phone autofocus problem"
@@ -537,31 +292,6 @@ let ``GetAsync returns timeout error when request takes too long`` () =
     | Error error -> failwithf $"Got unexpected error: {error}"
     | Ok x -> failwithf $"Expected timeout failure but got success {x}"
 
-[<Fact>]
-let ``cacheSuccessfulFetch creates cache file with correct content`` () =
-    let url = Uri "http://example.com/cache-write-test"
-    let content = "Fresh RSS content"
-    let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
-    deleteFile filePath
-
-    cacheSuccessfulFetch cacheConfig (FeedUri url) content
-
-    Assert.True(File.Exists filePath, "Expected cache file to be created")
-    Assert.Equal(content, File.ReadAllText filePath)
-    deleteFile filePath
-
-[<Fact>]
-let ``cacheSuccessfulFetch overwrites stale cache file with new content`` () =
-    let url = Uri "http://example.com/cache-overwrite-test"
-    let oldContent = "Old cached content"
-    let newContent = "New RSS content"
-    let filePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename url)
-    createOutdatedCache filePath oldContent
-
-    cacheSuccessfulFetch cacheConfig (FeedUri url) newContent
-
-    Assert.Equal(newContent, File.ReadAllText filePath)
-    deleteFile filePath
 
 [<Fact>]
 let ``Test requestUrls skips invalid URLs in log file`` () =
@@ -582,7 +312,7 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
 
     let urls =
         try
-            readRequestLog filename
+            uniqueValidRequestLogUrls filename
         with _ ->
             [||]
 

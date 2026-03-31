@@ -4,6 +4,8 @@ open System
 open System.IO
 open System.Globalization
 
+open SimpleRssServer.Config
+open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 
 let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri array) =
@@ -32,7 +34,7 @@ let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri a
     let updatedEntries = Array.append existingEntries newEntries
     File.WriteAllLines(requestLogPath, updatedEntries)
 
-let readRequestLog (logPath: OsPath) =
+let uniqueValidRequestLogUrls (logPath: OsPath) =
     if File.Exists logPath then
         let expectedColumns = 2
 
@@ -46,3 +48,13 @@ let readRequestLog (logPath: OsPath) =
         |> Array.filter (fun x -> x.Scheme = Uri.UriSchemeHttp || x.Scheme = Uri.UriSchemeHttps)
     else
         [||]
+
+let logSuccessfulFeedRequestsAndParses (logPath: OsPath) (upss: UriProcessState array) =
+    upss
+    |> Array.choose (function
+        | ParsedFeed(_, feed) -> Some(Uri feed.Link)
+        | ParsedCachedFeed feed -> Some(Uri feed.Link)
+        | _ -> None)
+    |> updateRequestLog logPath RequestLogRetention
+
+    upss

@@ -1,12 +1,15 @@
 module SimpleRssServer.Cache
 
+open Microsoft.Extensions.Logging
 open System
 open System.IO
+open System.Text
 open System.Text.Json
-open SimpleRssServer.Logging
 
-open Microsoft.Extensions.Logging
-open DomainPrimitiveTypes
+open SimpleRssServer.Config
+open SimpleRssServer.DomainModel
+open SimpleRssServer.DomainPrimitiveTypes
+open SimpleRssServer.Logging
 
 type FetchFailure =
     { LastFailure: DateTimeOffset
@@ -95,3 +98,43 @@ let clearExpiredCache (cacheDir: OsPath) (retention: TimeSpan) =
         Directory.GetFiles cacheDir
         |> Array.filter (fun f -> (now - File.GetLastWriteTime f) > retention)
         |> Array.iter File.Delete
+
+let convertUrlToValidFilename (uri: Uri) =
+    let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
+    replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_") |> Filename
+
+let readFromCache (cacheConfig: CacheConfig) (ups: UriProcessState) : UriProcessState =
+    match ups with
+    | ValidUri(_, u) ->
+        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename u)
+        let cacheModified = fileLastModified cachePath
+
+        match cacheModified with
+        | None -> ValidUri(None, u)
+        | Some modTime when (DateTimeOffset.Now - modTime) <= cacheConfig.Expiration ->
+            match readCache cachePath with
+            | Some s -> CachedFeed(s, u)
+            | None -> ValidUri(None, u)
+        | Some modTime -> ValidUri(Some modTime, u)
+    | ProcessingError e ->
+        match e.Uri with
+        | Some uriStr ->
+            let feedUri = Uri uriStr
+            let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename feedUri)
+
+            match readCache cachePath with
+            | Some content -> StaleHitWithError(content, feedUri, e)
+            | None -> ProcessingError e
+        | None -> ProcessingError e
+    | _ -> ups
+
+let cacheSuccessfulFetch cacheConfig ups =
+    match ups with
+    | ParsedFeed(xml, feed) ->
+        let cachePath =
+            Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feed.Link))
+
+        writeCache cachePath xml.Value
+    | _ -> ()
+
+    ups
