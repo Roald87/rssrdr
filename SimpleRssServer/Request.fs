@@ -2,17 +2,12 @@ module SimpleRssServer.Request
 
 open System
 open System.IO
-open System.Text
 
 open SimpleRssServer.HttpClient
 open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
-
-let convertUrlToValidFilename (uri: Uri) =
-    let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
-    replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_") |> Filename
 
 let getRssUrls (query: string) : Result<Uri, UriError> array =
     Query.Create query

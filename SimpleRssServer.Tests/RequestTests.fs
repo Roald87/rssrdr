@@ -9,15 +9,16 @@ open System.Threading.Tasks
 open Microsoft.Extensions.Logging.Abstractions
 
 open Xunit
+open TestHelpers
 
+open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
-open SimpleRssServer.Request
-open SimpleRssServer.RequestLog
+open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.HttpClient
 open SimpleRssServer.HtmlRenderer
-open SimpleRssServer.DomainPrimitiveTypes
-open TestHelpers
+open SimpleRssServer.Request
+open SimpleRssServer.RequestLog
 
 let cacheConfig =
     let tempDir = Path.Combine(Path.GetTempPath(), "rssrdr_test_cache")

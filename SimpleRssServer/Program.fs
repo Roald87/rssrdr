@@ -4,7 +4,6 @@ open System.IO
 open System.Net
 open System.Text
 
-open Roald87.FeedReader
 open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.Helper
@@ -15,96 +14,6 @@ open SimpleRssServer.RequestLog
 open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
-
-let readFromCache (cacheConfig: CacheConfig) (ups: UriProcessState) : UriProcessState =
-    match ups with
-    | ValidUri(_, u) ->
-        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename u)
-        let cacheModified = fileLastModified cachePath
-
-        match cacheModified with
-        | None -> ValidUri(None, u)
-        | Some modTime when (DateTimeOffset.Now - modTime) <= cacheConfig.Expiration ->
-            match readCache cachePath with
-            | Some s -> CachedFeed(s, u)
-            | None -> ValidUri(None, u)
-        | Some modTime -> ValidUri(Some modTime, u)
-    | ProcessingError e ->
-        match e.Uri with
-        | Some uriStr ->
-            let feedUri = Uri uriStr
-            let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename feedUri)
-
-            match readCache cachePath with
-            | Some content -> StaleHitWithError(content, feedUri, e)
-            | None -> ProcessingError e
-        | None -> ProcessingError e
-    | _ -> ups
-
-let toUriProcessState (uri: Result<Uri, UriError>) : UriProcessState =
-    match uri with
-    | Ok u -> ValidUri(Some DateTimeOffset.Now, u)
-    | Error u ->
-        match u with
-        | HostNameMustContainDot iu -> ProcessingError(InvalidUriHostname iu)
-        | UriFormatException(iu, ex) -> ProcessingError(InvalidUriFormat(iu, ex))
-
-let parseFeedResult (logger: ILogger) (ups: UriProcessState) =
-    match ups with
-    | Response(r, feedUri) ->
-        match tryParseFeed logger r feedUri with
-        | Ok f -> ParsedFeed(UnparsedXml r, f)
-        | Error e ->
-            match e with
-            | InvalidRssFeedFormat _ -> ResponseCanContainsFeeds(r, feedUri)
-            | _ -> ProcessingError e
-    | CachedFeed(r, feedUri) ->
-        match tryParseFeed logger r feedUri with
-        | Ok f -> ParsedCachedFeed f
-        | Error e -> ProcessingError e
-    | StaleHitWithError(r, feedUri, err) ->
-        match tryParseFeed logger r feedUri with
-        | Ok f -> ParsedStaleHit(f, err)
-        | Error _ -> ProcessingError err
-    | _ -> ups
-
-
-let checkIfDiscoveryFeeds ups =
-    match ups with
-    | ResponseCanContainsFeeds(s, originalUri) ->
-        let feed = FeedReader.ParseFeedUrlsFromHtml s |> Seq.toArray
-
-        match feed with
-        | [||] -> [| ProcessingError(InvalidRssFeedFormat(originalUri, Exception "No RSS feeds found in page")) |]
-        | x -> x |> Array.map (fun u -> ValidUri(None, Uri u.Url))
-    | x -> [| x |]
-
-
-let cacheSuccessfulFetch cacheConfig ups =
-    match ups with
-    | ParsedFeed(xml, feed) ->
-        let cachePath =
-            Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feed.Link))
-
-        writeCache cachePath xml.Value
-    | _ -> ()
-
-    ups
-
-let onlyFeedArticles ups =
-    match ups with
-    | FeedArticles articles -> articles
-    | _ -> [||]
-
-let logSuccessfulFeedRequestsAndParses (logPath: OsPath) (upss: UriProcessState array) =
-    upss
-    |> Array.choose (function
-        | ParsedFeed(_, feed) -> Some(Uri feed.Link)
-        | ParsedCachedFeed feed -> Some(Uri feed.Link)
-        | _ -> None)
-    |> updateRequestLog logPath RequestLogRetention
-
-    upss
 
 let processRssRequest client cacheConfig (logPath: OsPath) (query: string) =
     getRssUrls query
@@ -117,7 +26,7 @@ let processRssRequest client cacheConfig (logPath: OsPath) (query: string) =
     |> fetchAllRssFeeds client logger cacheConfig
     |> Async.RunSynchronously
     |> Array.map (
-        readFromCache cacheConfig // previous fetch could again return 304
+        readFromCache cacheConfig // previous fetch can contain 304s
         >> parseFeedResult logger
         >> cacheSuccessfulFetch cacheConfig
     )
@@ -219,7 +128,6 @@ let startServer (cacheConfig: SimpleRssServer.Config.CacheConfig) (hosts: string
 
     Async.Start(updateRssFeedsPeriodically httpClient cacheConfig)
 
-    // Run cache cleanup once per day (24 hours = 86400000 ms)
     let cacheCleanupPeriod = TimeSpan.FromDays 1.0
     Async.Start(clearCachePeriodically cacheConfig.Dir CacheRetention cacheCleanupPeriod)
 
