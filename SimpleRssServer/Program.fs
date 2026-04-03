@@ -15,24 +15,29 @@ open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 
-let processRssRequest client cacheConfig (logPath: OsPath) (query: string) : Query * Article list =
-    getRssUrls query
-    |> Array.map (toUriProcessState >> readFromCache cacheConfig) // try read cache before first fetch
-    |> fetchAllRssFeeds client logger cacheConfig
-    |> Async.RunSynchronously
-    |> Array.map (readFromCache cacheConfig >> parseFeedResult logger) // read from cache in case of 304 Not modified
-    |> Array.collect checkIfDiscoveryFeeds
-    |> Array.map (readFromCache cacheConfig) // read discovered feeds from cache
-    |> fetchAllRssFeeds client logger cacheConfig
-    |> Async.RunSynchronously
-    |> Array.map (
-        readFromCache cacheConfig // previous fetch can contain 304s
-        >> parseFeedResult logger
-        >> cacheSuccessfulFetch cacheConfig
-    )
-    |> logSuccessfulFeedRequestsAndParses logPath
-    |> Array.map feedToArticles
-    |> Array.collect onlyFeedArticles
+let processRssRequest client cacheConfig (logPath: OsPath) (query: string) : Query * Article array =
+    let articles =
+        getRssUrls query
+        |> Array.map (toUriProcessState >> readFromCache cacheConfig) // try read cache before first fetch
+        |> fetchAllRssFeeds client logger cacheConfig
+        |> Async.RunSynchronously
+        |> Array.map (readFromCache cacheConfig >> parseFeedResult logger) // read from cache in case of 304 Not modified
+        |> Array.collect checkIfDiscoveryFeeds
+        |> Array.map (readFromCache cacheConfig) // read discovered feeds from cache
+        |> fetchAllRssFeeds client logger cacheConfig
+        |> Async.RunSynchronously
+        |> Array.map (
+            readFromCache cacheConfig // previous fetch can contain 304s
+            >> parseFeedResult logger
+            >> cacheSuccessfulFetch cacheConfig
+        )
+        |> logSuccessfulFeedRequestsAndParses logPath
+        |> Array.map feedToArticles
+        |> Array.collect onlyFeedArticles
+
+    let processedUris = articles |> Array.map (fun a -> a.FeedUrl) |> Array.distinct
+
+    Query.CreateWithKey("rss", processedUris), articles
 
 let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContext) =
     async {
@@ -58,10 +63,10 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
 
         let originalQuery = Query.Create context.Request.Url.Query
 
-        if
-            originalQuery.GetValues "rss" |> Array.sort
-            <> (procesedQuery.GetValues "rss" |> Array.sort)
-        then
+        let getRssValues (q: Query) =
+            q.GetValues "rss" |> Option.ofObj |> Option.defaultValue [||] |> Array.sort
+
+        if getRssValues originalQuery <> getRssValues procesedQuery then
             context.Response.StatusCode <- HttpStatusCode.Found |> int
             context.Response.RedirectLocation <- procesedQuery.ToString()
 

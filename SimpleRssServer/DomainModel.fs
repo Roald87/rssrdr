@@ -63,4 +63,4 @@ type UriProcessState =
     | StaleHitWithError of string * Uri * DomainMessage
     | ParsedStaleHit of Feed * DomainMessage
     | ProcessingError of DomainMessage
-    | FeedArticles of Uri * Article array
+    | FeedArticles of Article array

@@ -130,5 +130,5 @@ let checkIfDiscoveryFeeds ups =
 
 let onlyFeedArticles ups =
     match ups with
-    | FeedArticles(url, articles) -> Some url, articles
-    | _ -> None, [||]
+    | FeedArticles articles -> articles
+    | _ -> [||]
