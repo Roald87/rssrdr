@@ -63,10 +63,10 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
 
         let originalQuery = Query.Create context.Request.Url.Query
 
-        let getRssValues (q: Query) =
+        let getSortedRssUris (q: Query) =
             q.GetValues "rss" |> Option.ofObj |> Option.defaultValue [||] |> Array.sort
 
-        if getRssValues originalQuery <> getRssValues procesedQuery then
+        if getSortedRssUris originalQuery <> getSortedRssUris procesedQuery then
             context.Response.StatusCode <- HttpStatusCode.Found |> int
             context.Response.RedirectLocation <- procesedQuery.ToString()
 

@@ -7,7 +7,6 @@ open System
 open SimpleRssServer.DomainModel
 open SimpleRssServer.Helper
 open SimpleRssServer.Config
-open DomainPrimitiveTypes
 
 let stripHtml (input: string) : string =
     if String.IsNullOrWhiteSpace input then

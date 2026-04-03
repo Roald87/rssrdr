@@ -156,8 +156,6 @@ type Query =
         values |> Array.map (fun value -> nvc.Add(key, value)) |> ignore
         Query nvc
 
-    static member Emtpy() = Query.Create ""
-
     member this.GetValues(key: string) = this.Value.GetValues(key)
 
     override this.ToString() =
