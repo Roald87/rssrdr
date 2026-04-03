@@ -425,6 +425,41 @@ let ``processRssRequest shows articles when HTML page has single feed link`` () 
     Assert.Contains(feedUrl, File.ReadAllText logPath)
 
 [<Fact>]
+let ``processRssRequest returns processed query with discovered feed URL instead of page URL`` () =
+    // Arrange
+    let htmlUrl = $"https://example.com/page/{Guid.NewGuid()}"
+    let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
+    let articleCount = 3
+    let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
+    let cacheConfig = makeCacheConfig ()
+
+    let htmlContent =
+        $"""<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="{feedUrl}"></head><body></body></html>"""
+
+    let responses =
+        Map.ofList
+            [ htmlUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(htmlContent)
+               r)
+              feedUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(xmlContent)
+               r) ]
+
+    let client = httpClientWithResponses responses
+
+    // Act
+    let articles =
+        processRssRequest client cacheConfig (makeTempLogPath ()) $"?rss={htmlUrl}"
+
+    let queryUrls = getFeedUrlQuery articles |> fun x -> x.GetValues "rss"
+
+    // Assert: processed query contains the feed URL, not the original page URL
+    Assert.Equal(1, queryUrls.Length)
+    Assert.Equal(feedUrl, queryUrls[0])
+
+[<Fact>]
 let ``processRssRequest resolves relative feed URL in discovered feed against original page URL`` () =
     // Arrange
     let htmlUrl = $"https://example.com/page/{Guid.NewGuid()}"
