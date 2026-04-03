@@ -15,7 +15,7 @@ open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 
-let processRssRequest client cacheConfig (logPath: OsPath) (query: string) =
+let processRssRequest client cacheConfig (logPath: OsPath) (query: string) : Query * Article list =
     getRssUrls query
     |> Array.map (toUriProcessState >> readFromCache cacheConfig) // try read cache before first fetch
     |> fetchAllRssFeeds client logger cacheConfig
@@ -40,17 +40,14 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
 
         let rssUris = getRssUrls context.Request.Url.Query
 
-        let processRssRequest =
+        let procesedQuery, rssArticles =
             processRssRequest client cacheConfig RequestLogPath context.Request.Url.Query
-
-        // TODO this probably needs to come from the processRssRequest, such that it filters out old stuff and removes invalid urls
-        let query = Query.Create context.Request.Url.Query
 
         let! responseString =
             match context.Request.RawUrl with
             | Prefix "/config.html" _ -> async.Return(configPage rssUris |> string)
-            | Prefix "/shuffle?rss=" _ -> async.Return(shuffledFeedsPage query processRssRequest |> string)
-            | Prefix "/?rss=" _ -> async.Return(chronologicalFeedsPage query processRssRequest |> string)
+            | Prefix "/shuffle?rss=" _ -> async.Return(shuffledFeedsPage procesedQuery rssArticles |> string)
+            | Prefix "/?rss=" _ -> async.Return(chronologicalFeedsPage procesedQuery rssArticles |> string)
             | "/robots.txt" -> async.Return(File.ReadAllText(Path.Combine("site", "robots.txt")))
             | "/sitemap.xml" -> async.Return(File.ReadAllText(Path.Combine("site", "sitemap.xml")))
             | _ -> async.Return(landingPage |> string)
@@ -58,6 +55,15 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
         let buffer = responseString |> Encoding.UTF8.GetBytes
         context.Response.ContentLength64 <- int64 buffer.Length
         context.Response.ContentType <- "text/html"
+
+        let originalQuery = Query.Create context.Request.Url.Query
+
+        if
+            originalQuery.GetValues "rss" |> Array.sort
+            <> (procesedQuery.GetValues "rss" |> Array.sort)
+        then
+            context.Response.StatusCode <- HttpStatusCode.Found |> int
+            context.Response.RedirectLocation <- procesedQuery.ToString()
 
         do!
             context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length)

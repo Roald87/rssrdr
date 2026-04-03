@@ -7,6 +7,7 @@ open System
 open SimpleRssServer.DomainModel
 open SimpleRssServer.Helper
 open SimpleRssServer.Config
+open DomainPrimitiveTypes
 
 let stripHtml (input: string) : string =
     if String.IsNullOrWhiteSpace input then
@@ -129,5 +130,5 @@ let checkIfDiscoveryFeeds ups =
 
 let onlyFeedArticles ups =
     match ups with
-    | FeedArticles articles -> articles
-    | _ -> [||]
+    | FeedArticles(url, articles) -> Some url, articles
+    | _ -> None, [||]
