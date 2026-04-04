@@ -9,6 +9,7 @@ open SimpleRssServer.Config
 open SimpleRssServer.Helper
 open SimpleRssServer.HtmlRenderer
 open SimpleRssServer.Logging
+open SimpleRssServer.MemoryCache
 open SimpleRssServer.Request
 open SimpleRssServer.RequestLog
 open SimpleRssServer.RssParser
@@ -31,7 +32,7 @@ let processRssRequest client cacheConfig (logPath: OsPath) (query: string) =
         >> cacheSuccessfulFetch cacheConfig
     )
     |> logSuccessfulFeedRequestsAndParses logPath
-    |> Array.map feedToArticles
+    |> Array.map (feedToArticles >> updateMemoryCache)
     |> Array.collect onlyFeedArticles
 
 let getFeedUrlQuery articles =
@@ -102,8 +103,13 @@ let updateCache client cacheConfig (urls: Uri array) =
         |> Array.choose (getCacheAge cacheConfig)
         |> fetchAllRssFeeds client logger cacheConfig
         |> Async.RunSynchronously
-        |> Array.map (parseFeedResult logger)
-        |> Array.iter (cacheSuccessfulFetch cacheConfig >> ignore)
+        |> Array.map (
+            parseFeedResult logger
+            >> cacheSuccessfulFetch cacheConfig
+            >> feedToArticles
+            >> updateMemoryCache
+        )
+        |> ignore
 
 let updateRssFeedsPeriodically client (cacheConfig: CacheConfig) =
     async {

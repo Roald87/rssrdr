@@ -95,8 +95,10 @@ let feedToArticles (ups: UriProcessState) : UriProcessState =
     match ups with
     | ParsedFeed(_, feed)
     | ParsedCachedFeed feed -> toArticles feed |> FeedArticles
-    | ParsedStaleHit(feed, err) -> Array.append (toArticles feed) [| createErrorArticle err |] |> FeedArticles
-    | ProcessingError err -> [| createErrorArticle err |] |> FeedArticles
+    | ParsedStaleHit(feed, err) ->
+        Array.append (toArticles feed) [| createErrorArticle err |]
+        |> FeedWithErrorArticles
+    | ProcessingError err -> [| createErrorArticle err |] |> FeedWithErrorArticles
     | x -> x
 
 let parseFeedResult (logger: ILogger) (ups: UriProcessState) =
@@ -130,5 +132,6 @@ let checkIfDiscoveryFeeds ups =
 
 let onlyFeedArticles ups =
     match ups with
-    | FeedArticles articles -> articles
+    | FeedArticles articles
+    | FeedWithErrorArticles articles -> articles
     | _ -> [||]
