@@ -135,6 +135,19 @@ let footer =
     """
     |> Html
 
+let private buildDeleteButtons (query: Query) (rssItems: Article array) : Map<string, Html> =
+    rssItems
+    |> Array.map _.FeedUrl
+    |> Array.distinct
+    |> Array.map (fun feedUrl -> feedUrl, deleteFeedButton query feedUrl)
+    |> Map.ofArray
+
+let private articlesToHtml (deleteButtons: Map<string, Html>) (articles: Article array) : Html =
+    articles
+    |> Array.map (fun a -> convertArticleToHtml deleteButtons.[a.FeedUrl] a |> string)
+    |> String.concat ""
+    |> Html
+
 let chronologicalFeedsPage (query: Query) (rssItems: Article array) : Html =
     let body =
         $"""
@@ -147,11 +160,10 @@ let chronologicalFeedsPage (query: Query) (rssItems: Article array) : Html =
     """
         |> Html
 
+    let deleteButtons = buildDeleteButtons query rssItems
+
     let rssFeeds =
-        rssItems
-        |> Array.sortByDescending (fun a -> a.PostDate)
-        |> Array.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
-        |> Array.fold (+) Html.Empty
+        rssItems |> Array.sortByDescending _.PostDate |> articlesToHtml deleteButtons
 
     head + body + rssFeeds + removeFeedScript + footer
 
@@ -167,10 +179,8 @@ let shuffledFeedsPage (query: Query) (rssItems: Article array) : Html =
     """
         |> Html
 
-    let shuffledFeeds =
-        rssItems
-        |> Array.randomShuffle
-        |> Array.map (fun a -> convertArticleToHtml (deleteFeedButton query a.FeedUrl) a)
-        |> Array.fold (+) Html.Empty
+    let deleteButtons = buildDeleteButtons query rssItems
+
+    let shuffledFeeds = rssItems |> Array.randomShuffle |> articlesToHtml deleteButtons
 
     head + body + shuffledFeeds + removeFeedScript + footer
