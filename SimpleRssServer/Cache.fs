@@ -10,6 +10,7 @@ open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.Logging
+open SimpleRssServer.MemoryCache
 
 type FetchFailure =
     { LastFailure: DateTimeOffset
@@ -106,16 +107,20 @@ let convertUrlToValidFilename (uri: Uri) =
 let readFromCache (cacheConfig: CacheConfig) (ups: UriProcessState) : UriProcessState =
     match ups with
     | ValidUri(_, u) ->
-        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename u)
-        let cacheModified = fileLastModified cachePath
+        match feedCache.TryGet(u.AbsoluteUri, cacheConfig.Expiration) with
+        | Some articles -> FeedArticles articles
+        | None ->
 
-        match cacheModified with
-        | None -> ValidUri(None, u)
-        | Some modTime when (DateTimeOffset.Now - modTime) <= cacheConfig.Expiration ->
-            match readCache cachePath with
-            | Some s -> CachedFeed(s, u)
+            let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename u)
+            let cacheModified = fileLastModified cachePath
+
+            match cacheModified with
             | None -> ValidUri(None, u)
-        | Some modTime -> ValidUri(Some modTime, u)
+            | Some modTime when (DateTimeOffset.Now - modTime) <= cacheConfig.Expiration ->
+                match readCache cachePath with
+                | Some s -> CachedFeed(s, u)
+                | None -> ValidUri(None, u)
+            | Some modTime -> ValidUri(Some modTime, u)
     | ProcessingError e ->
         match e.Uri with
         | Some uriStr ->
