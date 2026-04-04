@@ -136,7 +136,12 @@ let startServer (cacheConfig: SimpleRssServer.Config.CacheConfig) (hosts: string
     let rec loop () =
         async {
             let! context = listener.GetContextAsync() |> Async.AwaitTask
-            do! handleRequest httpClient cacheConfig context
+
+            try
+                do! handleRequest httpClient cacheConfig context
+            with ex ->
+                logger.LogInformation("Request handling error: {Message}", ex.Message)
+
             return! loop ()
         }
 
