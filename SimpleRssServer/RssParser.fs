@@ -3,21 +3,22 @@ module SimpleRssServer.RssParser
 open Microsoft.Extensions.Logging
 open Roald87.FeedReader
 open System
+open System.Text.RegularExpressions
 
 open SimpleRssServer.DomainModel
 open SimpleRssServer.Helper
 open SimpleRssServer.Config
 
+let private htmlTagRegex = Regex("<.*?>", RegexOptions.Compiled)
+
+let private whitespaceRegex = Regex(@"\s+", RegexOptions.Compiled)
+
 let stripHtml (input: string) : string =
     if String.IsNullOrWhiteSpace input then
         ""
     else
-        let regex = Text.RegularExpressions.Regex "<.*?>"
-        let noHtml = regex.Replace(input, "")
-        let removeRepeatingSpaces = Text.RegularExpressions.Regex "\s+"
-
-        noHtml.Replace("\n", " ").Replace("\r", "").Trim()
-        |> fun s -> removeRepeatingSpaces.Replace(s, " ")
+        htmlTagRegex.Replace(input, "")
+        |> fun s -> whitespaceRegex.Replace(s, " ").Trim()
 
 let createErrorArticle (errorType: DomainMessage) : Article =
     let link = errorType.Uri |> Option.defaultValue ""
