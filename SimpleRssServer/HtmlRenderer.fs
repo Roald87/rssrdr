@@ -144,9 +144,8 @@ let private buildDeleteButtons (query: Query) (rssItems: Article array) : Map<st
 
 let private articlesToHtml (deleteButtons: Map<string, Html>) (articles: Article array) : Html =
     articles
-    |> Array.map (fun a -> convertArticleToHtml deleteButtons.[a.FeedUrl] a |> string)
-    |> String.concat ""
-    |> Html
+    |> Array.map (fun a -> convertArticleToHtml deleteButtons[a.FeedUrl] a)
+    |> Html.Concat
 
 let chronologicalFeedsPage (query: Query) (rssItems: Article array) : Html =
     let body =

@@ -142,6 +142,9 @@ type Html =
     static member (+)(Html a, Html b) = Html(a + b)
     static member Empty = Html ""
 
+    static member Concat(htmls: Html seq) =
+        htmls |> Seq.map string |> String.concat "" |> Html
+
 type Query =
     | Query of NameValueCollection
 
