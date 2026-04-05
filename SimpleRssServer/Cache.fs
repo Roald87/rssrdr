@@ -37,7 +37,8 @@ let readCache (cachePath: OsPath) =
 let createDirectoryForPath (path: OsPath) =
     let (OsPath dir) = Path.GetDirectoryName path
 
-    dir |> Option.ofObj |> Option.iter (Directory.CreateDirectory >> ignore)
+    if not (String.IsNullOrEmpty dir) then
+        Directory.CreateDirectory dir |> ignore
 
 let writeCache cachePath (content: string) =
     createDirectoryForPath cachePath
