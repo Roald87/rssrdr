@@ -26,9 +26,8 @@ let fetchUrlAsync
             let request = new HttpRequestMessage(HttpMethod.Get, uri)
             request.Headers.UserAgent.ParseAdd userAgent
 
-            match lastModified with
-            | Some date -> request.Headers.IfModifiedSince <- date
-            | None -> ()
+            lastModified
+            |> Option.iter (fun date -> request.Headers.IfModifiedSince <- date)
 
             let startTime = DateTimeOffset.Now
             let! response = client.SendAsync(request, cts.Token) |> Async.AwaitTask
