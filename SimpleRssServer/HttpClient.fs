@@ -8,6 +8,10 @@ open Microsoft.Extensions.Logging
 
 open SimpleRssServer.DomainModel
 
+let private userAgent =
+    let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
+    $"rssrdr/{version}"
+
 let fetchUrlAsync
     (client: HttpClient)
     (logger: ILogger)
@@ -20,8 +24,7 @@ let fetchUrlAsync
             use cts = new Threading.CancellationTokenSource(timeout)
 
             let request = new HttpRequestMessage(HttpMethod.Get, uri)
-            let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
-            request.Headers.UserAgent.ParseAdd $"rssrdr/{version}"
+            request.Headers.UserAgent.ParseAdd userAgent
 
             match lastModified with
             | Some date -> request.Headers.IfModifiedSince <- date
