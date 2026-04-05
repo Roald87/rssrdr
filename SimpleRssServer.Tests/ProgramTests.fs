@@ -799,3 +799,108 @@ let ``processRssRequest skips HTTP on second call when sharing InMemoryCache acr
 
     Assert.Equal(1, handler.CallCount)
     Assert.Equal(articleCount, articles2.Length)
+
+let makeArticle feedUrl =
+    { PostDate = None
+      Title = ""
+      ArticleUrl = ""
+      FeedUrl = feedUrl
+      Text = "" }
+
+let getSortedQueryUrls (q: Query) =
+    q.GetValues "rss" |> Option.ofObj |> Option.defaultValue [||] |> Array.sort
+
+// Scenario 1: user enters example.com/feed (no scheme) → stored as example.com/feed, no redirect
+[<Fact>]
+let ``handleRequest keeps no-scheme url in query and does not redirect`` () =
+    let articles = [| makeArticle "https://example.com/feed" |]
+    let originalQuery = Query.Create "?rss=example.com/feed"
+    let processedQuery = buildProcessedQuery articles
+    Assert.Equal("example.com/feed", processedQuery.GetValues("rss")[0])
+    Assert.Equal<string array>(getSortedQueryUrls originalQuery, getSortedQueryUrls processedQuery)
+
+// Scenario 2: user enters http://example.com/feed → stored as http://example.com/feed, no redirect
+[<Fact>]
+let ``handleRequest keeps http scheme in query and does not redirect`` () =
+    let articles = [| makeArticle "http://example.com/feed" |]
+    let originalQuery = Query.Create "?rss=http://example.com/feed"
+    let processedQuery = buildProcessedQuery articles
+    Assert.Equal("http://example.com/feed", processedQuery.GetValues("rss")[0])
+    Assert.Equal<string array>(getSortedQueryUrls originalQuery, getSortedQueryUrls processedQuery)
+
+// Scenario 3: user enters https://example.com/feed → stripped to example.com/feed via redirect
+[<Fact>]
+let ``handleRequest strips https scheme from query via redirect`` () =
+    let articles = [| makeArticle "https://example.com/feed" |]
+    let originalQuery = Query.Create "?rss=https://example.com/feed"
+    let processedQuery = buildProcessedQuery articles
+    Assert.Equal("example.com/feed", processedQuery.GetValues("rss")[0])
+    Assert.NotEqual<string array>(getSortedQueryUrls originalQuery, getSortedQueryUrls processedQuery)
+
+// Scenario 4: user enters example.com/ → discovery finds https://example.com/feed → redirect to example.com/feed
+[<Fact>]
+let ``handleRequest strips https from discovered feed url in redirect`` () =
+    let pagePath = $"example.com/page/{Guid.NewGuid()}"
+    let htmlUrl = $"https://{pagePath}"
+    let feedGuid = Guid.NewGuid()
+    let feedUrl = $"https://example.com/feed/{feedGuid}"
+    let xmlContent = DummyXmlFeedFactory.create feedUrl 3
+    let cacheConfig = makeCacheConfig ()
+
+    let htmlContent =
+        $"""<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="{feedUrl}"></head><body></body></html>"""
+
+    let responses =
+        Map.ofList
+            [ htmlUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(htmlContent)
+               r)
+              feedUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(xmlContent)
+               r) ]
+
+    let client = httpClientWithResponses responses
+    let memCache = makeMemCache ()
+
+    let articles =
+        processRssRequest client cacheConfig memCache (makeTempLogPath ()) $"?rss={pagePath}"
+
+    let result = buildProcessedQuery articles |> fun q -> q.GetValues "rss"
+    Assert.Equal(1, result.Length)
+    Assert.Equal($"example.com/feed/{feedGuid}", result[0])
+
+// Scenario 5: user enters example.com/ → discovery finds http://example.com/feed → redirect to http://example.com/feed
+[<Fact>]
+let ``handleRequest keeps http scheme for discovered feed url in redirect`` () =
+    let pagePath = $"example.com/page/{Guid.NewGuid()}"
+    let htmlUrl = $"https://{pagePath}"
+    let feedGuid = Guid.NewGuid()
+    let feedUrl = $"http://example.com/feed/{feedGuid}"
+    let xmlContent = DummyXmlFeedFactory.create feedUrl 3
+    let cacheConfig = makeCacheConfig ()
+
+    let htmlContent =
+        $"""<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="{feedUrl}"></head><body></body></html>"""
+
+    let responses =
+        Map.ofList
+            [ htmlUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(htmlContent)
+               r)
+              feedUrl,
+              (let r = new HttpResponseMessage(HttpStatusCode.OK)
+               r.Content <- new StringContent(xmlContent)
+               r) ]
+
+    let client = httpClientWithResponses responses
+    let memCache = makeMemCache ()
+
+    let articles =
+        processRssRequest client cacheConfig memCache (makeTempLogPath ()) $"?rss={pagePath}"
+
+    let result = buildProcessedQuery articles |> fun q -> q.GetValues "rss"
+    Assert.Equal(1, result.Length)
+    Assert.Equal(feedUrl, result[0])

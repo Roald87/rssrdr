@@ -40,6 +40,12 @@ type Uri with
         let s = s.Replace("http://", "")
         s.Replace("https://", "")
 
+    static member RemoveHttpsScheme(s: string) =
+        if s.StartsWith("https://", StringComparison.OrdinalIgnoreCase) then
+            s.Substring 8
+        else
+            s
+
     static member CreateWithHttps(s: string) =
         let ensureScheme (s: string) =
             if
