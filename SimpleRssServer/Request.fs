@@ -11,13 +11,11 @@ open SimpleRssServer.DomainModel
 
 let getRssUrls (query: string) : Result<Uri, UriError> array =
     Query.Create query
-    |> fun query -> query.GetValues "rss"
-    |> fun (rssUrls: string array) ->
+    |> fun q -> q.GetValues "rss"
+    |> Option.ofObj
+    |> Option.defaultValue [||]
+    |> Array.map Uri.CreateWithHttps
 
-        if not (isNull rssUrls) && rssUrls.Length > 0 then
-            rssUrls |> Array.map Uri.CreateWithHttps
-        else
-            [||]
 
 type CacheState =
     | NoCacheNoFailures

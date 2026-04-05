@@ -13,6 +13,12 @@ let ``Test getRssUrls`` () =
     Assert.Equal<Result<Uri, UriError>[]>([| Ok(Uri "https://abs.com/test") |], result)
 
 [<Fact>]
+let ``Test getRssUrls with other key should return empty list`` () =
+    let result = getRssUrls "?foo=example.com"
+
+    Assert.Equal<Result<Uri, UriError>[]>([||], result)
+
+[<Fact>]
 let ``Test getRssUrls with two URLs`` () =
     let result = getRssUrls "?rss=https://abs.com/test1&rss=https://abs.com/test2"
 
