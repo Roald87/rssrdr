@@ -45,18 +45,28 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
     async {
         logger.LogDebug $"Received request {context.Request.Url}"
 
-        let rssUris = getRssUrls context.Request.Url.Query
-
-        let rssArticles =
+        let getRssArticles () =
             processRssRequest client cacheConfig RequestLogPath context.Request.Url.Query
 
-        let procesedQuery = getFeedUrlQuery rssArticles
+        let getSortedRssUris (q: Query) =
+            q.GetValues "rss" |> Option.ofObj |> Option.defaultValue [||] |> Array.sort
+
+        let buildFeedResponse render =
+            let rssArticles = getRssArticles ()
+            let procesedQuery = getFeedUrlQuery rssArticles
+            let originalQuery = Query.Create context.Request.Url.Query
+
+            if getSortedRssUris originalQuery <> getSortedRssUris procesedQuery then
+                context.Response.StatusCode <- HttpStatusCode.Found |> int
+                context.Response.RedirectLocation <- procesedQuery.ToString()
+
+            render procesedQuery rssArticles |> string
 
         let! responseString =
             match context.Request.RawUrl with
-            | Prefix "/config.html" _ -> async.Return(configPage rssUris |> string)
-            | Prefix "/shuffle?rss=" _ -> async.Return(shuffledFeedsPage procesedQuery rssArticles |> string)
-            | Prefix "/?rss=" _ -> async.Return(chronologicalFeedsPage procesedQuery rssArticles |> string)
+            | Prefix "/config.html" _ -> async.Return(getRssUrls context.Request.Url.Query |> configPage |> string)
+            | Prefix "/shuffle?rss=" _ -> async.Return(buildFeedResponse shuffledFeedsPage)
+            | Prefix "/?rss=" _ -> async.Return(buildFeedResponse chronologicalFeedsPage)
             | "/robots.txt" -> async.Return(File.ReadAllText(Path.Combine("site", "robots.txt")))
             | "/sitemap.xml" -> async.Return(File.ReadAllText(Path.Combine("site", "sitemap.xml")))
             | _ -> async.Return(landingPage |> string)
@@ -64,15 +74,6 @@ let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContex
         let buffer = responseString |> Encoding.UTF8.GetBytes
         context.Response.ContentLength64 <- int64 buffer.Length
         context.Response.ContentType <- "text/html"
-
-        let originalQuery = Query.Create context.Request.Url.Query
-
-        let getSortedRssUris (q: Query) =
-            q.GetValues "rss" |> Option.ofObj |> Option.defaultValue [||] |> Array.sort
-
-        if getSortedRssUris originalQuery <> getSortedRssUris procesedQuery then
-            context.Response.StatusCode <- HttpStatusCode.Found |> int
-            context.Response.RedirectLocation <- procesedQuery.ToString()
 
         do!
             context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length)
