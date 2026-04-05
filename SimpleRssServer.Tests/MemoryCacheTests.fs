@@ -1,10 +1,13 @@
 module SimpleRssServer.Tests.MemoryCacheTests
 
+open Microsoft.Extensions.Logging.Abstractions
 open System
 open Xunit
 
 open SimpleRssServer.DomainModel
 open SimpleRssServer.MemoryCache
+
+let makeMemCache () = InMemoryCache NullLogger.Instance
 
 let private makeArticles feedUrl =
     [| { PostDate = Some DateTime.Now
@@ -15,26 +18,26 @@ let private makeArticles feedUrl =
 
 [<Fact>]
 let ``TryGet on empty cache returns None`` () =
-    let cache = InMemoryCache()
+    let cache = makeMemCache ()
     Assert.Equal(None, cache.TryGet("https://example.com/feed", TimeSpan.FromHours 1))
 
 [<Fact>]
 let ``TryGet within expiration returns articles`` () =
-    let cache = InMemoryCache()
+    let cache = makeMemCache ()
     let articles = makeArticles "https://example.com/feed"
     cache.Set("https://example.com/feed", articles)
     Assert.Equal(Some articles, cache.TryGet("https://example.com/feed", TimeSpan.FromHours 1))
 
 [<Fact>]
 let ``TryGet after expiration returns None`` () =
-    let cache = InMemoryCache()
+    let cache = makeMemCache ()
     let articles = makeArticles "https://example.com/feed"
     cache.Set("https://example.com/feed", articles)
     Assert.Equal(None, cache.TryGet("https://example.com/feed", TimeSpan.FromSeconds 0.0))
 
 [<Fact>]
 let ``Set overwrites existing entry`` () =
-    let cache = InMemoryCache()
+    let cache = makeMemCache ()
     let first = makeArticles "https://example.com/feed"
 
     let second =

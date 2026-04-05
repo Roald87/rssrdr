@@ -9,11 +9,11 @@
   <ItemGroup>
     <Compile Include="DomainPrimitiveTypes.fs" />
     <Compile Include="DomainModel.fs" />
-    <Compile Include="MemoryCache.fs" />
     <Compile Include="Config.fs" />
     <Compile Include="Helper.fs" />
     <Compile Include="Logging.fs" />
     <Compile Include="HttpClient.fs" />
+    <Compile Include="MemoryCache.fs" />
     <Compile Include="Cache.fs" />
     <Compile Include="RequestLog.fs" />
     <Compile Include="Request.fs" />

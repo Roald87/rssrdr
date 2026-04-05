@@ -1,5 +1,6 @@
 module SimpleRssServer.Tests.ProgramTests
 
+open Microsoft.Extensions.Logging.Abstractions
 open System
 open System.IO
 open System.Net
@@ -43,6 +44,8 @@ let createOutdatedCache (cachePath: OsPath) (content: string) =
 let makeTempLogPath () =
     OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".txt"))
 
+let makeMemCache () = InMemoryCache NullLogger.Instance
+
 [<Fact>]
 let ``processRssRequest fetches feed, returns all articles, and writes cache`` () =
     // Arrange
@@ -52,7 +55,7 @@ let ``processRssRequest fetches feed, returns all articles, and writes cache`` (
     let cacheConfig = makeCacheConfig ()
     let logPath = makeTempLogPath ()
     let client = httpOkClient xmlContent
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -89,7 +92,7 @@ let ``processRssRequest uses cached content when HTTP returns 304 Not Modified``
         new MockHttpMessageHandler(fun _ -> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified)))
 
     let client = new HttpClient(handler)
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -125,7 +128,7 @@ let ``processRssRequest clears failure file when HTTP returns 304`` () =
         new MockHttpMessageHandler(fun _ -> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified)))
 
     let client = new HttpClient(handler)
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -155,7 +158,7 @@ let ``processRssRequest serves articles from cache and makes no HTTP request`` (
 
     File.WriteAllText(cachePath, xmlContent)
 
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -195,7 +198,7 @@ let ``processRssRequest fetches via HTTP only on first call, subsequent calls re
     let client = new HttpClient(handler)
     let query = $"?rss={feedUrl1}&rss={feedUrl2}"
     let logPath = makeTempLogPath ()
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act & Assert — first call fetches both feeds
     let articles1 = processRssRequest client cacheConfig memCache logPath query
@@ -231,7 +234,7 @@ let ``processRssRequest shows stale cache articles and error article on HTTP tim
     createOutdatedCache cachePath xmlContent
 
     let client = new HttpClient(timeoutHandler ())
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -249,7 +252,7 @@ let ``processRssRequest shows only error article on HTTP timeout with no cache``
     let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
     let cacheConfig = makeCacheConfig ()
     let client = new HttpClient(timeoutHandler ())
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -280,7 +283,7 @@ let ``processRssRequest shows PreviousHttpRequestFailed and skips HTTP on second
             Task.FromException<HttpResponseMessage>(TaskCanceledException "Simulated timeout"))
 
     let client = new HttpClient(handler)
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act — first call: HTTP times out, failure file should be created
     let articles1 =
@@ -310,7 +313,7 @@ let ``processRssRequest shows PreviousHttpRequestFailedButPageCached and skips H
     let articleCount = 3
     let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
     let cacheConfig = makeCacheConfig ()
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     let cachePath =
         Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feedUrl))
@@ -363,7 +366,7 @@ let ``processRssRequest retries and clears failure file when backoff period has 
     File.WriteAllText(failureFilePath cachePath, JsonSerializer.Serialize failure)
 
     let client = httpOkClient newXml
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -393,7 +396,7 @@ let ``processRssRequest shows error article when HTML page has no feed links`` (
                r) ]
 
     let client = httpClientWithResponses responses
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -430,7 +433,7 @@ let ``processRssRequest shows articles when HTML page has single feed link`` () 
                r) ]
 
     let client = httpClientWithResponses responses
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -466,7 +469,7 @@ let ``processRssRequest returns processed query with discovered feed URL instead
                r) ]
 
     let client = httpClientWithResponses responses
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -505,7 +508,7 @@ let ``processRssRequest resolves relative feed URL in discovered feed against or
                r) ]
 
     let client = httpClientWithResponses responses
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -556,7 +559,7 @@ let ``updateCache fetches new feed content and overwrites stale cache files`` ()
             Task.FromResult response)
 
     let client = new HttpClient(handler)
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     updateCache client cacheConfig memCache [| Uri feedUrl1; Uri feedUrl2 |]
@@ -590,7 +593,7 @@ let ``updateCache updates file write time but keeps cache content when server re
         new MockHttpMessageHandler(fun _ -> Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified)))
 
     let client = new HttpClient(handler)
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     updateCache client cacheConfig memCache [| Uri feedUrl |]
@@ -616,7 +619,7 @@ let ``updateCache fetches and saves feed when no cache file exists`` () =
     Assert.False(File.Exists cachePath)
 
     let client = httpOkClient xmlContent
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     updateCache client cacheConfig memCache [| Uri feedUrl |]
@@ -645,7 +648,7 @@ let ``updateCache skips HTTP request and does not touch file when cache is still
         new MockHttpMessageHandler(fun _ -> failwith "HTTP request not expected")
 
     let client = new HttpClient(handler)
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     updateCache client cacheConfig memCache [| Uri feedUrl |]
@@ -692,7 +695,7 @@ let ``processRssRequest shows articles from both feeds when HTML page has two fe
                r) ]
 
     let client = httpClientWithResponses responses
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Act
     let articles =
@@ -712,7 +715,7 @@ let ``processRssRequest serves articles from memory cache and skips HTTP`` () =
     let feedUrl = $"https://example.com/feed/{Guid.NewGuid()}"
     let articleCount = 3
     let cacheConfig = makeCacheConfig ()
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     let cachedArticles =
         [| 1..articleCount |]
@@ -739,7 +742,7 @@ let ``processRssRequest falls through to disk cache when memory cache entry is s
     let articleCount = 3
     let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
     let cacheConfig = makeCacheConfig ()
-    let memCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     // Pre-populate memory cache with expired entry (zero expiration → always stale)
     memCache.Set(feedUrl, [||])
@@ -773,7 +776,7 @@ let ``processRssRequest skips HTTP on second call when sharing InMemoryCache acr
     let articleCount = 3
     let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
     let cacheConfig = makeCacheConfig ()
-    let sharedMemCache = InMemoryCache()
+    let memCache = makeMemCache ()
 
     let handler =
         new MockHttpMessageHandler(fun _ ->
@@ -785,14 +788,14 @@ let ``processRssRequest skips HTTP on second call when sharing InMemoryCache acr
 
     // Act — first call fetches from HTTP and populates memory cache
     let articles1 =
-        processRssRequest client cacheConfig sharedMemCache (makeTempLogPath ()) $"?rss={feedUrl}"
+        processRssRequest client cacheConfig memCache (makeTempLogPath ()) $"?rss={feedUrl}"
 
     Assert.Equal(1, handler.CallCount)
     Assert.Equal(articleCount, articles1.Length)
 
     // Act — second call with same InMemoryCache hits memory, no HTTP
     let articles2 =
-        processRssRequest client cacheConfig sharedMemCache (makeTempLogPath ()) $"?rss={feedUrl}"
+        processRssRequest client cacheConfig memCache (makeTempLogPath ()) $"?rss={feedUrl}"
 
     Assert.Equal(1, handler.CallCount)
     Assert.Equal(articleCount, articles2.Length)
