@@ -142,7 +142,7 @@ let startServer (cacheConfig: SimpleRssServer.Config.CacheConfig) (hosts: string
     logger.LogInformation("Listening at {Addresses}", addresses)
 
     let httpClient = new Http.HttpClient()
-    let feedCache = InMemoryCache()
+    let feedCache = InMemoryCache logger
 
     let rec loop () =
         async {
