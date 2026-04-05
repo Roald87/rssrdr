@@ -83,13 +83,13 @@ let private getArticleText (entry: FeedItem) =
 
 let toArticles (feed: Feed) =
     feed.Items
-    |> Seq.map (fun entry ->
+    |> Array.ofSeq
+    |> Array.map (fun entry ->
         { PostDate = getPostDate feed entry
           Title = entry.Title
           ArticleUrl = entry.Link
           FeedUrl = feed.Link
           Text = getArticleText entry })
-    |> Seq.toArray
 
 let feedToArticles (ups: UriProcessState) : UriProcessState =
     match ups with
