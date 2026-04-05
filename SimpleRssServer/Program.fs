@@ -16,23 +16,25 @@ open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 
-let processRssRequest client cacheConfig (logPath: OsPath) (query: string) =
+let processRssRequest client cacheConfig (memCache: InMemoryCache) (logPath: OsPath) (query: string) =
+    let readCache = readFromCache cacheConfig memCache
+
     getRssUrls query
-    |> Array.map (toUriProcessState >> readFromCache cacheConfig) // try read cache before first fetch
+    |> Array.map (toUriProcessState >> readCache) // try read cache before first fetch
     |> fetchAllRssFeeds client logger cacheConfig
     |> Async.RunSynchronously
-    |> Array.map (readFromCache cacheConfig >> parseFeedResult logger) // read from cache in case of 304 Not modified
+    |> Array.map (readCache >> parseFeedResult logger) // read from cache in case of 304 Not modified
     |> Array.collect checkIfDiscoveryFeeds
-    |> Array.map (readFromCache cacheConfig) // read discovered feeds from cache
+    |> Array.map readCache // read discovered feeds from cache
     |> fetchAllRssFeeds client logger cacheConfig
     |> Async.RunSynchronously
     |> Array.map (
-        readFromCache cacheConfig // previous fetch can contain 304s
+        readCache // previous fetch can contain 304s
         >> parseFeedResult logger
         >> cacheSuccessfulFetch cacheConfig
     )
     |> logSuccessfulFeedRequestsAndParses logPath
-    |> Array.map (feedToArticles >> updateMemoryCache)
+    |> Array.map (feedToArticles >> updateMemoryCache memCache)
     |> Array.collect onlyFeedArticles
 
 let getFeedUrlQuery articles =
@@ -41,12 +43,12 @@ let getFeedUrlQuery articles =
     |> Array.distinct
     |> fun u -> Query.CreateWithKey("rss", u)
 
-let handleRequest client (cacheConfig: CacheConfig) (context: HttpListenerContext) =
+let handleRequest client (cacheConfig: CacheConfig) (memCache: InMemoryCache) (context: HttpListenerContext) =
     async {
         logger.LogDebug $"Received request {context.Request.Url}"
 
         let getRssArticles () =
-            processRssRequest client cacheConfig RequestLogPath context.Request.Url.Query
+            processRssRequest client cacheConfig memCache RequestLogPath context.Request.Url.Query
 
         let getSortedRssUris (q: Query) =
             q.GetValues "rss" |> Option.ofObj |> Option.defaultValue [||] |> Array.sort
@@ -98,7 +100,7 @@ let private getCacheAge cacheConfig url =
     | Some modTime when (DateTimeOffset.Now - modTime) > cacheConfig.Expiration -> Some(ValidUri(cacheAge, url))
     | _ -> None
 
-let updateCache client cacheConfig (urls: Uri array) =
+let updateCache client cacheConfig (memCache: InMemoryCache) (urls: Uri array) =
     if urls.Length > 0 then
         urls
         |> Array.choose (getCacheAge cacheConfig)
@@ -108,16 +110,17 @@ let updateCache client cacheConfig (urls: Uri array) =
             parseFeedResult logger
             >> cacheSuccessfulFetch cacheConfig
             >> feedToArticles
-            >> updateMemoryCache
+            >> updateMemoryCache memCache
         )
         |> ignore
 
-let updateRssFeedsPeriodically client (cacheConfig: CacheConfig) =
+let updateRssFeedsPeriodically client (cacheConfig: CacheConfig) (memCache: InMemoryCache) =
     async {
         while true do
             logger.LogDebug "Periodically updating RSS feeds."
 
-            uniqueValidRequestLogUrls RequestLogPath |> updateCache client cacheConfig
+            uniqueValidRequestLogUrls RequestLogPath
+            |> updateCache client cacheConfig memCache
 
             do! Async.Sleep cacheConfig.Expiration
     }
@@ -139,20 +142,21 @@ let startServer (cacheConfig: SimpleRssServer.Config.CacheConfig) (hosts: string
     logger.LogInformation("Listening at {Addresses}", addresses)
 
     let httpClient = new Http.HttpClient()
+    let feedCache = InMemoryCache()
 
     let rec loop () =
         async {
             let! context = listener.GetContextAsync() |> Async.AwaitTask
 
             try
-                do! handleRequest httpClient cacheConfig context
+                do! handleRequest httpClient cacheConfig feedCache context
             with ex ->
                 logger.LogInformation("Request handling error: {Message}", ex.Message)
 
             return! loop ()
         }
 
-    Async.Start(updateRssFeedsPeriodically httpClient cacheConfig)
+    Async.Start(updateRssFeedsPeriodically httpClient cacheConfig feedCache)
 
     let cacheCleanupPeriod = TimeSpan.FromDays 1.0
     Async.Start(clearCachePeriodically cacheConfig.Dir CacheRetention cacheCleanupPeriod)

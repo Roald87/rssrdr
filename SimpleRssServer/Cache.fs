@@ -104,10 +104,10 @@ let convertUrlToValidFilename (uri: Uri) =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
     replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_") |> Filename
 
-let readFromCache (cacheConfig: CacheConfig) (ups: UriProcessState) : UriProcessState =
+let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: UriProcessState) : UriProcessState =
     match ups with
     | ValidUri(_, u) ->
-        match feedCache.TryGet(u.AbsoluteUri, cacheConfig.Expiration) with
+        match memCache.TryGet(u.AbsoluteUri, cacheConfig.Expiration) with
         | Some articles -> FeedArticles articles
         | None ->
 

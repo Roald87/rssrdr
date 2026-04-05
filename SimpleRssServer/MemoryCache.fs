@@ -16,14 +16,12 @@ type InMemoryCache() =
     member _.Set(feedUrl: string, articles: Article array) =
         cache[feedUrl] <- (articles, DateTimeOffset.Now)
 
-let feedCache = InMemoryCache()
-
-let updateMemoryCache (ups: UriProcessState) =
+let updateMemoryCache (memCache: InMemoryCache) (ups: UriProcessState) =
     match ups with
     | FeedArticles articles ->
         articles
         |> Array.tryHead
-        |> Option.iter (fun a -> feedCache.Set(a.FeedUrl, articles))
+        |> Option.iter (fun a -> memCache.Set(a.FeedUrl, articles))
     | _ -> ()
 
     ups
