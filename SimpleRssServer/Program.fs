@@ -43,6 +43,12 @@ let getFeedUrlQuery articles =
     |> Array.distinct
     |> fun u -> Query.CreateWithKey("rss", u)
 
+let buildProcessedQuery (articles: Article array) : Query =
+    articles
+    |> Array.map (fun a -> Uri.RemoveHttpsScheme a.FeedUrl)
+    |> Array.distinct
+    |> fun u -> Query.CreateWithKey("rss", u)
+
 let handleRequest client (cacheConfig: CacheConfig) (memCache: InMemoryCache) (context: HttpListenerContext) =
     async {
         logger.LogDebug $"Received request {context.Request.Url}"
@@ -55,7 +61,7 @@ let handleRequest client (cacheConfig: CacheConfig) (memCache: InMemoryCache) (c
 
         let buildFeedResponse render =
             let rssArticles = getRssArticles ()
-            let procesedQuery = getFeedUrlQuery rssArticles
+            let procesedQuery = buildProcessedQuery rssArticles
             let originalQuery = Query.Create context.Request.Url.Query
 
             if getSortedRssUris originalQuery <> getSortedRssUris procesedQuery then
