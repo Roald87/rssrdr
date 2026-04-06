@@ -10,11 +10,11 @@ open SimpleRssServer.MemoryCache
 let makeMemCache () = InMemoryCache NullLogger.Instance
 
 let private makeArticles feedUrl =
-    [| { PostDate = Some DateTime.Now
-         Title = "Test"
-         ArticleUrl = "https://example.com/1"
-         FeedUrl = feedUrl
-         Text = "text" } |]
+    [ { PostDate = Some DateTime.Now
+        Title = "Test"
+        ArticleUrl = "https://example.com/1"
+        FeedUrl = feedUrl
+        Text = "text" } ]
 
 [<Fact>]
 let ``TryGet on empty cache returns None`` () =
@@ -41,11 +41,11 @@ let ``Set overwrites existing entry`` () =
     let first = makeArticles "https://example.com/feed"
 
     let second =
-        [| { PostDate = None
-             Title = "New"
-             ArticleUrl = ""
-             FeedUrl = "https://example.com/feed"
-             Text = "" } |]
+        [ { PostDate = None
+            Title = "New"
+            ArticleUrl = ""
+            FeedUrl = "https://example.com/feed"
+            Text = "" } ]
 
     cache.Set("https://example.com/feed", first)
     cache.Set("https://example.com/feed", second)

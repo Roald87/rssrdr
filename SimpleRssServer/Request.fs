@@ -9,13 +9,10 @@ open SimpleRssServer.Config
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
 
-let getRssUrls (query: string) : Result<Uri, UriError> array =
+let getRssUrls (query: string) : Result<Uri, UriError> list =
     Query.Create query
     |> fun q -> q.GetValues "rss"
-    |> Option.ofObj
-    |> Option.defaultValue [||]
-    |> Array.map Uri.CreateWithHttps
-
+    |> List.map Uri.CreateWithHttps
 
 type CacheState =
     | NoCacheNoFailures
@@ -65,20 +62,20 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
                     ProcessingError e
     }
 
-let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) (ups: UriProcessState array) =
+let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) (ups: UriProcessState list) =
     let validUris =
         ups
-        |> Array.choose (function
+        |> List.choose (function
             | ValidUri(dt, uri) -> Some(dt, uri)
             | _ -> None)
 
     let invalidUrls =
         ups
-        |> Array.filter (function
+        |> List.filter (function
             | ValidUri _ -> false
             | _ -> true)
 
     async {
-        let! processed = validUris |> Array.map (fetchUri client logger cacheConfig) |> Async.Parallel
-        return Array.append processed invalidUrls
+        let! processed = validUris |> List.map (fetchUri client logger cacheConfig) |> Async.Parallel
+        return List.ofArray processed @ invalidUrls
     }

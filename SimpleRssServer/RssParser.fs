@@ -83,8 +83,8 @@ let private getArticleText (entry: FeedItem) =
 
 let toArticles (feed: Feed) =
     feed.Items
-    |> Array.ofSeq
-    |> Array.map (fun entry ->
+    |> Seq.toList
+    |> List.map (fun entry ->
         { PostDate = getPostDate feed entry
           Title = entry.Title
           ArticleUrl = entry.Link
@@ -95,10 +95,8 @@ let feedToArticles (ups: UriProcessState) : UriProcessState =
     match ups with
     | ParsedFeed(_, feed)
     | ParsedCachedFeed feed -> toArticles feed |> FeedArticles
-    | ParsedStaleHit(feed, err) ->
-        Array.append (toArticles feed) [| createErrorArticle err |]
-        |> FeedWithErrorArticles
-    | ProcessingError err -> [| createErrorArticle err |] |> FeedWithErrorArticles
+    | ParsedStaleHit(feed, err) -> toArticles feed @ [ createErrorArticle err ] |> FeedWithErrorArticles
+    | ProcessingError err -> [ createErrorArticle err ] |> FeedWithErrorArticles
     | x -> x
 
 let parseFeedResult (logger: ILogger) (ups: UriProcessState) =
@@ -123,15 +121,15 @@ let parseFeedResult (logger: ILogger) (ups: UriProcessState) =
 let checkIfDiscoveryFeeds ups =
     match ups with
     | ResponseCanContainsFeeds(s, originalUri) ->
-        let feed = FeedReader.ParseFeedUrlsFromHtml s |> Seq.toArray
+        let feed = FeedReader.ParseFeedUrlsFromHtml s |> Seq.toList
 
         match feed with
-        | [||] -> [| ProcessingError(InvalidRssFeedFormat(originalUri, Exception "No RSS feeds found in page")) |]
-        | x -> x |> Array.map (fun u -> ValidUri(None, Uri(originalUri, u.Url)))
-    | x -> [| x |]
+        | [] -> [ ProcessingError(InvalidRssFeedFormat(originalUri, Exception "No RSS feeds found in page")) ]
+        | x -> x |> List.map (fun u -> ValidUri(None, Uri(originalUri, u.Url)))
+    | x -> [ x ]
 
 let onlyFeedArticles ups =
     match ups with
     | FeedArticles articles
     | FeedWithErrorArticles articles -> articles
-    | _ -> [||]
+    | _ -> []

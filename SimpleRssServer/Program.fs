@@ -20,33 +20,33 @@ let processRssRequest client cacheConfig (memCache: InMemoryCache) (logPath: OsP
     let readCache = readFromCache cacheConfig memCache
 
     getRssUrls query
-    |> Array.map (toUriProcessState >> readCache) // try read cache before first fetch
+    |> List.map (toUriProcessState >> readCache) // try read cache before first fetch
     |> fetchAllRssFeeds client logger cacheConfig
     |> Async.RunSynchronously
-    |> Array.map (readCache >> parseFeedResult logger) // read from cache in case of 304 Not modified
-    |> Array.collect checkIfDiscoveryFeeds
-    |> Array.map readCache // read discovered feeds from cache
+    |> List.map (readCache >> parseFeedResult logger) // read from cache in case of 304 Not modified
+    |> List.collect checkIfDiscoveryFeeds
+    |> List.map readCache // read discovered feeds from cache
     |> fetchAllRssFeeds client logger cacheConfig
     |> Async.RunSynchronously
-    |> Array.map (
+    |> List.map (
         readCache // previous fetch can contain 304s
         >> parseFeedResult logger
         >> cacheSuccessfulFetch cacheConfig
     )
     |> logSuccessfulFeedRequestsAndParses logPath
-    |> Array.map (feedToArticles >> updateMemoryCache memCache)
-    |> Array.collect onlyFeedArticles
+    |> List.map (feedToArticles >> updateMemoryCache memCache)
+    |> List.collect onlyFeedArticles
 
 let getFeedUrlQuery articles =
     articles
-    |> Array.map (fun a -> a.FeedUrl)
-    |> Array.distinct
+    |> List.map (fun a -> a.FeedUrl)
+    |> List.distinct
     |> fun u -> Query.CreateWithKey("rss", u)
 
-let buildProcessedQuery (articles: Article array) : Query =
+let buildProcessedQuery (articles: Article list) : Query =
     articles
-    |> Array.map (fun a -> Uri.RemoveHttpsScheme a.FeedUrl)
-    |> Array.distinct
+    |> List.map (fun a -> Uri.RemoveHttpsScheme a.FeedUrl)
+    |> List.distinct
     |> fun u -> Query.CreateWithKey("rss", u)
 
 let handleRequest client (cacheConfig: CacheConfig) (memCache: InMemoryCache) (context: HttpListenerContext) =
@@ -56,8 +56,7 @@ let handleRequest client (cacheConfig: CacheConfig) (memCache: InMemoryCache) (c
         let getRssArticles () =
             processRssRequest client cacheConfig memCache RequestLogPath context.Request.Url.Query
 
-        let getSortedRssUris (q: Query) =
-            q.GetValues "rss" |> Option.ofObj |> Option.defaultValue [||] |> Array.sort
+        let getSortedRssUris (q: Query) = q.GetValues "rss" |> List.sort
 
         let buildFeedResponse render =
             let rssArticles = getRssArticles ()
@@ -106,13 +105,13 @@ let private getCacheAge cacheConfig url =
     | Some modTime when (DateTimeOffset.Now - modTime) > cacheConfig.Expiration -> Some(ValidUri(cacheAge, url))
     | _ -> None
 
-let updateCache client cacheConfig (memCache: InMemoryCache) (urls: Uri array) =
-    if urls.Length > 0 then
+let updateCache client cacheConfig (memCache: InMemoryCache) (urls: Uri list) =
+    if not (List.isEmpty urls) then
         urls
-        |> Array.choose (getCacheAge cacheConfig)
+        |> List.choose (getCacheAge cacheConfig)
         |> fetchAllRssFeeds client logger cacheConfig
         |> Async.RunSynchronously
-        |> Array.map (
+        |> List.map (
             parseFeedResult logger
             >> cacheSuccessfulFetch cacheConfig
             >> feedToArticles
