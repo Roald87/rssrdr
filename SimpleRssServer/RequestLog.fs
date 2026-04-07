@@ -8,7 +8,7 @@ open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 
-let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri array) =
+let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri list) =
     let currentDate = DateTime.Now
     let dateFormat = "yyyy-MM-dd"
 
@@ -16,12 +16,13 @@ let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri a
         currentDate.ToString(dateFormat, CultureInfo.InvariantCulture)
 
     let newEntries =
-        uris |> Array.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
+        uris |> List.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
 
     let existingEntries =
         if File.Exists requestLogPath then
             File.ReadAllLines requestLogPath
-            |> Array.filter (fun line ->
+            |> Array.toList
+            |> List.filter (fun line ->
                 let datePart = line.Split(' ', 2)[0]
 
                 let entryDate =
@@ -29,29 +30,29 @@ let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri a
 
                 currentDate - entryDate <= retention)
         else
-            [||]
+            []
 
-    let updatedEntries = Array.append existingEntries newEntries
-    File.WriteAllLines(requestLogPath, updatedEntries)
+    File.WriteAllLines(requestLogPath, existingEntries @ newEntries)
 
 let uniqueValidRequestLogUrls (logPath: OsPath) =
     if File.Exists logPath then
         let expectedColumns = 2
 
         File.ReadAllLines logPath
-        |> Array.map (fun line -> line.Trim().Split(' ', expectedColumns))
-        |> Array.filter (fun parts -> parts.Length = expectedColumns)
-        |> Array.map (fun parts -> parts[1])
-        |> Array.distinct
-        |> Array.map Uri.Create
-        |> Array.choose Result.toOption
-        |> Array.filter (fun x -> x.Scheme = Uri.UriSchemeHttp || x.Scheme = Uri.UriSchemeHttps)
+        |> Array.toList
+        |> List.map (fun line -> line.Trim().Split(' ', expectedColumns))
+        |> List.filter (fun parts -> parts.Length = expectedColumns)
+        |> List.map (fun parts -> parts[1])
+        |> List.distinct
+        |> List.map Uri.Create
+        |> List.choose Result.toOption
+        |> List.filter (fun x -> x.Scheme = Uri.UriSchemeHttp || x.Scheme = Uri.UriSchemeHttps)
     else
-        [||]
+        []
 
-let logSuccessfulFeedRequestsAndParses (logPath: OsPath) (upss: UriProcessState array) =
+let logSuccessfulFeedRequestsAndParses (logPath: OsPath) (upss: UriProcessState list) =
     upss
-    |> Array.choose (function
+    |> List.choose (function
         | ParsedFeed(_, feed) -> Some(Uri feed.Link)
         | ParsedCachedFeed feed -> Some(Uri feed.Link)
         | _ -> None)

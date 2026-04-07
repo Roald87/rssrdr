@@ -85,7 +85,7 @@ let ``Uri.StripScheme leaves url without scheme unchanged`` () =
 [<Fact>]
 let ``Query.Create empty string gives empty ToString`` () =
     let q = Query.Create ""
-    Assert.Null(q.GetValues "rss")
+    Assert.Empty(q.GetValues "rss")
     Assert.Equal("", q |> string)
 
 [<Fact>]
@@ -121,13 +121,13 @@ let ``Query.Create preserves non-rss params`` () =
     Assert.Contains("foo=bar", s)
 
 [<Fact>]
-let ``Query.Create returns null for missing key`` () =
+let ``Query.Create returns empty list for missing key`` () =
     let q = Query.Create "?rss=example.com/feed"
-    Assert.Null(q.GetValues "missing")
+    Assert.Empty(q.GetValues "missing")
 
 [<Fact>]
 let ``Query.CreateWithKey single value`` () =
-    let q = Query.CreateWithKey("rss", [| "example.com/feed" |])
+    let q = Query.CreateWithKey("rss", [ "example.com/feed" ])
     let values = q.GetValues "rss"
     Assert.Equal(1, values.Length)
     Assert.Equal("example.com/feed", values[0])
@@ -135,7 +135,7 @@ let ``Query.CreateWithKey single value`` () =
 
 [<Fact>]
 let ``Query.CreateWithKey multiple values`` () =
-    let q = Query.CreateWithKey("rss", [| "example.com/feed"; "other.com/feed" |])
+    let q = Query.CreateWithKey("rss", [ "example.com/feed"; "other.com/feed" ])
     let values = q.GetValues "rss"
     Assert.Equal(2, values.Length)
     Assert.Contains("example.com/feed", values)
@@ -145,7 +145,7 @@ let ``Query.CreateWithKey multiple values`` () =
     Assert.Contains("rss=other.com/feed", s)
 
 [<Fact>]
-let ``Query.CreateWithKey empty array gives empty ToString`` () =
-    let q = Query.CreateWithKey("rss", [||])
-    Assert.Null(q.GetValues "rss")
+let ``Query.CreateWithKey empty list gives empty ToString`` () =
+    let q = Query.CreateWithKey("rss", [])
+    Assert.Empty(q.GetValues "rss")
     Assert.Equal("", q |> string)

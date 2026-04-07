@@ -25,7 +25,7 @@ let ``Test updateRequestLog removes old entries`` () =
 
     File.WriteAllLines(filename, [ oldEntry; recentEntry ])
 
-    updateRequestLog filename retention [| Uri "http://newentry.com" |]
+    updateRequestLog filename retention [ Uri "http://newentry.com" ]
 
     let fileContent = File.ReadAllLines filename
 
@@ -40,7 +40,7 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     let filename = OsPath "test_log.txt"
 
     let logEntries =
-        [| Uri "https://Entry1.com"; Uri "http://Entry2.ch"; Uri "https://Entry3.nl" |]
+        [ Uri "https://Entry1.com"; Uri "http://Entry2.ch"; Uri "https://Entry3.nl" ]
 
     let retention = TimeSpan 1
 
@@ -55,7 +55,7 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
     let currentDate = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
     logEntries
-    |> Array.iter (fun entry -> Assert.Contains($"{currentDate} {entry.AbsoluteUri}", fileContent))
+    |> List.iter (fun entry -> Assert.Contains($"{currentDate} {entry.AbsoluteUri}", fileContent))
 
     deleteFile filename
 
@@ -65,7 +65,7 @@ let ``Test requestUrls returns two URLs from request-log.txt`` () =
 
     let urls = uniqueValidRequestLogUrls logFilePath
 
-    Assert.Equal(2, Array.length urls)
+    Assert.Equal(2, urls.Length)
     Assert.Contains(Uri "https://example.com/feed1", urls)
     Assert.Contains(Uri "https://example.com/feed2", urls)
 
@@ -74,15 +74,15 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
     let filename = OsPath "test_invalid_urls.txt"
 
     let lines =
-        [| "2025-06-23 https://valid-url.com/feed1"
-           "2025-06-23 not-a-valid-url"
-           "2025-06-23 https://valid-url.com/feed2"
-           "2025-06-23 "
-           " sd sdfa weq"
-           "  a     "
-           "\t \t"
-           "2025-06-23 ftp://unsupported-protocol.com/feed3"
-           "2025-06-23 https://valid-url.com/feed1" |]
+        [ "2025-06-23 https://valid-url.com/feed1"
+          "2025-06-23 not-a-valid-url"
+          "2025-06-23 https://valid-url.com/feed2"
+          "2025-06-23 "
+          " sd sdfa weq"
+          "  a     "
+          "\t \t"
+          "2025-06-23 ftp://unsupported-protocol.com/feed3"
+          "2025-06-23 https://valid-url.com/feed1" ]
 
     File.WriteAllLines(filename, lines)
 
@@ -90,10 +90,10 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
         try
             uniqueValidRequestLogUrls filename
         with _ ->
-            [||]
+            []
 
     Assert.Contains(Uri "https://valid-url.com/feed1", urls)
     Assert.Contains(Uri "https://valid-url.com/feed2", urls)
     Assert.DoesNotContain(Uri "ftp://unsupported-protocol.com/feed3", urls)
-    Assert.Equal(2, Array.length urls)
+    Assert.Equal(2, urls.Length)
     File.Delete filename

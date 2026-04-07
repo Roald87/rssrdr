@@ -160,12 +160,16 @@ type Query =
 
     static member Create(s: string) = Query(HttpUtility.ParseQueryString s)
 
-    static member CreateWithKey(key: string, values: string array) : Query =
+    static member CreateWithKey(key: string, values: string list) : Query =
         let nvc = NameValueCollection()
-        values |> Array.map (fun value -> nvc.Add(key, value)) |> ignore
+        values |> List.iter (fun value -> nvc.Add(key, value))
         Query nvc
 
-    member this.GetValues(key: string) = this.Value.GetValues(key)
+    member this.GetValues(key: string) =
+        this.Value.GetValues key
+        |> Option.ofObj
+        |> Option.defaultValue [||]
+        |> Array.toList
 
     override this.ToString() =
         let nvc = this.Value

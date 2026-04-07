@@ -562,7 +562,7 @@ let ``updateCache fetches new feed content and overwrites stale cache files`` ()
     let memCache = makeMemCache ()
 
     // Act
-    updateCache client cacheConfig memCache [| Uri feedUrl1; Uri feedUrl2 |]
+    updateCache client cacheConfig memCache [ Uri feedUrl1; Uri feedUrl2 ]
 
     // Assert — new content is written to both cache files
     Assert.Equal(newXml1, File.ReadAllText cachePath1)
@@ -596,7 +596,7 @@ let ``updateCache updates file write time but keeps cache content when server re
     let memCache = makeMemCache ()
 
     // Act
-    updateCache client cacheConfig memCache [| Uri feedUrl |]
+    updateCache client cacheConfig memCache [ Uri feedUrl ]
 
     // Assert — cache content is unchanged
     Assert.Equal(cachedXml, File.ReadAllText cachePath)
@@ -622,7 +622,7 @@ let ``updateCache fetches and saves feed when no cache file exists`` () =
     let memCache = makeMemCache ()
 
     // Act
-    updateCache client cacheConfig memCache [| Uri feedUrl |]
+    updateCache client cacheConfig memCache [ Uri feedUrl ]
 
     // Assert — cache file is created with fetched content
     Assert.True(File.Exists cachePath)
@@ -651,7 +651,7 @@ let ``updateCache skips HTTP request and does not touch file when cache is still
     let memCache = makeMemCache ()
 
     // Act
-    updateCache client cacheConfig memCache [| Uri feedUrl |]
+    updateCache client cacheConfig memCache [ Uri feedUrl ]
 
     // Assert — no HTTP request was made
     Assert.Equal(0, handler.CallCount)
@@ -718,8 +718,8 @@ let ``processRssRequest serves articles from memory cache and skips HTTP`` () =
     let memCache = makeMemCache ()
 
     let cachedArticles =
-        [| 1..articleCount |]
-        |> Array.map (fun i ->
+        [ 1..articleCount ]
+        |> List.map (fun i ->
             { PostDate = Some DateTime.Now
               Title = DummyXmlFeedFactory.articleTitle i
               ArticleUrl = $"{feedUrl}/article/{i}"
@@ -745,7 +745,7 @@ let ``processRssRequest falls through to disk cache when memory cache entry is s
     let memCache = makeMemCache ()
 
     // Pre-populate memory cache with expired entry (zero expiration → always stale)
-    memCache.Set(feedUrl, [||])
+    memCache.Set(feedUrl, [])
 
     // Write disk cache and backdate its write time so the condition
     // (DateTimeOffset.Now - modTime) <= TimeSpan.Zero evaluates as fresh
@@ -807,35 +807,34 @@ let makeArticle feedUrl =
       FeedUrl = feedUrl
       Text = "" }
 
-let getSortedQueryUrls (q: Query) =
-    q.GetValues "rss" |> Option.ofObj |> Option.defaultValue [||] |> Array.sort
+let getSortedQueryUrls (q: Query) = q.GetValues "rss" |> List.sort
 
 // Scenario 1: user enters example.com/feed (no scheme) → stored as example.com/feed, no redirect
 [<Fact>]
 let ``handleRequest keeps no-scheme url in query and does not redirect`` () =
-    let articles = [| makeArticle "https://example.com/feed" |]
+    let articles = [ makeArticle "https://example.com/feed" ]
     let originalQuery = Query.Create "?rss=example.com/feed"
     let processedQuery = buildProcessedQuery articles
     Assert.Equal("example.com/feed", processedQuery.GetValues("rss")[0])
-    Assert.Equal<string array>(getSortedQueryUrls originalQuery, getSortedQueryUrls processedQuery)
+    Assert.Equal<string list>(getSortedQueryUrls originalQuery, getSortedQueryUrls processedQuery)
 
 // Scenario 2: user enters http://example.com/feed → stored as http://example.com/feed, no redirect
 [<Fact>]
 let ``handleRequest keeps http scheme in query and does not redirect`` () =
-    let articles = [| makeArticle "http://example.com/feed" |]
+    let articles = [ makeArticle "http://example.com/feed" ]
     let originalQuery = Query.Create "?rss=http://example.com/feed"
     let processedQuery = buildProcessedQuery articles
     Assert.Equal("http://example.com/feed", processedQuery.GetValues("rss")[0])
-    Assert.Equal<string array>(getSortedQueryUrls originalQuery, getSortedQueryUrls processedQuery)
+    Assert.Equal<string list>(getSortedQueryUrls originalQuery, getSortedQueryUrls processedQuery)
 
 // Scenario 3: user enters https://example.com/feed → stripped to example.com/feed via redirect
 [<Fact>]
 let ``handleRequest strips https scheme from query via redirect`` () =
-    let articles = [| makeArticle "https://example.com/feed" |]
+    let articles = [ makeArticle "https://example.com/feed" ]
     let originalQuery = Query.Create "?rss=https://example.com/feed"
     let processedQuery = buildProcessedQuery articles
     Assert.Equal("example.com/feed", processedQuery.GetValues("rss")[0])
-    Assert.NotEqual<string array>(getSortedQueryUrls originalQuery, getSortedQueryUrls processedQuery)
+    Assert.NotEqual<string list>(getSortedQueryUrls originalQuery, getSortedQueryUrls processedQuery)
 
 // Scenario 4: user enters example.com/ → discovery finds https://example.com/feed → redirect to example.com/feed
 [<Fact>]

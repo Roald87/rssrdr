@@ -119,11 +119,11 @@ let private feedsForm (confirmedUris: string) (extras: Html) : Html =
 let landingPage: Html =
     head + aboveFeedInput + feedsForm "" Html.Empty + belowFeedInput
 
-let configPage (rssUrls: Result<Uri, UriError> array) : Html =
+let configPage (rssUrls: Result<Uri, UriError> list) : Html =
     let validRssUris =
         rssUrls
         |> validUris
-        |> Array.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
+        |> List.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
         |> String.concat "\n"
 
     head + aboveFeedInput + feedsForm validRssUris Html.Empty + belowFeedInput
@@ -135,19 +135,19 @@ let footer =
     """
     |> Html
 
-let private buildDeleteButtons (query: Query) (rssItems: Article array) : Map<string, Html> =
+let private buildDeleteButtons (query: Query) (rssItems: Article list) : Map<string, Html> =
     rssItems
-    |> Array.map _.FeedUrl
-    |> Array.distinct
-    |> Array.map (fun feedUrl -> feedUrl, deleteFeedButton query feedUrl)
-    |> Map.ofArray
+    |> List.map _.FeedUrl
+    |> List.distinct
+    |> List.map (fun feedUrl -> feedUrl, deleteFeedButton query feedUrl)
+    |> Map.ofList
 
-let private articlesToHtml (deleteButtons: Map<string, Html>) (articles: Article array) : Html =
+let private articlesToHtml (deleteButtons: Map<string, Html>) (articles: Article list) : Html =
     articles
-    |> Array.map (fun a -> convertArticleToHtml deleteButtons[a.FeedUrl] a)
+    |> List.map (fun a -> convertArticleToHtml deleteButtons[a.FeedUrl] a)
     |> Html.Concat
 
-let chronologicalFeedsPage (query: Query) (rssItems: Article array) : Html =
+let chronologicalFeedsPage (query: Query) (rssItems: Article list) : Html =
     let body =
         $"""
     <body>
@@ -162,11 +162,11 @@ let chronologicalFeedsPage (query: Query) (rssItems: Article array) : Html =
     let deleteButtons = buildDeleteButtons query rssItems
 
     let rssFeeds =
-        rssItems |> Array.sortByDescending _.PostDate |> articlesToHtml deleteButtons
+        rssItems |> List.sortByDescending _.PostDate |> articlesToHtml deleteButtons
 
     head + body + rssFeeds + removeFeedScript + footer
 
-let shuffledFeedsPage (query: Query) (rssItems: Article array) : Html =
+let shuffledFeedsPage (query: Query) (rssItems: Article list) : Html =
     let body =
         $"""
     <body>
@@ -180,6 +180,6 @@ let shuffledFeedsPage (query: Query) (rssItems: Article array) : Html =
 
     let deleteButtons = buildDeleteButtons query rssItems
 
-    let shuffledFeeds = rssItems |> Array.randomShuffle |> articlesToHtml deleteButtons
+    let shuffledFeeds = rssItems |> List.randomShuffle |> articlesToHtml deleteButtons
 
     head + body + shuffledFeeds + removeFeedScript + footer

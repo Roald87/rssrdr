@@ -81,9 +81,9 @@ let ``Test configPage prefills textarea with valid URIs`` () =
     let validUri2 = Uri "http://example.com/feed2"
 
     let rssUrls =
-        [| Ok validUri1
-           Ok validUri2
-           Error(HostNameMustContainDot(InvalidUri.Create "invalid-uri")) |]
+        [ Ok validUri1
+          Ok validUri2
+          Error(HostNameMustContainDot(InvalidUri.Create "invalid-uri")) ]
 
     let resultHtml = configPage rssUrls |> string
 
@@ -104,6 +104,6 @@ let ``Test configPage prefills textarea with valid URIs`` () =
 
 [<Fact>]
 let ``chronologicalFeedsPage with empty query shows config link without query string`` () =
-    let result = chronologicalFeedsPage (Query.Create "") [||] |> string
+    let result = chronologicalFeedsPage (Query.Create "") [] |> string
 
     Assert.Contains("""href="config.html/">rssrdr""", result)
