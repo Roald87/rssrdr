@@ -19,8 +19,8 @@ let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri l
         uris |> List.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
 
     let existingEntries =
-        if File.Exists requestLogPath then
-            File.ReadAllLines requestLogPath
+        if OsFile.exists requestLogPath then
+            OsFile.readAllLines requestLogPath
             |> Array.toList
             |> List.filter (fun line ->
                 let datePart = line.Split(' ', 2)[0]
@@ -32,19 +32,19 @@ let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri l
         else
             []
 
-    File.WriteAllLines(requestLogPath, existingEntries @ newEntries)
+    OsFile.writeAllLines requestLogPath (existingEntries @ newEntries)
 
 let uniqueValidRequestLogUrls (logPath: OsPath) =
-    if File.Exists logPath then
+    if OsFile.exists logPath then
         let expectedColumns = 2
 
-        File.ReadAllLines logPath
+        OsFile.readAllLines logPath
         |> Array.toList
         |> List.map (fun line -> line.Trim().Split(' ', expectedColumns))
         |> List.filter (fun parts -> parts.Length = expectedColumns)
         |> List.map (fun parts -> parts[1])
         |> List.distinct
-        |> List.map Uri.Create
+        |> List.map FeedUri.create
         |> List.choose Result.toOption
         |> List.filter (fun x -> x.Scheme = Uri.UriSchemeHttp || x.Scheme = Uri.UriSchemeHttps)
     else

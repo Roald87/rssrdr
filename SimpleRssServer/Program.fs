@@ -39,13 +39,13 @@ let processRssRequest client cacheConfig (memCache: InMemoryCache) (logPath: OsP
 
 let getFeedUrlQuery articles =
     articles
-    |> List.map (fun a -> a.FeedUrl)
+    |> List.map _.FeedUrl
     |> List.distinct
     |> fun u -> Query.CreateWithKey("rss", u)
 
 let buildProcessedQuery (articles: Article list) : Query =
     articles
-    |> List.map (fun a -> Uri.RemoveHttpsScheme a.FeedUrl)
+    |> List.map (fun a -> FeedUri.removeHttpsScheme a.FeedUrl)
     |> List.distinct
     |> fun u -> Query.CreateWithKey("rss", u)
 
@@ -91,7 +91,7 @@ let handleRequest client (cacheConfig: CacheConfig) (memCache: InMemoryCache) (c
 
 let private getCacheAge cacheConfig url =
     let cacheAge =
-        Path.Combine(cacheConfig.Dir, url |> convertUrlToValidFilename)
+        OsPath.combine cacheConfig.Dir (url |> convertUrlToValidFilename)
         |> fileLastModified
 
     match cacheAge with
@@ -192,8 +192,8 @@ let main argv =
     | ArgParser.Args args ->
         let cacheDir = DefaultCacheConfig.Dir
 
-        if not (Directory.Exists cacheDir) then
-            Directory.CreateDirectory cacheDir |> ignore
+        if not (OsDirectory.exists cacheDir) then
+            OsDirectory.create cacheDir
 
         let hostname =
             args.Hostname |> Option.defaultValue "http://+:5000/" |> (fun x -> [ x ])

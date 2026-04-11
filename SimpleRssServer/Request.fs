@@ -12,7 +12,7 @@ open SimpleRssServer.HttpClient
 let getRssUrls (query: string) : Result<Uri, UriError> list =
     Query.Create query
     |> fun q -> q.GetValues "rss"
-    |> List.map Uri.CreateWithHttps
+    |> List.map FeedUri.createWithHttps
 
 type CacheState =
     | NoCacheNoFailures
@@ -33,7 +33,7 @@ let computeCacheAndBackoffState cacheModified nextAttempt expiration =
 
 let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
     async {
-        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename uri)
+        let cachePath = OsPath.combine cacheConfig.Dir (convertUrlToValidFilename uri)
 
         let cacheState =
             computeCacheAndBackoffState dt (nextRetry cachePath) cacheConfig.Expiration
@@ -47,7 +47,7 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
             return
                 match r with
                 | Ok "No changes" ->
-                    File.SetLastWriteTime(cachePath, DateTime.Now)
+                    OsFile.setLastWriteTime cachePath DateTime.Now
                     clearFailure cachePath
                     ValidUri(Some DateTimeOffset.Now, uri)
                 | Ok content ->

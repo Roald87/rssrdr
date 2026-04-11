@@ -7,7 +7,7 @@ open SimpleRssServer.DomainPrimitiveTypes
 [<Fact>]
 let ``Uri.create should return Ok for valid URI with dot in host`` () =
     let input = "https://example.com"
-    let result = Uri.Create input
+    let result = FeedUri.create input
 
     match result with
     | Ok uri -> Assert.Equal("https://example.com/", uri.ToString())
@@ -16,7 +16,7 @@ let ``Uri.create should return Ok for valid URI with dot in host`` () =
 [<Fact>]
 let ``Uri.create should return Error for valid URI without dot in host`` () =
     let input = "https://localhost"
-    let result = Uri.Create input
+    let result = FeedUri.create input
 
     match result with
     | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", invalid.Value)
@@ -26,7 +26,7 @@ let ``Uri.create should return Error for valid URI without dot in host`` () =
 [<Fact>]
 let ``Uri.create should return Error for invalid URI format`` () =
     let input = "not a uri"
-    let result = Uri.Create input
+    let result = FeedUri.create input
 
     match result with
     | Error(UriFormatException(invalid, _)) -> Assert.Equal("not a uri", invalid.Value)
@@ -36,7 +36,7 @@ let ``Uri.create should return Error for invalid URI format`` () =
 [<Fact>]
 let ``Uri.createWithHttps should add https to URL without scheme`` () =
     let input = "example.com"
-    let result = Uri.CreateWithHttps input
+    let result = FeedUri.createWithHttps input
 
     match result with
     | Ok uri -> Assert.Equal("https://example.com/", uri.ToString())
@@ -45,7 +45,7 @@ let ``Uri.createWithHttps should add https to URL without scheme`` () =
 [<Fact>]
 let ``Uri.createWithHttps should keep http scheme`` () =
     let input = "http://example.com"
-    let result = Uri.CreateWithHttps input
+    let result = FeedUri.createWithHttps input
 
     match result with
     | Ok uri -> Assert.Equal("http://example.com/", uri.ToString())
@@ -54,7 +54,7 @@ let ``Uri.createWithHttps should keep http scheme`` () =
 [<Fact>]
 let ``Uri.createWithHttps should keep https scheme`` () =
     let input = "https://example.com"
-    let result = Uri.CreateWithHttps input
+    let result = FeedUri.createWithHttps input
 
     match result with
     | Ok uri -> Assert.Equal("https://example.com/", uri.ToString())
@@ -63,7 +63,7 @@ let ``Uri.createWithHttps should keep https scheme`` () =
 [<Fact>]
 let ``Uri.createWithHttps should return Error for invalid host`` () =
     let input = "localhost"
-    let result = Uri.CreateWithHttps input
+    let result = FeedUri.createWithHttps input
 
     match result with
     | Error(HostNameMustContainDot invalid) -> Assert.Equal("https://localhost", invalid.Value)
@@ -72,15 +72,15 @@ let ``Uri.createWithHttps should return Error for invalid host`` () =
 
 [<Fact>]
 let ``Uri.StripScheme removes https scheme`` () =
-    Assert.Equal("example.com/feed", Uri.RemoveScheme "https://example.com/feed")
+    Assert.Equal("example.com/feed", FeedUri.removeScheme "https://example.com/feed")
 
 [<Fact>]
 let ``Uri.StripScheme removes http scheme`` () =
-    Assert.Equal("example.com/feed", Uri.RemoveScheme "http://example.com/feed")
+    Assert.Equal("example.com/feed", FeedUri.removeScheme "http://example.com/feed")
 
 [<Fact>]
 let ``Uri.StripScheme leaves url without scheme unchanged`` () =
-    Assert.Equal("example.com/feed", Uri.RemoveScheme "example.com/feed")
+    Assert.Equal("example.com/feed", FeedUri.removeScheme "example.com/feed")
 
 [<Fact>]
 let ``Query.Create empty string gives empty ToString`` () =
