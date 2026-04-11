@@ -23,41 +23,41 @@ let getBackoffHours failures =
     min 24.0 (Math.Pow(2.0, float (failures - 1)))
 
 let fileLastModified (path: OsPath) =
-    if File.Exists path then
-        File.GetLastWriteTime path |> DateTimeOffset |> Some
+    if OsFile.exists path then
+        OsFile.getLastWriteTime path |> DateTimeOffset |> Some
     else
         None
 
 let readCache (cachePath: OsPath) =
-    if File.Exists cachePath then
-        Some(File.ReadAllText cachePath)
+    if OsFile.exists cachePath then
+        Some(OsFile.readAllText cachePath)
     else
         None
 
 let createDirectoryForPath (path: OsPath) =
-    let (OsPath dir) = Path.GetDirectoryName path
+    let (OsPath dir) = OsPath.getDirectoryName path
 
     if not (String.IsNullOrEmpty dir) then
         Directory.CreateDirectory dir |> ignore
 
 let writeCache cachePath (content: string) =
     createDirectoryForPath cachePath
-    File.WriteAllText(cachePath, content)
+    OsFile.writeAllText cachePath content
 
 let clearFailure cachePath =
     let failurePath = failureFilePath cachePath
 
-    if File.Exists failurePath then
-        File.Delete failurePath
+    if OsFile.exists failurePath then
+        OsFile.delete failurePath
 
 let recordFailure cachePath =
     let failurePath = failureFilePath cachePath
     createDirectoryForPath failurePath
 
     let failure =
-        if File.Exists failurePath then
+        if OsFile.exists failurePath then
             try
-                let json = File.ReadAllText failurePath
+                let json = OsFile.readAllText failurePath
                 let existing = JsonSerializer.Deserialize<FetchFailure> json
 
                 { LastFailure = DateTimeOffset.Now
@@ -71,14 +71,14 @@ let recordFailure cachePath =
             { LastFailure = DateTimeOffset.Now
               ConsecutiveFailures = 1 }
 
-    File.WriteAllText(failurePath, JsonSerializer.Serialize failure)
+    OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
 
 let readFailure cachePath =
     let path = failureFilePath cachePath
 
-    if File.Exists path then
+    if OsFile.exists path then
         try
-            let json = File.ReadAllText path
+            let json = OsFile.readAllText path
             Some(JsonSerializer.Deserialize<FetchFailure> json)
         with ex ->
             logger.LogWarning(ex, "Failed to read failure record at {Path}", path)
@@ -94,12 +94,12 @@ let nextRetry cachePath =
         Some(failure.LastFailure.AddHours backoffHours)
 
 let clearExpiredCache (cacheDir: OsPath) (retention: TimeSpan) =
-    if not (Directory.Exists cacheDir) then
+    if not (OsDirectory.exists cacheDir) then
         logger.LogWarning("Cache directory {Dir} does not exist", cacheDir)
     else
         let now = DateTime.Now
 
-        Directory.GetFiles cacheDir
+        OsDirectory.getFiles cacheDir
         |> Array.filter (fun f -> (now - File.GetLastWriteTime f) > retention)
         |> Array.iter File.Delete
 
@@ -113,7 +113,7 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
         match memCache.TryGet(u.AbsoluteUri, cacheConfig.Expiration) with
         | Some articles -> FeedArticles articles
         | None ->
-            let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename u)
+            let cachePath = OsPath.combine cacheConfig.Dir (convertUrlToValidFilename u)
             let cacheModified = fileLastModified cachePath
 
             match cacheModified with
@@ -126,7 +126,7 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
     | ProcessingError e ->
         let (MessageUri uriStr) = e
         let feedUri = Uri uriStr
-        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename feedUri)
+        let cachePath = OsPath.combine cacheConfig.Dir (convertUrlToValidFilename feedUri)
 
         match readCache cachePath with
         | Some content -> StaleHitWithError(content, feedUri, e)
@@ -137,7 +137,7 @@ let cacheSuccessfulFetch cacheConfig ups =
     match ups with
     | ParsedFeed(xml, feed) ->
         let cachePath =
-            Path.Combine(cacheConfig.Dir, convertUrlToValidFilename (Uri feed.Link))
+            OsPath.combine cacheConfig.Dir (convertUrlToValidFilename (Uri feed.Link))
 
         writeCache cachePath xml.Value
     | _ -> ()

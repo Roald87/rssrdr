@@ -20,13 +20,13 @@ let ``Test clearFailure deletes failure record`` () =
           ConsecutiveFailures = 2 }
 
     let json = JsonSerializer.Serialize failure
-    File.WriteAllText(failurePath, json)
+    OsFile.writeAllText failurePath json
 
     // Clear the failure record explicitly
     clearFailure filePath
 
     // Verify failure record is cleared
-    Assert.False(File.Exists failurePath, "Expected failure record to be deleted by clearFailure")
+    Assert.False(OsFile.exists failurePath, "Expected failure record to be deleted by clearFailure")
 
     // Cleanup
     deleteFile filePath
@@ -41,7 +41,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     recordFailure filePath
 
     let failure1 =
-        JsonSerializer.Deserialize<FetchFailure>(File.ReadAllText failurePath)
+        JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
 
     Assert.Equal(1, failure1.ConsecutiveFailures)
 
@@ -49,7 +49,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     recordFailure filePath
 
     let failure2 =
-        JsonSerializer.Deserialize<FetchFailure>(File.ReadAllText failurePath)
+        JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
 
     Assert.Equal(2, failure2.ConsecutiveFailures)
 
@@ -66,7 +66,7 @@ let ``Test get retry periods from failure file`` () =
           ConsecutiveFailures = 1 }
 
     let json1 = JsonSerializer.Serialize failure1
-    File.WriteAllText(failurePath, json1)
+    OsFile.writeAllText failurePath json1
 
     let result = nextRetry filePath
 
@@ -79,7 +79,7 @@ let ``Test get retry periods from failure file`` () =
           ConsecutiveFailures = 1 }
 
     let json2 = JsonSerializer.Serialize failure2
-    File.WriteAllText(failurePath, json2)
+    OsFile.writeAllText failurePath json2
 
     let result = nextRetry filePath
 
@@ -96,7 +96,7 @@ let ``Test shouldRetry with corrupted failure file`` () =
     let failurePath = failureFilePath filePath
 
     // Create corrupted failure record
-    File.WriteAllText(failurePath, "not valid json")
+    OsFile.writeAllText failurePath "not valid json"
 
     let result = nextRetry filePath
     Assert.True(result.IsNone, "Expected None for corrupted failure file")
@@ -117,9 +117,9 @@ let ``Test getBackoffHours follows exponential pattern`` () =
 [<Fact>]
 let ``Test fileLastModifued returns age for existing file`` () =
     let filePath = OsPath(Path.GetRandomFileName())
-    File.WriteAllText(filePath, "Test content")
+    OsFile.writeAllText filePath "Test content"
     let age = DateTime.Now.AddHours -2
-    File.SetLastWriteTime(filePath, age)
+    OsFile.setLastWriteTime filePath age
 
     let result = fileLastModified filePath
 
@@ -140,18 +140,18 @@ let ``Test cacheAge returns None for non existing cache`` () =
 [<Fact>]
 let ``Test clearExpiredCache removes files older than retention`` () =
     let cacheDir = OsPath "test_cache_cleanup"
-    Directory.CreateDirectory cacheDir |> ignore
+    OsDirectory.create cacheDir
 
-    let oldFile = Path.Combine(cacheDir, "old_cache")
-    let recentFile = Path.Combine(cacheDir, "recent_cache")
+    let oldFile = OsPath.join cacheDir "old_cache"
+    let recentFile = OsPath.join cacheDir "recent_cache"
 
     // Create old file (10 days old)
-    File.WriteAllText(oldFile, "old content")
-    File.SetLastWriteTime(oldFile, DateTime.Now.AddDays -10.0)
+    OsFile.writeAllText oldFile "old content"
+    OsFile.setLastWriteTime oldFile (DateTime.Now.AddDays -10.0)
 
     // Create recent file (3 days old)
-    File.WriteAllText(recentFile, "recent content")
-    File.SetLastWriteTime(recentFile, DateTime.Now.AddDays -3.0)
+    OsFile.writeAllText recentFile "recent content"
+    OsFile.setLastWriteTime recentFile (DateTime.Now.AddDays -3.0)
 
     let retention = TimeSpan.FromDays 7.0
 
@@ -159,31 +159,31 @@ let ``Test clearExpiredCache removes files older than retention`` () =
     clearExpiredCache cacheDir retention
 
     // Assert
-    Assert.False(File.Exists oldFile, "Expected old cache file to be deleted")
-    Assert.True(File.Exists recentFile, "Expected recent cache file to be kept")
+    Assert.False(OsFile.exists oldFile, "Expected old cache file to be deleted")
+    Assert.True(OsFile.exists recentFile, "Expected recent cache file to be kept")
 
     // Cleanup
-    Directory.DeleteRecursive cacheDir
+    OsDirectory.deleteRecursive cacheDir
 
 [<Fact>]
 let ``Test clearExpiredCache also removes failure files`` () =
     let cacheDir = OsPath "test_cache_cleanup_failures"
-    Directory.CreateDirectory cacheDir |> ignore
+    OsDirectory.create cacheDir
 
-    let oldFile = Path.Combine(cacheDir, "old_cache")
+    let oldFile = OsPath.join cacheDir "old_cache"
     let failureFile = failureFilePath oldFile
 
     // Create old cache file and its failure record
-    File.WriteAllText(oldFile, "old content")
-    File.SetLastWriteTime(oldFile, DateTime.Now.AddDays -10.0)
+    OsFile.writeAllText oldFile "old content"
+    OsFile.setLastWriteTime oldFile (DateTime.Now.AddDays -10.0)
 
     let failure =
         { LastFailure = DateTimeOffset.Now.AddDays -10.0
           ConsecutiveFailures = 3 }
 
     let json = JsonSerializer.Serialize failure
-    File.WriteAllText(failureFile, json)
-    File.SetLastWriteTime(failureFile, DateTime.Now.AddDays -10.0)
+    OsFile.writeAllText failureFile json
+    OsFile.setLastWriteTime failureFile (DateTime.Now.AddDays -10.0)
 
     let retention = TimeSpan.FromDays 7.0
 
@@ -191,11 +191,11 @@ let ``Test clearExpiredCache also removes failure files`` () =
     clearExpiredCache cacheDir retention
 
     // Assert
-    Assert.False(File.Exists oldFile, "Expected old cache file to be deleted")
-    Assert.False(File.Exists failureFile, "Expected failure file to be deleted")
+    Assert.False(OsFile.exists oldFile, "Expected old cache file to be deleted")
+    Assert.False(OsFile.exists failureFile, "Expected failure file to be deleted")
 
     // Cleanup
-    Directory.DeleteRecursive cacheDir
+    OsDirectory.deleteRecursive cacheDir
 
 [<Fact>]
 let ``Test clearExpiredCache skips non-existent directory`` () =
@@ -209,7 +209,7 @@ let ``Test clearExpiredCache skips non-existent directory`` () =
 [<Fact>]
 let ``Test clearExpiredCache keeps empty directory`` () =
     let cacheDir = OsPath "test_empty_cache"
-    Directory.CreateDirectory cacheDir |> ignore
+    OsDirectory.create cacheDir
 
     let retention = TimeSpan.FromDays 7.0
 
@@ -217,10 +217,10 @@ let ``Test clearExpiredCache keeps empty directory`` () =
     clearExpiredCache cacheDir retention
 
     // Assert
-    Assert.True(Directory.Exists cacheDir, "Expected empty cache directory to still exist")
+    Assert.True(OsDirectory.exists cacheDir, "Expected empty cache directory to still exist")
 
     // Cleanup
-    Directory.DeleteRecursive cacheDir
+    OsDirectory.deleteRecursive cacheDir
 
 [<Fact>]
 let ``Test convertUrlToFilename`` () =

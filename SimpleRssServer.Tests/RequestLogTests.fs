@@ -23,11 +23,11 @@ let ``Test updateRequestLog removes old entries`` () =
     let oldEntry = $"{oldDate} OldEntry"
     let recentEntry = $"{recentDate} RecentEntry"
 
-    File.WriteAllLines(filename, [ oldEntry; recentEntry ])
+    OsFile.writeAllLines filename [ oldEntry; recentEntry ]
 
     updateRequestLog filename retention [ Uri "http://newentry.com" ]
 
-    let fileContent = File.ReadAllLines filename
+    let fileContent = OsFile.readAllLines filename
 
     Assert.DoesNotContain(oldEntry, fileContent)
     Assert.Contains(recentEntry, fileContent[0])
@@ -44,13 +44,13 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
 
     let retention = TimeSpan 1
 
-    if File.Exists filename then
-        File.Delete filename
+    if OsFile.exists filename then
+        OsFile.delete filename
 
     updateRequestLog filename retention logEntries
-    Assert.True(File.Exists filename, "Expected log file to be created")
+    Assert.True(OsFile.exists filename, "Expected log file to be created")
 
-    let fileContent = File.ReadAllText filename
+    let fileContent = OsFile.readAllText filename
 
     let currentDate = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
@@ -84,7 +84,7 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
           "2025-06-23 ftp://unsupported-protocol.com/feed3"
           "2025-06-23 https://valid-url.com/feed1" ]
 
-    File.WriteAllLines(filename, lines)
+    OsFile.writeAllLines filename lines
 
     let urls =
         try
@@ -96,4 +96,4 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
     Assert.Contains(Uri "https://valid-url.com/feed2", urls)
     Assert.DoesNotContain(Uri "ftp://unsupported-protocol.com/feed3", urls)
     Assert.Equal(2, urls.Length)
-    File.Delete filename
+    OsFile.delete filename

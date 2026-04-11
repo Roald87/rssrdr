@@ -9,11 +9,11 @@ open DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
 
 let removeFromQuery (query: Query) (feedToRemove: string) : string =
-    let normalizedFeedUrl = Uri.RemoveScheme feedToRemove
+    let normalizedFeedUrl = FeedUri.removeScheme feedToRemove
 
     let remaining =
         query.Value.GetValues "rss"
-        |> Array.filter (fun u -> Uri.RemoveScheme u <> normalizedFeedUrl)
+        |> Array.filter (fun u -> FeedUri.removeScheme u <> normalizedFeedUrl)
 
     if remaining.Length = 0 then
         "/"
@@ -29,7 +29,7 @@ let private deleteFeedButton (query: Query) (feedUrl: string) : Html =
     let removeUrl = removeFromQuery query feedUrl
 
     $"""<button class="remove-feed"
-            title="Remove {feedUrl |> Uri.RemoveScheme} from your feed"
+            title="Remove {feedUrl |> FeedUri.removeScheme} from your feed"
             onclick="removeFeed('{removeUrl}', '{feedUrl}')">{trashIcon}</button>"""
     |> Html
 
@@ -43,7 +43,7 @@ let convertArticleToHtml (deleteButton: Html) (article: Article) : Html =
     $"""
     <div>
         <h2><a href="%s{article.ArticleUrl}" target="_blank">%s{article.Title |> WebUtility.HtmlEncode}</a></h2>
-        <div class="source-date">%s{article.FeedUrl |> Uri.BaseUrl} %s{date}
+        <div class="source-date">%s{article.FeedUrl |> FeedUri.baseUrl} %s{date}
             %s{string deleteButton}
         </div>
         <p>%s{article.Text}</p>

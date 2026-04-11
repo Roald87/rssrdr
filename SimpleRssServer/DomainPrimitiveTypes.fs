@@ -18,8 +18,8 @@ type UriError =
     | HostNameMustContainDot of InvalidUri
     | UriFormatException of InvalidUri * Exception
 
-type Uri with
-    static member Create(s: string) =
+module FeedUri =
+    let create (s: string) =
         try
             let uri = Uri s
 
@@ -30,23 +30,23 @@ type Uri with
         with :? UriFormatException as ex ->
             Error(UriFormatException(InvalidUri.Create s, ex))
 
-    static member BaseUrl(s: string) =
+    let baseUrl (s: string) =
         try
             Uri(s).Host.Replace("www.", "")
         with _ ->
             ""
 
-    static member RemoveScheme(s: string) =
+    let removeScheme (s: string) =
         let s = s.Replace("http://", "")
         s.Replace("https://", "")
 
-    static member RemoveHttpsScheme(s: string) =
+    let removeHttpsScheme (s: string) =
         if s.StartsWith("https://", StringComparison.OrdinalIgnoreCase) then
             s.Substring 8
         else
             s
 
-    static member CreateWithHttps(s: string) =
+    let createWithHttps (s: string) =
         let ensureScheme (s: string) =
             if
                 s.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
@@ -56,7 +56,7 @@ type Uri with
             else
                 $"https://{s}"
 
-        Uri.Create(ensureScheme s)
+        create (ensureScheme s)
 
 type Filename = Filename of string
 
@@ -65,69 +65,34 @@ type OsPath =
 
     static member (+)(OsPath a, b) = OsPath(a + b)
 
-type Directory with
-    static member CreateDirectory path =
-        let (OsPath p) = path
-        Directory.CreateDirectory p |> ignore
+[<CompilationRepresentation(CompilationRepresentationFlags.ModuleSuffix)>]
+module OsPath =
+    let combine (OsPath path) (Filename filename) = Path.Combine(path, filename) |> OsPath
+    let join (OsPath path) (filename: string) = Path.Combine(path, filename) |> OsPath
+    let getDirectoryName (OsPath path) = Path.GetDirectoryName path |> OsPath
 
-    static member DeleteRecursive(path: OsPath) =
-        let (OsPath p) = path
-        Directory.Delete(p, recursive = true)
+module OsDirectory =
+    let create (OsPath path) =
+        Directory.CreateDirectory path |> ignore
 
-    static member Exists path =
-        let (OsPath p) = path
-        Directory.Exists p
+    let deleteRecursive (OsPath path) =
+        Directory.Delete(path, recursive = true)
 
-    static member GetFiles path =
-        let (OsPath p) = path
-        Directory.GetFiles p
+    let exists (OsPath path) = Directory.Exists path
+    let getFiles (OsPath path) = Directory.GetFiles path
 
-type Path with
-    static member Combine(path: OsPath, filename: Filename) =
-        let (Filename f) = filename
-        let (OsPath p) = path
-        Path.Combine(p, f) |> OsPath
+module OsFile =
+    let exists (OsPath path) = File.Exists path
+    let delete (OsPath path) = File.Delete path
+    let getLastWriteTime (OsPath path) = File.GetLastWriteTime path
+    let readAllLines (OsPath path) = File.ReadAllLines path
+    let readAllText (OsPath path) = File.ReadAllText path
 
-    static member Combine(path: OsPath, filename: string) =
-        let (OsPath p) = path
-        Path.Combine(p, filename) |> OsPath
+    let setLastWriteTime (OsPath path) lastWriteTime =
+        File.SetLastWriteTime(path, lastWriteTime)
 
-    static member GetDirectoryName(path: OsPath) =
-        let (OsPath p) = path
-        Path.GetDirectoryName p |> OsPath
-
-type File with
-    static member Exists path =
-        let (OsPath p) = path
-        File.Exists p
-
-    static member Delete path =
-        let (OsPath p) = path
-        File.Delete p
-
-    static member GetLastWriteTime path =
-        let (OsPath p) = path
-        File.GetLastWriteTime p
-
-    static member ReadAllLines path =
-        let (OsPath p) = path
-        File.ReadAllLines p
-
-    static member ReadAllText path =
-        let (OsPath p) = path
-        File.ReadAllText p
-
-    static member SetLastWriteTime(path, lastWriteTime) =
-        let (OsPath p) = path
-        File.SetLastWriteTime(p, lastWriteTime)
-
-    static member WriteAllLines(path, lines: string list) =
-        let (OsPath p) = path
-        File.WriteAllLines(p, lines)
-
-    static member WriteAllText(path, content: string) =
-        let (OsPath p) = path
-        File.WriteAllText(p, content)
+    let writeAllLines (OsPath path) (lines: string list) = File.WriteAllLines(path, lines)
+    let writeAllText (OsPath path) (content: string) = File.WriteAllText(path, content)
 
 type Html =
     | Html of string

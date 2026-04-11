@@ -10,8 +10,8 @@ open System.Threading.Tasks
 open SimpleRssServer.DomainPrimitiveTypes
 
 let deleteFile (filePath: OsPath) =
-    if File.Exists filePath then
-        File.Delete filePath
+    if OsFile.exists filePath then
+        OsFile.delete filePath
 
 module DummyXmlFeedFactory =
     let articleTitle (i: int) = $"Article {i}"
