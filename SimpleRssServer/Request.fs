@@ -3,11 +3,11 @@ module SimpleRssServer.Request
 open System
 open System.IO
 
-open SimpleRssServer.HttpClient
 open SimpleRssServer.Cache
 open SimpleRssServer.Config
-open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
+open SimpleRssServer.DomainPrimitiveTypes
+open SimpleRssServer.HttpClient
 
 let getRssUrls (query: string) : Result<Uri, UriError> list =
     Query.Create query
@@ -22,11 +22,7 @@ type CacheState =
     | InBackoffNoCache of waitTime: TimeSpan
     | CacheHit
 
-let computeCacheAndBackoffState
-    (cacheModified: DateTimeOffset option)
-    (nextAttempt: DateTimeOffset option)
-    (expiration: TimeSpan)
-    =
+let computeCacheAndBackoffState cacheModified nextAttempt expiration =
     match cacheModified, nextAttempt with
     | None, None -> NoCacheNoFailures
     | _, Some na when na < DateTimeOffset.Now -> ReadyToRetry
@@ -63,17 +59,14 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
     }
 
 let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) (ups: UriProcessState list) =
-    let validUris =
-        ups
-        |> List.choose (function
-            | ValidUri(dt, uri) -> Some(dt, uri)
-            | _ -> None)
-
-    let invalidUrls =
-        ups
-        |> List.filter (function
-            | ValidUri _ -> false
-            | _ -> true)
+    let validUris, invalidUrls =
+        List.fold
+            (fun (valid, invalid) ups ->
+                match ups with
+                | ValidUri(dt, uri) -> (dt, uri) :: valid, invalid
+                | x -> valid, x :: invalid)
+            ([], [])
+            ups
 
     async {
         let! processed = validUris |> List.map (fetchUri client logger cacheConfig) |> Async.Parallel
