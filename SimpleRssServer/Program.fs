@@ -186,6 +186,9 @@ let main argv =
     | ArgParser.Help ->
         printfn "%s" helpMessage
         0
+    | ArgParser.InvalidArgs msg ->
+        eprintfn "Error: %s" msg
+        1
     | ArgParser.Args args ->
         let cacheDir = DefaultCacheConfig.Dir
 

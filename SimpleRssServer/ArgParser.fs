@@ -9,6 +9,7 @@ type Args =
 type ParsedArgs =
     | Args of Args
     | Help
+    | InvalidArgs of string
 
 let parse (args: string) : ParsedArgs =
     let parts = args.Split ' '
@@ -38,7 +39,7 @@ let parse (args: string) : ParsedArgs =
                 rest
                 { acc with
                     LogLevel = Some LogLevel.Error }
-        | "--loglevel" :: invalid :: _ -> failwith $"Log level {invalid} does not exist"
+        | "--loglevel" :: invalid :: _ -> InvalidArgs $"Log level {invalid} does not exist"
         | _ -> Args acc
 
     parseArgs (List.ofArray parts) { Hostname = None; LogLevel = None }
