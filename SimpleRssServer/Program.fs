@@ -111,13 +111,13 @@ let updateCache client cacheConfig (memCache: InMemoryCache) (urls: Uri list) =
         |> List.choose (getCacheAge cacheConfig)
         |> fetchAllRssFeeds client logger cacheConfig
         |> Async.RunSynchronously
-        |> List.map (
+        |> List.iter (
             parseFeedResult logger
             >> cacheSuccessfulFetch cacheConfig
             >> feedToArticles
             >> updateMemoryCache memCache
+            >> ignore
         )
-        |> ignore
 
 [<TailCall>]
 let rec updateRssFeedsPeriodically client (cacheConfig: CacheConfig) (memCache: InMemoryCache) =

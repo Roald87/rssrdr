@@ -17,7 +17,7 @@ type InMemoryCache(logger: ILogger) =
         | _ -> None
 
     member _.Set(feedUrl: string, articles: Article list) =
-        cache[feedUrl] <- (articles, DateTimeOffset.Now)
+        cache[feedUrl] <- articles, DateTimeOffset.Now
 
 let updateMemoryCache (memCache: InMemoryCache) (ups: UriProcessState) =
     match ups with

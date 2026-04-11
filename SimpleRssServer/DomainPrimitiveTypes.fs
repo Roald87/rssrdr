@@ -117,17 +117,9 @@ type File with
         let (OsPath p) = path
         File.ReadAllText p
 
-    static member ReadAllTextAsync path =
-        let (OsPath p) = path
-        File.ReadAllTextAsync p
-
     static member SetLastWriteTime(path, lastWriteTime) =
         let (OsPath p) = path
         File.SetLastWriteTime(p, lastWriteTime)
-
-    static member WriteAllLines(path, lines: string array) =
-        let (OsPath p) = path
-        File.WriteAllLines(p, lines)
 
     static member WriteAllLines(path, lines: string list) =
         let (OsPath p) = path
@@ -136,10 +128,6 @@ type File with
     static member WriteAllText(path, content: string) =
         let (OsPath p) = path
         File.WriteAllText(p, content)
-
-    static member WriteAllTextAsync(path, content: string) =
-        let (OsPath p) = path
-        File.WriteAllTextAsync(p, content)
 
 type Html =
     | Html of string

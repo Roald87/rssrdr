@@ -55,10 +55,10 @@ let recordFailure cachePath =
     createDirectoryForPath failurePath
 
     let failure =
-        if File.Exists(failurePath) then
+        if File.Exists failurePath then
             try
-                let json = File.ReadAllText(failurePath)
-                let existing = JsonSerializer.Deserialize<FetchFailure>(json)
+                let json = File.ReadAllText failurePath
+                let existing = JsonSerializer.Deserialize<FetchFailure> json
 
                 { LastFailure = DateTimeOffset.Now
                   ConsecutiveFailures = existing.ConsecutiveFailures + 1 }
@@ -69,15 +69,15 @@ let recordFailure cachePath =
             { LastFailure = DateTimeOffset.Now
               ConsecutiveFailures = 1 }
 
-    File.WriteAllText(failurePath, JsonSerializer.Serialize(failure))
+    File.WriteAllText(failurePath, JsonSerializer.Serialize failure)
 
 let readFailure cachePath =
     let path = failureFilePath cachePath
 
-    if File.Exists(path) then
+    if File.Exists path then
         try
-            let json = File.ReadAllText(path)
-            Some(JsonSerializer.Deserialize<FetchFailure>(json))
+            let json = File.ReadAllText path
+            Some(JsonSerializer.Deserialize<FetchFailure> json)
         with _ ->
             None
     else
@@ -110,7 +110,6 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
         match memCache.TryGet(u.AbsoluteUri, cacheConfig.Expiration) with
         | Some articles -> FeedArticles articles
         | None ->
-
             let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename u)
             let cacheModified = fileLastModified cachePath
 
