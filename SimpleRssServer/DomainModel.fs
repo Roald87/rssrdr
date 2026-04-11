@@ -6,12 +6,7 @@ open SimpleRssServer.DomainPrimitiveTypes
 open System.Net
 open Roald87.FeedReader
 
-type FeedUri =
-    | FeedUri of Uri
-
-    member this.Uri =
-        let (FeedUri u) = this
-        u
+type FeedUri = FeedUri of Uri
 
 and DomainMessage =
     // Uri errors
@@ -28,18 +23,6 @@ and DomainMessage =
     | HttpRequestTimedOut of Uri * TimeSpan
     | HttpRequestNonSuccessStatus of Uri * HttpStatusCode
     | HttpException of Uri * Exception
-
-    member this.Uri =
-        match this with
-        | InvalidUriHostname invalid -> Some invalid.Value
-        | InvalidUriFormat(invalid, _) -> Some invalid.Value
-        | PreviousHttpRequestFailed(uri, _) -> Some uri.AbsoluteUri
-        | PreviousHttpRequestFailedButPageCached(uri, _) -> Some uri.AbsoluteUri
-        | HttpRequestTimedOut(uri, _) -> Some uri.AbsoluteUri
-        | HttpRequestNonSuccessStatus(uri, _) -> Some uri.AbsoluteUri
-        | HttpException(uri, _) -> Some uri.AbsoluteUri
-        | InvalidRssFeedFormat(uri, _) -> Some uri.AbsoluteUri
-        | NoRssFeedsFoundInPage uri -> Some uri.AbsoluteUri
 
 type Article =
     { PostDate: DateTime option
@@ -67,3 +50,17 @@ type UriProcessState =
     | ProcessingError of DomainMessage
     | FeedArticles of Article list
     | FeedWithErrorArticles of Article list
+
+[<AutoOpen>]
+module ActivePatterns =
+    let (|MessageUri|) (msg: DomainMessage) =
+        match msg with
+        | InvalidUriHostname invalid -> invalid.Value
+        | InvalidUriFormat(invalid, _) -> invalid.Value
+        | PreviousHttpRequestFailed(uri, _) -> uri.AbsoluteUri
+        | PreviousHttpRequestFailedButPageCached(uri, _) -> uri.AbsoluteUri
+        | HttpRequestTimedOut(uri, _) -> uri.AbsoluteUri
+        | HttpRequestNonSuccessStatus(uri, _) -> uri.AbsoluteUri
+        | HttpException(uri, _) -> uri.AbsoluteUri
+        | InvalidRssFeedFormat(uri, _) -> uri.AbsoluteUri
+        | NoRssFeedsFoundInPage uri -> uri.AbsoluteUri

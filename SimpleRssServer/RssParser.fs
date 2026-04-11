@@ -21,7 +21,7 @@ let stripHtml (input: string) : string =
         |> fun s -> whitespaceRegex.Replace(s, " ").Trim()
 
 let createErrorArticle (errorType: DomainMessage) : Article =
-    let link = errorType.Uri |> Option.defaultValue ""
+    let (MessageUri link) = errorType
 
     let text =
         match errorType with
