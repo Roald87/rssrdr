@@ -41,6 +41,8 @@ let createErrorArticle (errorType: DomainMessage) : Article =
             $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Failed to get {uri}. {ex.GetType().Name}: {ex.Message}"
         | HttpRequestNonSuccessStatus(uri, status) ->
             $"The {uri.Host} RSS feed seems to be offline. You can retry at a later time. Failed to get {uri}. Error: {status}."
+        | NoRssFeedsFoundInPage uri ->
+            $"No RSS feeds found at {uri.AbsoluteUri}. Ensure you entered the correct address."
 
     { PostDate = Some DateTime.Now
       Title = "Error"
@@ -124,7 +126,7 @@ let checkIfDiscoveryFeeds ups =
         let feed = FeedReader.ParseFeedUrlsFromHtml s |> Seq.toList
 
         match feed with
-        | [] -> [ ProcessingError(InvalidRssFeedFormat(originalUri, Exception "No RSS feeds found in page")) ]
+        | [] -> [ ProcessingError(NoRssFeedsFoundInPage originalUri) ]
         | x -> x |> List.map (fun u -> ValidUri(None, Uri(originalUri, u.Url)))
     | x -> [ x ]
 

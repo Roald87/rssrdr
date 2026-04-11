@@ -20,6 +20,7 @@ and DomainMessage =
 
     // Rss parsing errors
     | InvalidRssFeedFormat of Uri * Exception
+    | NoRssFeedsFoundInPage of Uri
 
     // Http errors
     | PreviousHttpRequestFailed of Uri * TimeSpan
@@ -38,6 +39,7 @@ and DomainMessage =
         | HttpRequestNonSuccessStatus(uri, _) -> Some uri.AbsoluteUri
         | HttpException(uri, _) -> Some uri.AbsoluteUri
         | InvalidRssFeedFormat(uri, _) -> Some uri.AbsoluteUri
+        | NoRssFeedsFoundInPage uri -> Some uri.AbsoluteUri
 
 type Article =
     { PostDate: DateTime option

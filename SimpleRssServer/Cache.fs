@@ -62,7 +62,9 @@ let recordFailure cachePath =
 
                 { LastFailure = DateTimeOffset.Now
                   ConsecutiveFailures = existing.ConsecutiveFailures + 1 }
-            with _ ->
+            with ex ->
+                logger.LogWarning(ex, "Failed to read existing failure record at {Path}, resetting count", failurePath)
+
                 { LastFailure = DateTimeOffset.Now
                   ConsecutiveFailures = 1 }
         else
@@ -78,7 +80,8 @@ let readFailure cachePath =
         try
             let json = File.ReadAllText path
             Some(JsonSerializer.Deserialize<FetchFailure> json)
-        with _ ->
+        with ex ->
+            logger.LogWarning(ex, "Failed to read failure record at {Path}", path)
             None
     else
         None

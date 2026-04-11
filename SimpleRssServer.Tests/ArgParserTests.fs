@@ -24,10 +24,10 @@ let ``parse should correctly parse --hostname and --loglevel arguments`` () =
     Assert.Equal(expected, result)
 
 [<Fact>]
-let ``parse should fail with error message for invalid --loglevel`` () =
+let ``parse should return InvalidArgs for invalid --loglevel`` () =
     let input = "--loglevel doesnt_exist"
-    let ex = Assert.Throws<System.Exception>(fun () -> parse input |> ignore)
-    Assert.Equal("Log level doesnt_exist does not exist", ex.Message)
+    let result = parse input
+    Assert.Equal(InvalidArgs "Log level doesnt_exist does not exist", result)
 
 [<Theory>]
 [<InlineData("info", LogLevel.Information)>]
