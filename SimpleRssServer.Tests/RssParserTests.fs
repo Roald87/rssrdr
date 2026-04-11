@@ -7,7 +7,23 @@ open Xunit
 
 open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
+open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.RssParser
+
+[<Fact>]
+let ``createErrorArticle sets ArticleUrl from InvalidUriHostname`` () =
+    let rawUri = "not-a-valid-uri"
+    let article = createErrorArticle (InvalidUriHostname(InvalidUri.Create rawUri))
+    Assert.Equal(rawUri, article.ArticleUrl)
+
+[<Fact>]
+let ``createErrorArticle sets ArticleUrl from PreviousHttpRequestFailed`` () =
+    let uri = Uri "https://example.com/feed"
+
+    let article =
+        createErrorArticle (PreviousHttpRequestFailed(uri, TimeSpan.FromHours 1.0))
+
+    Assert.Equal(uri.AbsoluteUri, article.ArticleUrl)
 
 [<Fact>]
 let ``tryParseFeed returns InvalidRssFeedFormat for non-RSS content`` () =

@@ -124,14 +124,12 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
                 | None -> ValidUri(None, u)
             | Some modTime -> ValidUri(Some modTime, u)
     | ProcessingError e ->
-        match e.Uri with
-        | Some uriStr ->
-            let feedUri = Uri uriStr
-            let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename feedUri)
+        let (MessageUri uriStr) = e
+        let feedUri = Uri uriStr
+        let cachePath = Path.Combine(cacheConfig.Dir, convertUrlToValidFilename feedUri)
 
-            match readCache cachePath with
-            | Some content -> StaleHitWithError(content, feedUri, e)
-            | None -> ProcessingError e
+        match readCache cachePath with
+        | Some content -> StaleHitWithError(content, feedUri, e)
         | None -> ProcessingError e
     | _ -> ups
 
