@@ -2,22 +2,36 @@ module SimpleRssServer.MemoryCache
 
 open Microsoft.Extensions.Logging
 open System
-open System.Collections.Concurrent
 
 open SimpleRssServer.DomainModel
 
+type private CacheMessage =
+    | TryGet of uri: string * TimeSpan * AsyncReplyChannel<Article list option>
+    | Set of uri: string * Article list
+
 type InMemoryCache(logger: ILogger) =
-    let cache = ConcurrentDictionary<string, Article list * DateTimeOffset>()
+    let agent =
+        MailboxProcessor.Start(fun inbox ->
+            let rec loop store =
+                async {
+                    match! inbox.Receive() with
+                    | TryGet(feedUrl, expiration, reply) ->
+                        match Map.tryFind feedUrl store with
+                        | Some(articles, cachedAt) when DateTimeOffset.Now - cachedAt < expiration ->
+                            logger.LogDebug $"Read articles of {feedUrl} from in-memory cache"
+                            reply.Reply(Some articles)
+                        | _ -> reply.Reply None
+
+                        return! loop store
+                    | Set(feedUrl, articles) -> return! loop (Map.add feedUrl (articles, DateTimeOffset.Now) store)
+                }
+
+            loop Map.empty)
 
     member _.TryGet(feedUrl: string, expiration: TimeSpan) : Article list option =
-        match cache.TryGetValue feedUrl with
-        | true, (articles, cachedAt) when DateTimeOffset.Now - cachedAt < expiration ->
-            logger.LogDebug $"Read articles of {feedUrl} from in-memory cache"
-            Some articles
-        | _ -> None
+        agent.PostAndReply(fun reply -> TryGet(feedUrl, expiration, reply))
 
-    member _.Set(feedUrl: string, articles: Article list) =
-        cache[feedUrl] <- articles, DateTimeOffset.Now
+    member _.Set(feedUrl: string, articles: Article list) : unit = agent.Post(Set(feedUrl, articles))
 
 let updateMemoryCache (memCache: InMemoryCache) (ups: UriProcessState) =
     match ups with
