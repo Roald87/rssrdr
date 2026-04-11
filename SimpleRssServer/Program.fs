@@ -119,6 +119,7 @@ let updateCache client cacheConfig (memCache: InMemoryCache) (urls: Uri list) =
         )
         |> ignore
 
+[<TailCall>]
 let rec updateRssFeedsPeriodically client (cacheConfig: CacheConfig) (memCache: InMemoryCache) =
     async {
         logger.LogDebug "Periodically updating RSS feeds."
@@ -130,6 +131,7 @@ let rec updateRssFeedsPeriodically client (cacheConfig: CacheConfig) (memCache: 
         return! updateRssFeedsPeriodically client cacheConfig memCache
     }
 
+[<TailCall>]
 let rec clearCachePeriodically (cacheDir: OsPath) (retention: TimeSpan) (period: TimeSpan) =
     async {
         logger.LogDebug("Clearing cache files older than {retention} days.", retention.Days)
