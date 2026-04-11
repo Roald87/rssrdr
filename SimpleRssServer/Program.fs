@@ -119,24 +119,26 @@ let updateCache client cacheConfig (memCache: InMemoryCache) (urls: Uri list) =
         )
         |> ignore
 
-let updateRssFeedsPeriodically client (cacheConfig: CacheConfig) (memCache: InMemoryCache) =
+[<TailCall>]
+let rec updateRssFeedsPeriodically client (cacheConfig: CacheConfig) (memCache: InMemoryCache) =
     async {
-        while true do
-            logger.LogDebug "Periodically updating RSS feeds."
+        logger.LogDebug "Periodically updating RSS feeds."
 
-            uniqueValidRequestLogUrls RequestLogPath
-            |> updateCache client cacheConfig memCache
+        uniqueValidRequestLogUrls RequestLogPath
+        |> updateCache client cacheConfig memCache
 
-            do! Async.Sleep cacheConfig.Expiration
+        do! Async.Sleep cacheConfig.Expiration
+        return! updateRssFeedsPeriodically client cacheConfig memCache
     }
 
-let clearCachePeriodically (cacheDir: OsPath) (retention: TimeSpan) (period: TimeSpan) =
+[<TailCall>]
+let rec clearCachePeriodically (cacheDir: OsPath) (retention: TimeSpan) (period: TimeSpan) =
     async {
-        while true do
-            logger.LogDebug("Clearing cache files older than {retention} days.", retention.Days)
-            clearExpiredCache cacheDir retention
+        logger.LogDebug("Clearing cache files older than {retention} days.", retention.Days)
+        clearExpiredCache cacheDir retention
 
-            do! Async.Sleep period
+        do! Async.Sleep period
+        return! clearCachePeriodically cacheDir retention period
     }
 
 let startServer (cacheConfig: SimpleRssServer.Config.CacheConfig) (hosts: string list) =
