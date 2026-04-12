@@ -59,7 +59,7 @@ let uniqueValidRequestLogUrls (logPath: OsPath) =
 let logSuccessfulFeedRequestsAndParses (logPath: OsPath) (upss: UriProcessState list) =
     upss
     |> List.choose (function
-        | ParsedFeed(_, feed) -> Some(Uri feed.Link)
+        | ParsedLiveFeed(_, feed) -> Some(Uri feed.Link)
         | ParsedCachedFeed feed -> Some(Uri feed.Link)
         | _ -> None)
     |> updateRequestLog logPath RequestLogRetention

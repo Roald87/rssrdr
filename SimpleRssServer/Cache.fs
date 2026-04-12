@@ -108,7 +108,7 @@ let convertUrlToValidFilename (uri: Uri) =
 
 let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: UriProcessState) : UriProcessState =
     match ups with
-    | ValidUri(_, u) ->
+    | TryFetchFromCache u ->
         match memCache.TryGet(u.AbsoluteUri, cacheConfig.Expiration) with
         | Some articles -> FeedArticles articles
         | None ->
@@ -116,25 +116,25 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
             let cacheModified = fileLastModified cachePath
 
             match cacheModified with
-            | None -> ValidUri(None, u)
+            | None -> PendingFetch(None, u)
             | Some modTime when (DateTimeOffset.Now - modTime) <= cacheConfig.Expiration ->
                 match readCache cachePath with
-                | Some s -> CachedFeed(s, u)
-                | None -> ValidUri(None, u)
-            | Some modTime -> ValidUri(Some modTime, u)
+                | Some s -> UnparsedCachedContent(s, u)
+                | None -> PendingFetch(None, u)
+            | Some modTime -> PendingFetch(Some modTime, u)
     | ProcessingError e ->
         let (MessageUri uriStr) = e
         let feedUri = Uri uriStr
         let cachePath = OsPath.combine cacheConfig.Dir (convertUrlToValidFilename feedUri)
 
         match readCache cachePath with
-        | Some content -> StaleHitWithError(content, feedUri, e)
+        | Some content -> UnparsedStaleCachedContent(content, feedUri, e)
         | None -> ProcessingError e
     | _ -> ups
 
 let cacheSuccessfulFetch cacheConfig ups =
     match ups with
-    | ParsedFeed(xml, feed) ->
+    | ParsedLiveFeed(xml, feed) ->
         let cachePath =
             OsPath.combine cacheConfig.Dir (convertUrlToValidFilename (Uri feed.Link))
 

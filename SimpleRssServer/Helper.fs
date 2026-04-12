@@ -14,7 +14,7 @@ let isText (s: string) = not (String.IsNullOrWhiteSpace s)
 
 let toUriProcessState (uri: Result<Uri, UriError>) : UriProcessState =
     match uri with
-    | Ok u -> ValidUri(Some DateTimeOffset.Now, u)
+    | Ok u -> TryFetchFromCache u
     | Error u ->
         match u with
         | HostNameMustContainDot iu -> ProcessingError(InvalidUriHostname iu)

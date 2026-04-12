@@ -8,7 +8,7 @@ open Roald87.FeedReader
 
 type FeedUri = FeedUri of Uri
 
-and DomainMessage =
+and DomainError =
     // Uri errors
     | InvalidUriHostname of InvalidUri
     | InvalidUriFormat of InvalidUri * Exception
@@ -39,21 +39,22 @@ type UnparsedXml =
         x
 
 type UriProcessState =
-    | ValidUri of (DateTimeOffset option) * Uri
-    | CachedFeed of string * Uri
-    | Response of string * Uri
-    | ResponseCanContainsFeeds of string * Uri
-    | ParsedFeed of UnparsedXml * Feed
+    | TryFetchFromCache of Uri
+    | PendingFetch of (DateTimeOffset option) * Uri
+    | UnparsedCachedContent of string * Uri
+    | UnparsedHttpResponse of string * Uri
+    | NotRssContent of string * Uri
+    | ParsedLiveFeed of UnparsedXml * Feed
     | ParsedCachedFeed of Feed
-    | StaleHitWithError of string * Uri * DomainMessage
-    | ParsedStaleHit of Feed * DomainMessage
-    | ProcessingError of DomainMessage
+    | UnparsedStaleCachedContent of string * Uri * DomainError
+    | ParsedStaleFeed of Feed * DomainError
+    | ProcessingError of DomainError
     | FeedArticles of Article list
-    | FeedWithErrorArticles of Article list
+    | DegradedArticles of Article list
 
 [<AutoOpen>]
 module ActivePatterns =
-    let (|MessageUri|) (msg: DomainMessage) =
+    let (|MessageUri|) (msg: DomainError) =
         match msg with
         | InvalidUriHostname invalid -> invalid.Value
         | InvalidUriFormat(invalid, _) -> invalid.Value

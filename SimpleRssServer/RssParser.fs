@@ -20,7 +20,7 @@ let stripHtml (input: string) : string =
         htmlTagRegex.Replace(input, "")
         |> fun s -> whitespaceRegex.Replace(s, " ").Trim()
 
-let createErrorArticle (errorType: DomainMessage) : Article =
+let createErrorArticle (errorType: DomainError) : Article =
     let (MessageUri link) = errorType
 
     let text =
@@ -50,7 +50,7 @@ let createErrorArticle (errorType: DomainMessage) : Article =
       FeedUrl = link
       Text = text }
 
-let tryParseFeed (logger: ILogger) (content: string) (uri: Uri) : Result<Feed, DomainMessage> =
+let tryParseFeed (logger: ILogger) (content: string) (uri: Uri) : Result<Feed, DomainError> =
     try
         let feed = FeedReader.ReadFromString content
         // Link in feed points to the base url of the website, not the link to the feed.
@@ -95,43 +95,43 @@ let toArticles (feed: Feed) =
 
 let feedToArticles (ups: UriProcessState) : UriProcessState =
     match ups with
-    | ParsedFeed(_, feed)
+    | ParsedLiveFeed(_, feed)
     | ParsedCachedFeed feed -> toArticles feed |> FeedArticles
-    | ParsedStaleHit(feed, err) -> toArticles feed @ [ createErrorArticle err ] |> FeedWithErrorArticles
-    | ProcessingError err -> [ createErrorArticle err ] |> FeedWithErrorArticles
+    | ParsedStaleFeed(feed, err) -> toArticles feed @ [ createErrorArticle err ] |> DegradedArticles
+    | ProcessingError err -> [ createErrorArticle err ] |> DegradedArticles
     | x -> x
 
 let parseFeedResult (logger: ILogger) (ups: UriProcessState) =
     match ups with
-    | Response(r, feedUri) ->
+    | UnparsedHttpResponse(r, feedUri) ->
         match tryParseFeed logger r feedUri with
-        | Ok f -> ParsedFeed(UnparsedXml r, f)
+        | Ok f -> ParsedLiveFeed(UnparsedXml r, f)
         | Error e ->
             match e with
-            | InvalidRssFeedFormat _ -> ResponseCanContainsFeeds(r, feedUri)
+            | InvalidRssFeedFormat _ -> NotRssContent(r, feedUri)
             | _ -> ProcessingError e
-    | CachedFeed(r, feedUri) ->
+    | UnparsedCachedContent(r, feedUri) ->
         match tryParseFeed logger r feedUri with
         | Ok f -> ParsedCachedFeed f
         | Error e -> ProcessingError e
-    | StaleHitWithError(r, feedUri, err) ->
+    | UnparsedStaleCachedContent(r, feedUri, err) ->
         match tryParseFeed logger r feedUri with
-        | Ok f -> ParsedStaleHit(f, err)
+        | Ok f -> ParsedStaleFeed(f, err)
         | Error _ -> ProcessingError err
     | _ -> ups
 
 let checkIfDiscoveryFeeds ups =
     match ups with
-    | ResponseCanContainsFeeds(s, originalUri) ->
+    | NotRssContent(s, originalUri) ->
         let feed = FeedReader.ParseFeedUrlsFromHtml s |> Seq.toList
 
         match feed with
         | [] -> [ ProcessingError(NoRssFeedsFoundInPage originalUri) ]
-        | x -> x |> List.map (fun u -> ValidUri(None, Uri(originalUri, u.Url)))
+        | x -> x |> List.map (fun u -> TryFetchFromCache(Uri(originalUri, u.Url)))
     | x -> [ x ]
 
 let onlyFeedArticles ups =
     match ups with
     | FeedArticles articles
-    | FeedWithErrorArticles articles -> articles
+    | DegradedArticles articles -> articles
     | _ -> []
