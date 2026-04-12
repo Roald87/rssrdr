@@ -79,7 +79,9 @@ module OsDirectory =
         Directory.Delete(path, recursive = true)
 
     let exists (OsPath path) = Directory.Exists path
-    let getFiles (OsPath path) = Directory.GetFiles path
+
+    let getFiles (OsPath path) =
+        Directory.GetFiles path |> Array.map OsPath
 
 module OsFile =
     let exists (OsPath path) = File.Exists path

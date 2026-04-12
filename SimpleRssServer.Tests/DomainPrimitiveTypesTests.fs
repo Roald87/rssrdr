@@ -3,6 +3,7 @@ module DomainPrimitiveTypesTests
 open Xunit
 open System
 open SimpleRssServer.DomainPrimitiveTypes
+open SimpleRssServer.Tests.TestHelpers
 
 [<Fact>]
 let ``Uri.create should return Ok for valid URI with dot in host`` () =
@@ -149,3 +150,17 @@ let ``Query.CreateWithKey empty list gives empty ToString`` () =
     let q = Query.CreateWithKey("rss", [])
     Assert.Empty(q.GetValues "rss")
     Assert.Equal("", q |> string)
+
+[<Fact>]
+let ``OsDirectory.getFiles returns OsPath array`` () =
+    use tmp = new TempDir()
+    let file1 = OsPath.join tmp.Path "file1.txt"
+    let file2 = OsPath.join tmp.Path "file2.txt"
+    OsFile.writeAllLines file1 [ "a" ]
+    OsFile.writeAllLines file2 [ "b" ]
+
+    let files = OsDirectory.getFiles tmp.Path
+
+    Assert.Equal(2, files.Length)
+    Assert.True(Array.contains file1 files)
+    Assert.True(Array.contains file2 files)
