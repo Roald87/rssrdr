@@ -9,7 +9,6 @@ open System.Text.Json
 open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
-open SimpleRssServer.Logging
 open SimpleRssServer.MemoryCache
 
 type FetchFailure =
@@ -50,7 +49,7 @@ let clearFailure cachePath =
     if OsFile.exists failurePath then
         OsFile.delete failurePath
 
-let recordFailure cachePath =
+let recordFailure (logger: ILogger) cachePath =
     let failurePath = failureFilePath cachePath
     createDirectoryForPath failurePath
 
@@ -73,7 +72,7 @@ let recordFailure cachePath =
 
     OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
 
-let readFailure cachePath =
+let readFailure (logger: ILogger) cachePath =
     let path = failureFilePath cachePath
 
     if OsFile.exists path then
@@ -86,14 +85,14 @@ let readFailure cachePath =
     else
         None
 
-let nextRetry cachePath =
-    match readFailure cachePath with
+let nextRetry (logger: ILogger) cachePath =
+    match readFailure logger cachePath with
     | None -> None // No failures recorded or can't read failure file
     | Some failure ->
         let backoffHours = getBackoffHours failure.ConsecutiveFailures
         Some(failure.LastFailure.AddHours backoffHours)
 
-let clearExpiredCache (cacheDir: OsPath) (retention: TimeSpan) =
+let clearExpiredCache (logger: ILogger) (cacheDir: OsPath) (retention: TimeSpan) =
     if not (OsDirectory.exists cacheDir) then
         logger.LogWarning("Cache directory {Dir} does not exist", cacheDir)
     else

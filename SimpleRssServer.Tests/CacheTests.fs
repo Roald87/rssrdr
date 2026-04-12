@@ -1,5 +1,6 @@
 module SimpleRssServer.Tests.CacheTests
 
+open Microsoft.Extensions.Logging.Abstractions
 open System
 open System.IO
 open System.Text.Json
@@ -38,7 +39,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     let failurePath = failureFilePath filePath
 
     // Record first failure
-    recordFailure filePath
+    recordFailure NullLogger.Instance filePath
 
     let failure1 =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -46,7 +47,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     Assert.Equal(1, failure1.ConsecutiveFailures)
 
     // Record second failure
-    recordFailure filePath
+    recordFailure NullLogger.Instance filePath
 
     let failure2 =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -68,7 +69,7 @@ let ``Test get retry periods from failure file`` () =
     let json1 = JsonSerializer.Serialize failure1
     OsFile.writeAllText failurePath json1
 
-    let result = nextRetry filePath
+    let result = nextRetry NullLogger.Instance filePath
 
     match result with
     | Some d -> Assert.True(d > DateTimeOffset.Now, "Backoff period should not have passed yet")
@@ -81,7 +82,7 @@ let ``Test get retry periods from failure file`` () =
     let json2 = JsonSerializer.Serialize failure2
     OsFile.writeAllText failurePath json2
 
-    let result = nextRetry filePath
+    let result = nextRetry NullLogger.Instance filePath
 
     match result with
     | Some d -> Assert.True(d < DateTimeOffset.Now, "Backoff period should have passed")
@@ -98,7 +99,7 @@ let ``Test shouldRetry with corrupted failure file`` () =
     // Create corrupted failure record
     OsFile.writeAllText failurePath "not valid json"
 
-    let result = nextRetry filePath
+    let result = nextRetry NullLogger.Instance filePath
     Assert.True(result.IsNone, "Expected None for corrupted failure file")
 
     // Cleanup
@@ -156,7 +157,7 @@ let ``Test clearExpiredCache removes files older than retention`` () =
     let retention = TimeSpan.FromDays 7.0
 
     // Act
-    clearExpiredCache cacheDir retention
+    clearExpiredCache NullLogger.Instance cacheDir retention
 
     // Assert
     Assert.False(OsFile.exists oldFile, "Expected old cache file to be deleted")
@@ -188,7 +189,7 @@ let ``Test clearExpiredCache also removes failure files`` () =
     let retention = TimeSpan.FromDays 7.0
 
     // Act
-    clearExpiredCache cacheDir retention
+    clearExpiredCache NullLogger.Instance cacheDir retention
 
     // Assert
     Assert.False(OsFile.exists oldFile, "Expected old cache file to be deleted")
@@ -203,7 +204,7 @@ let ``Test clearExpiredCache skips non-existent directory`` () =
     let retention = TimeSpan.FromDays 7.0
 
     // This should not throw an exception
-    clearExpiredCache cacheDir retention
+    clearExpiredCache NullLogger.Instance cacheDir retention
     Assert.True(true, "Expected clearExpiredCache to handle non-existent directory gracefully")
 
 [<Fact>]
@@ -214,7 +215,7 @@ let ``Test clearExpiredCache keeps empty directory`` () =
     let retention = TimeSpan.FromDays 7.0
 
     // Act
-    clearExpiredCache cacheDir retention
+    clearExpiredCache NullLogger.Instance cacheDir retention
 
     // Assert
     Assert.True(OsDirectory.exists cacheDir, "Expected empty cache directory to still exist")
