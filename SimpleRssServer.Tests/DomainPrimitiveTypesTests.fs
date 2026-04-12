@@ -10,9 +10,7 @@ let ``Uri.create should return Ok for valid URI with dot in host`` () =
     let input = "https://example.com"
     let result = FeedUri.create input
 
-    match result with
-    | Ok uri -> Assert.Equal("https://example.com/", uri.ToString())
-    | Error error -> failwithf $"Expected Ok but got Error: {error}"
+    Assert.Equal("https://example.com/", (getOk result).ToString())
 
 [<Fact>]
 let ``Uri.create should return Error for valid URI without dot in host`` () =
@@ -39,27 +37,21 @@ let ``Uri.createWithHttps should add https to URL without scheme`` () =
     let input = "example.com"
     let result = FeedUri.createWithHttps input
 
-    match result with
-    | Ok uri -> Assert.Equal("https://example.com/", uri.ToString())
-    | Error error -> failwithf $"Expected Ok but got Error: {error}"
+    Assert.Equal("https://example.com/", (getOk result).ToString())
 
 [<Fact>]
 let ``Uri.createWithHttps should keep http scheme`` () =
     let input = "http://example.com"
     let result = FeedUri.createWithHttps input
 
-    match result with
-    | Ok uri -> Assert.Equal("http://example.com/", uri.ToString())
-    | Error error -> failwithf $"Expected Ok but got Error: {error}"
+    Assert.Equal("http://example.com/", (getOk result).ToString())
 
 [<Fact>]
 let ``Uri.createWithHttps should keep https scheme`` () =
     let input = "https://example.com"
     let result = FeedUri.createWithHttps input
 
-    match result with
-    | Ok uri -> Assert.Equal("https://example.com/", uri.ToString())
-    | Error error -> failwithf $"Expected Ok but got Error: {error}"
+    Assert.Equal("https://example.com/", (getOk result).ToString())
 
 [<Fact>]
 let ``Uri.createWithHttps should return Error for invalid host`` () =
