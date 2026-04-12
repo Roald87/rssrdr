@@ -36,7 +36,7 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
         let cachePath = OsPath.combine cacheConfig.Dir (convertUrlToValidFilename uri)
 
         let cacheState =
-            computeCacheAndBackoffState dt (nextRetry cachePath) cacheConfig.Expiration
+            computeCacheAndBackoffState dt (nextRetry logger cachePath) cacheConfig.Expiration
 
         match cacheState with
         | InBackoffWithCache waitTime -> return ProcessingError(PreviousHttpRequestFailedButPageCached(uri, waitTime))
@@ -54,7 +54,7 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
                     clearFailure cachePath
                     Response(content, uri)
                 | Error e ->
-                    recordFailure cachePath
+                    recordFailure logger cachePath
                     ProcessingError e
     }
 
