@@ -13,6 +13,21 @@ let deleteFile (filePath: OsPath) =
     if OsFile.exists filePath then
         OsFile.delete filePath
 
+type TempPath() =
+    let path = OsPath(Path.GetRandomFileName())
+    member _.Path = path
+
+    interface System.IDisposable with
+        member _.Dispose() = deleteFile path
+
+type TempDir() =
+    let path = OsPath(Path.GetRandomFileName())
+    do OsDirectory.create path
+    member _.Path = path
+
+    interface System.IDisposable with
+        member _.Dispose() = OsDirectory.deleteRecursive path
+
 module DummyXmlFeedFactory =
     let articleTitle (i: int) = $"Article {i}"
 
