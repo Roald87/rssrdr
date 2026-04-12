@@ -10,7 +10,7 @@ open TestHelpers
 
 [<Fact>]
 let ``Test updateRequestLog removes old entries`` () =
-    let filename = OsPath "test_log_retention.txt"
+    use tmp = new TempPath()
     let retention = TimeSpan.FromDays 7.0
 
     let oldDate =
@@ -19,60 +19,48 @@ let ``Test updateRequestLog removes old entries`` () =
     let recentDate =
         DateTime.Now.AddDays(-3.0).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
-    OsFile.writeAllLines filename [ $"{oldDate} http://oldentry.com"; $"{recentDate} http://recententry.com" ]
+    OsFile.writeAllLines tmp.Path [ $"{oldDate} http://oldentry.com"; $"{recentDate} http://recententry.com" ]
 
-    updateRequestLog filename retention [ Uri "http://newentry.com" ]
+    updateRequestLog tmp.Path retention [ Uri "http://newentry.com" ]
 
-    let fileContent = OsFile.readAllLines filename
+    let fileContent = OsFile.readAllLines tmp.Path
 
     Assert.DoesNotContain("oldentry.com", fileContent)
     Assert.Contains(fileContent, fun line -> line.Contains "recententry.com")
     Assert.Contains(fileContent, fun line -> line.Contains "newentry.com")
 
-    deleteFile filename
-
 [<Fact>]
 let ``Test updateRequestLog creates file and appends strings with datetime`` () =
-    let filename = OsPath "test_log.txt"
+    use tmp = new TempPath()
 
     let logEntries =
         [ Uri "https://Entry1.com"; Uri "http://Entry2.ch"; Uri "https://Entry3.nl" ]
 
     let retention = TimeSpan 1
 
-    if OsFile.exists filename then
-        OsFile.delete filename
+    updateRequestLog tmp.Path retention logEntries
+    Assert.True(OsFile.exists tmp.Path, "Expected log file to be created")
 
-    updateRequestLog filename retention logEntries
-    Assert.True(OsFile.exists filename, "Expected log file to be created")
-
-    let fileContent = OsFile.readAllText filename
+    let fileContent = OsFile.readAllText tmp.Path
 
     let currentDate = DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
     logEntries
     |> List.iter (fun entry -> Assert.Contains($"{currentDate} {entry.AbsoluteUri}", fileContent))
 
-    deleteFile filename
-
 [<Fact>]
 let ``Test updateRequestLog does not duplicate URLs`` () =
-    let filename = OsPath "test_log_dedup.txt"
+    use tmp = new TempPath()
     let retention = TimeSpan.FromDays 7.0
 
-    if OsFile.exists filename then
-        OsFile.delete filename
-
     let url = Uri "https://example.com/feed"
-    updateRequestLog filename retention [ url ]
-    updateRequestLog filename retention [ url ]
+    updateRequestLog tmp.Path retention [ url ]
+    updateRequestLog tmp.Path retention [ url ]
 
-    let fileContent = OsFile.readAllLines filename
+    let fileContent = OsFile.readAllLines tmp.Path
 
     Assert.Equal(1, fileContent.Length)
     Assert.Contains("example.com/feed", fileContent[0])
-
-    deleteFile filename
 
 [<Fact>]
 let ``Test requestUrls returns two URLs from request-log.txt`` () =
@@ -86,7 +74,7 @@ let ``Test requestUrls returns two URLs from request-log.txt`` () =
 
 [<Fact>]
 let ``Test requestUrls skips invalid URLs in log file`` () =
-    let filename = OsPath "test_invalid_urls.txt"
+    use tmp = new TempPath()
 
     let lines =
         [ "2025-06-23 https://valid-url.com/feed1"
@@ -99,11 +87,11 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
           "2025-06-23 ftp://unsupported-protocol.com/feed3"
           "2025-06-23 https://valid-url.com/feed1" ]
 
-    OsFile.writeAllLines filename lines
+    OsFile.writeAllLines tmp.Path lines
 
     let urls =
         try
-            uniqueValidRequestLogUrls filename
+            uniqueValidRequestLogUrls tmp.Path
         with _ ->
             []
 
@@ -111,4 +99,3 @@ let ``Test requestUrls skips invalid URLs in log file`` () =
     Assert.Contains(Uri "https://valid-url.com/feed2", urls)
     Assert.DoesNotContain(Uri "ftp://unsupported-protocol.com/feed3", urls)
     Assert.Equal(2, urls.Length)
-    OsFile.delete filename
