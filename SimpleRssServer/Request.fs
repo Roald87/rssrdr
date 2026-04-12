@@ -49,7 +49,7 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
                     TryFetchFromCache uri
                 | Ok content ->
                     clearFailure cachePath
-                    Response(content, uri)
+                    UnparsedHttpResponse(content, uri)
                 | Error e ->
                     recordFailure logger cachePath
                     ProcessingError e

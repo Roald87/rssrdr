@@ -119,7 +119,7 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
             | None -> PendingFetch(None, u)
             | Some modTime when (DateTimeOffset.Now - modTime) <= cacheConfig.Expiration ->
                 match readCache cachePath with
-                | Some s -> CachedFeed(s, u)
+                | Some s -> UnparsedCachedContent(s, u)
                 | None -> PendingFetch(None, u)
             | Some modTime -> PendingFetch(Some modTime, u)
     | ProcessingError e ->

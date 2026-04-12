@@ -103,14 +103,14 @@ let feedToArticles (ups: UriProcessState) : UriProcessState =
 
 let parseFeedResult (logger: ILogger) (ups: UriProcessState) =
     match ups with
-    | Response(r, feedUri) ->
+    | UnparsedHttpResponse(r, feedUri) ->
         match tryParseFeed logger r feedUri with
         | Ok f -> ParsedFeed(UnparsedXml r, f)
         | Error e ->
             match e with
-            | InvalidRssFeedFormat _ -> ResponseCanContainsFeeds(r, feedUri)
+            | InvalidRssFeedFormat _ -> NotRssContent(r, feedUri)
             | _ -> ProcessingError e
-    | CachedFeed(r, feedUri) ->
+    | UnparsedCachedContent(r, feedUri) ->
         match tryParseFeed logger r feedUri with
         | Ok f -> ParsedCachedFeed f
         | Error e -> ProcessingError e
@@ -122,7 +122,7 @@ let parseFeedResult (logger: ILogger) (ups: UriProcessState) =
 
 let checkIfDiscoveryFeeds ups =
     match ups with
-    | ResponseCanContainsFeeds(s, originalUri) ->
+    | NotRssContent(s, originalUri) ->
         let feed = FeedReader.ParseFeedUrlsFromHtml s |> Seq.toList
 
         match feed with

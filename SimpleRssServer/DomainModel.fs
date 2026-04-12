@@ -41,9 +41,9 @@ type UnparsedXml =
 type UriProcessState =
     | TryFetchFromCache of Uri
     | PendingFetch of (DateTimeOffset option) * Uri
-    | CachedFeed of string * Uri
-    | Response of string * Uri
-    | ResponseCanContainsFeeds of string * Uri
+    | UnparsedCachedContent of string * Uri
+    | UnparsedHttpResponse of string * Uri
+    | NotRssContent of string * Uri
     | ParsedFeed of UnparsedXml * Feed
     | ParsedCachedFeed of Feed
     | StaleHitWithError of string * Uri * DomainMessage
