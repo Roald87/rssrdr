@@ -1,43 +1,49 @@
 module SimpleRssServer.RequestLog
 
 open System
-open System.IO
 open System.Globalization
 
 open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 
+let private dateFormat = "yyyy-MM-dd"
+
+let private expectedColumns = [ "url"; "date" ].Length
+
+let private readLogMap (logPath: OsPath) : Map<string, DateTime> =
+    if OsFile.exists logPath then
+        OsFile.readAllLines logPath
+        |> Array.map (fun line -> line.Trim().Split(' ', expectedColumns))
+        |> Array.filter (fun parts -> parts.Length = expectedColumns)
+        |> Array.choose (fun parts ->
+            match DateTime.TryParseExact(parts[0], dateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None) with
+            | true, date -> Some(parts[1], date)
+            | _ -> None)
+        |> Map.ofArray
+    else
+        Map.empty
+
+let private writeLogMap (logPath: OsPath) (retention: TimeSpan) (logMap: Map<string, DateTime>) =
+    let cutoff = (DateTime.Now - retention).Date
+
+    logMap
+    |> Map.toList
+    |> List.filter (fun (_, date) -> date.Date >= cutoff)
+    |> List.map (fun (url, date) -> $"{date.ToString(dateFormat, CultureInfo.InvariantCulture)} {url}")
+    |> OsFile.writeAllLines logPath
+
 let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri list) =
-    let currentDate = DateTime.Now
-    let dateFormat = "yyyy-MM-dd"
+    let today = DateTime.Now
+    let existing = readLogMap requestLogPath
 
-    let currentDateString =
-        currentDate.ToString(dateFormat, CultureInfo.InvariantCulture)
+    let updated =
+        uris |> List.fold (fun m (uri: Uri) -> Map.add uri.AbsoluteUri today m) existing
 
-    let newEntries =
-        uris |> List.map (fun url -> $"{currentDateString} {url.AbsoluteUri}")
-
-    let existingEntries =
-        if OsFile.exists requestLogPath then
-            OsFile.readAllLines requestLogPath
-            |> Array.toList
-            |> List.filter (fun line ->
-                let datePart = line.Split(' ', 2)[0]
-
-                let entryDate =
-                    DateTime.ParseExact(datePart, dateFormat, CultureInfo.InvariantCulture)
-
-                currentDate - entryDate <= retention)
-        else
-            []
-
-    OsFile.writeAllLines requestLogPath (existingEntries @ newEntries)
+    writeLogMap requestLogPath retention updated
 
 let uniqueValidRequestLogUrls (logPath: OsPath) =
     if OsFile.exists logPath then
-        let expectedColumns = 2
-
         OsFile.readAllLines logPath
         |> Array.toList
         |> List.map (fun line -> line.Trim().Split(' ', expectedColumns))
