@@ -35,9 +35,7 @@ let ``Test fetchUrlAsync with successful response`` () =
         fetchUrlAsync client logger (Uri "http://example.com") (Some DateTimeOffset.Now) (TimeSpan.FromSeconds 5.0)
         |> Async.RunSynchronously
 
-    match result with
-    | Ok result -> Assert.Equal(expectedContent, result)
-    | Error error -> failwithf $"Expected Success but got Failure: {error}"
+    Assert.Equal(expectedContent, getOk result)
 
 [<Fact>]
 let ``Test fetchUrlAsync with unsuccessful response`` () =
@@ -83,9 +81,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
         fetchUrlAsync client logger url (Some lastModifiedDate) (TimeSpan.FromSeconds 5.0)
         |> Async.RunSynchronously
 
-    match result1 with
-    | Ok content -> Assert.Equal("No changes", content)
-    | Error error -> failwithf $"Expected success, but got failure: {error}"
+    Assert.Equal("No changes", getOk result1)
 
     // Case 2: When If-Modified-Since is before lastModifiedDate
     let earlierDate = lastModifiedDate.AddDays -1.0
@@ -94,18 +90,14 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
         fetchUrlAsync client logger url (Some earlierDate) (TimeSpan.FromSeconds 5.0)
         |> Async.RunSynchronously
 
-    match result2 with
-    | Ok content -> Assert.Equal("Content has changed since the last modification date", content)
-    | Error error -> failwithf $"Expected success, but got failure: {error}"
+    Assert.Equal("Content has changed since the last modification date", getOk result2)
 
     // Case 3: When If-Modified-Since is not provided
     let result3 =
         fetchUrlAsync client logger url None (TimeSpan.FromSeconds 5.0)
         |> Async.RunSynchronously
 
-    match result3 with
-    | Ok content -> Assert.Equal("Content has changed since the last modification date", content)
-    | Error error -> failwithf $"Expected success, but got failure: {error}"
+    Assert.Equal("Content has changed since the last modification date", getOk result3)
 
 type DelayedResponseHandler(delay: TimeSpan) =
     inherit HttpMessageHandler()

@@ -5,6 +5,7 @@ open Xunit
 
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.Request
+open TestHelpers
 
 [<Fact>]
 let ``Test getRssUrls`` () =
@@ -50,9 +51,7 @@ let ``Test getRssUrls with valid and invalid URLs`` () =
     | Error(HostNameMustContainDot url) -> Assert.Contains("invalid-url", url.Value)
     | x -> failwithf $"Expected Error HostNameMustContainDot, but got {x}"
 
-    match result.[1] with
-    | Ok uri -> Assert.Equal(Uri "https://valid-url.com", uri)
-    | Error error -> failwithf $"Expected Ok, got Error: {error}"
+    Assert.Equal(Uri "https://valid-url.com", getOk result.[1])
 
 [<Fact>]
 let ``Test getRssUrls adds https if missing`` () =

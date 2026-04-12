@@ -9,6 +9,11 @@ open System.Threading.Tasks
 
 open SimpleRssServer.DomainPrimitiveTypes
 
+let getOk =
+    function
+    | Ok x -> x
+    | Error e -> failwithf $"Expected Ok but got Error: {e}"
+
 let deleteFile (filePath: OsPath) =
     if OsFile.exists filePath then
         OsFile.delete filePath
