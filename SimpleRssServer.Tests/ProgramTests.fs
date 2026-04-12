@@ -270,7 +270,7 @@ let ``processRssRequest shows only error article on HTTP timeout with no cache``
 
     let cacheFiles =
         OsDirectory.getFiles cacheConfig.Dir
-        |> Array.filter (fun f -> not (f.EndsWith ".failures"))
+        |> Array.filter (fun (OsPath f) -> not (f.EndsWith ".failures"))
 
     Assert.Equal(0, cacheFiles.Length)
     Assert.Equal(None, memCache.TryGet(feedUrl, cacheConfig.Expiration))

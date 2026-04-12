@@ -99,8 +99,8 @@ let clearExpiredCache (logger: ILogger) (cacheDir: OsPath) (retention: TimeSpan)
         let now = DateTime.Now
 
         OsDirectory.getFiles cacheDir
-        |> Array.filter (fun f -> (now - File.GetLastWriteTime f) > retention)
-        |> Array.iter File.Delete
+        |> Array.filter (fun f -> (now - OsFile.getLastWriteTime f) > retention)
+        |> Array.iter OsFile.delete
 
 let convertUrlToValidFilename (uri: Uri) =
     let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
