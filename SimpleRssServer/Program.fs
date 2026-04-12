@@ -107,8 +107,8 @@ let private getCacheAge (logger: ILogger) cacheConfig url =
             url
         )
 
-        Some(ValidUri(None, url))
-    | Some modTime when (DateTimeOffset.Now - modTime) > cacheConfig.Expiration -> Some(ValidUri(cacheAge, url))
+        Some(PendingFetch(None, url))
+    | Some modTime when (DateTimeOffset.Now - modTime) > cacheConfig.Expiration -> Some(PendingFetch(cacheAge, url))
     | _ -> None
 
 let updateCache client (logger: ILogger) cacheConfig (memCache: InMemoryCache) (urls: Uri list) =

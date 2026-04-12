@@ -127,7 +127,7 @@ let checkIfDiscoveryFeeds ups =
 
         match feed with
         | [] -> [ ProcessingError(NoRssFeedsFoundInPage originalUri) ]
-        | x -> x |> List.map (fun u -> ValidUri(None, Uri(originalUri, u.Url)))
+        | x -> x |> List.map (fun u -> TryFetchFromCache(Uri(originalUri, u.Url)))
     | x -> [ x ]
 
 let onlyFeedArticles ups =

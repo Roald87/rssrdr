@@ -1,7 +1,6 @@
 module SimpleRssServer.Request
 
 open System
-open System.IO
 
 open SimpleRssServer.Cache
 open SimpleRssServer.Config
@@ -10,9 +9,7 @@ open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.HttpClient
 
 let getRssUrls (query: string) : Result<Uri, UriError> list =
-    Query.Create query
-    |> fun q -> q.GetValues "rss"
-    |> List.map FeedUri.createWithHttps
+    (Query.Create query).GetValues "rss" |> List.map FeedUri.createWithHttps
 
 type CacheState =
     | NoCacheNoFailures
@@ -49,7 +46,7 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
                 | Ok "No changes" ->
                     OsFile.setLastWriteTime cachePath DateTime.Now
                     clearFailure cachePath
-                    ValidUri(Some DateTimeOffset.Now, uri)
+                    TryFetchFromCache uri
                 | Ok content ->
                     clearFailure cachePath
                     Response(content, uri)
@@ -59,16 +56,13 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
     }
 
 let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) (ups: UriProcessState list) =
-    let validUris, invalidUrls =
-        List.fold
-            (fun (valid, invalid) ups ->
-                match ups with
-                | ValidUri(dt, uri) -> (dt, uri) :: valid, invalid
-                | x -> valid, x :: invalid)
-            ([], [])
-            ups
-
     async {
-        let! processed = validUris |> List.map (fetchUri client logger cacheConfig) |> Async.Parallel
-        return List.ofArray processed @ invalidUrls
+        let! processed =
+            ups
+            |> List.map (function
+                | PendingFetch(dt, uri) -> fetchUri client logger cacheConfig (dt, uri)
+                | x -> async.Return x)
+            |> Async.Parallel
+
+        return List.ofArray processed
     }

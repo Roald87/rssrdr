@@ -39,7 +39,8 @@ type UnparsedXml =
         x
 
 type UriProcessState =
-    | ValidUri of (DateTimeOffset option) * Uri
+    | TryFetchFromCache of Uri
+    | PendingFetch of (DateTimeOffset option) * Uri
     | CachedFeed of string * Uri
     | Response of string * Uri
     | ResponseCanContainsFeeds of string * Uri
