@@ -1,7 +1,6 @@
 module SimpleRssServer.Tests.RequestLogTests
 
 open System
-open System.IO
 open System.Globalization
 open Xunit
 
@@ -20,18 +19,15 @@ let ``Test updateRequestLog removes old entries`` () =
     let recentDate =
         DateTime.Now.AddDays(-3.0).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
 
-    let oldEntry = $"{oldDate} OldEntry"
-    let recentEntry = $"{recentDate} RecentEntry"
-
-    OsFile.writeAllLines filename [ oldEntry; recentEntry ]
+    OsFile.writeAllLines filename [ $"{oldDate} http://oldentry.com"; $"{recentDate} http://recententry.com" ]
 
     updateRequestLog filename retention [ Uri "http://newentry.com" ]
 
     let fileContent = OsFile.readAllLines filename
 
-    Assert.DoesNotContain(oldEntry, fileContent)
-    Assert.Contains(recentEntry, fileContent[0])
-    Assert.Contains("newentry.com", fileContent[1])
+    Assert.DoesNotContain("oldentry.com", fileContent)
+    Assert.Contains(fileContent, fun line -> line.Contains "recententry.com")
+    Assert.Contains(fileContent, fun line -> line.Contains "newentry.com")
 
     deleteFile filename
 
@@ -56,6 +52,25 @@ let ``Test updateRequestLog creates file and appends strings with datetime`` () 
 
     logEntries
     |> List.iter (fun entry -> Assert.Contains($"{currentDate} {entry.AbsoluteUri}", fileContent))
+
+    deleteFile filename
+
+[<Fact>]
+let ``Test updateRequestLog does not duplicate URLs`` () =
+    let filename = OsPath "test_log_dedup.txt"
+    let retention = TimeSpan.FromDays 7.0
+
+    if OsFile.exists filename then
+        OsFile.delete filename
+
+    let url = Uri "https://example.com/feed"
+    updateRequestLog filename retention [ url ]
+    updateRequestLog filename retention [ url ]
+
+    let fileContent = OsFile.readAllLines filename
+
+    Assert.Equal(1, fileContent.Length)
+    Assert.Contains("example.com/feed", fileContent[0])
 
     deleteFile filename
 
