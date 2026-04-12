@@ -95,17 +95,17 @@ let toArticles (feed: Feed) =
 
 let feedToArticles (ups: UriProcessState) : UriProcessState =
     match ups with
-    | ParsedFeed(_, feed)
+    | ParsedLiveFeed(_, feed)
     | ParsedCachedFeed feed -> toArticles feed |> FeedArticles
-    | ParsedStaleHit(feed, err) -> toArticles feed @ [ createErrorArticle err ] |> FeedWithErrorArticles
-    | ProcessingError err -> [ createErrorArticle err ] |> FeedWithErrorArticles
+    | ParsedStaleFeed(feed, err) -> toArticles feed @ [ createErrorArticle err ] |> DegradedArticles
+    | ProcessingError err -> [ createErrorArticle err ] |> DegradedArticles
     | x -> x
 
 let parseFeedResult (logger: ILogger) (ups: UriProcessState) =
     match ups with
     | UnparsedHttpResponse(r, feedUri) ->
         match tryParseFeed logger r feedUri with
-        | Ok f -> ParsedFeed(UnparsedXml r, f)
+        | Ok f -> ParsedLiveFeed(UnparsedXml r, f)
         | Error e ->
             match e with
             | InvalidRssFeedFormat _ -> NotRssContent(r, feedUri)
@@ -114,9 +114,9 @@ let parseFeedResult (logger: ILogger) (ups: UriProcessState) =
         match tryParseFeed logger r feedUri with
         | Ok f -> ParsedCachedFeed f
         | Error e -> ProcessingError e
-    | StaleHitWithError(r, feedUri, err) ->
+    | UnparsedStaleCachedContent(r, feedUri, err) ->
         match tryParseFeed logger r feedUri with
-        | Ok f -> ParsedStaleHit(f, err)
+        | Ok f -> ParsedStaleFeed(f, err)
         | Error _ -> ProcessingError err
     | _ -> ups
 
@@ -133,5 +133,5 @@ let checkIfDiscoveryFeeds ups =
 let onlyFeedArticles ups =
     match ups with
     | FeedArticles articles
-    | FeedWithErrorArticles articles -> articles
+    | DegradedArticles articles -> articles
     | _ -> []

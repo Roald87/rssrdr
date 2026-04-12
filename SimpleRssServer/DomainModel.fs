@@ -44,13 +44,13 @@ type UriProcessState =
     | UnparsedCachedContent of string * Uri
     | UnparsedHttpResponse of string * Uri
     | NotRssContent of string * Uri
-    | ParsedFeed of UnparsedXml * Feed
+    | ParsedLiveFeed of UnparsedXml * Feed
     | ParsedCachedFeed of Feed
-    | StaleHitWithError of string * Uri * DomainError
-    | ParsedStaleHit of Feed * DomainError
+    | UnparsedStaleCachedContent of string * Uri * DomainError
+    | ParsedStaleFeed of Feed * DomainError
     | ProcessingError of DomainError
     | FeedArticles of Article list
-    | FeedWithErrorArticles of Article list
+    | DegradedArticles of Article list
 
 [<AutoOpen>]
 module ActivePatterns =

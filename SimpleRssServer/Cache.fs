@@ -128,13 +128,13 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
         let cachePath = OsPath.combine cacheConfig.Dir (convertUrlToValidFilename feedUri)
 
         match readCache cachePath with
-        | Some content -> StaleHitWithError(content, feedUri, e)
+        | Some content -> UnparsedStaleCachedContent(content, feedUri, e)
         | None -> ProcessingError e
     | _ -> ups
 
 let cacheSuccessfulFetch cacheConfig ups =
     match ups with
-    | ParsedFeed(xml, feed) ->
+    | ParsedLiveFeed(xml, feed) ->
         let cachePath =
             OsPath.combine cacheConfig.Dir (convertUrlToValidFilename (Uri feed.Link))
 
