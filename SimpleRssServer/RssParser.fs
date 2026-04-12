@@ -20,7 +20,7 @@ let stripHtml (input: string) : string =
         htmlTagRegex.Replace(input, "")
         |> fun s -> whitespaceRegex.Replace(s, " ").Trim()
 
-let createErrorArticle (errorType: DomainMessage) : Article =
+let createErrorArticle (errorType: DomainError) : Article =
     let (MessageUri link) = errorType
 
     let text =
@@ -50,7 +50,7 @@ let createErrorArticle (errorType: DomainMessage) : Article =
       FeedUrl = link
       Text = text }
 
-let tryParseFeed (logger: ILogger) (content: string) (uri: Uri) : Result<Feed, DomainMessage> =
+let tryParseFeed (logger: ILogger) (content: string) (uri: Uri) : Result<Feed, DomainError> =
     try
         let feed = FeedReader.ReadFromString content
         // Link in feed points to the base url of the website, not the link to the feed.
