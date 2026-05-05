@@ -115,15 +115,18 @@ let updateCache client (logger: ILogger) cacheConfig (memCache: InMemoryCache) (
     if not (List.isEmpty urls) then
         urls
         |> List.choose (getCacheAge logger cacheConfig)
-        |> fetchAllRssFeeds client logger cacheConfig
-        |> Async.RunSynchronously
-        |> List.iter (
-            parseFeedResult logger
-            >> cacheSuccessfulFetch cacheConfig
-            >> feedToArticles
-            >> updateMemoryCache memCache
-            >> ignore
-        )
+        |> List.chunkBySize cacheConfig.UpdateParallelism
+        |> List.iter (fun chunk ->
+            chunk
+            |> fetchAllRssFeeds client logger cacheConfig
+            |> Async.RunSynchronously
+            |> List.iter (
+                parseFeedResult logger
+                >> cacheSuccessfulFetch cacheConfig
+                >> feedToArticles
+                >> updateMemoryCache memCache
+                >> ignore
+            ))
 
 [<TailCall>]
 let rec updateRssFeedsPeriodically client (logger: ILogger) (cacheConfig: CacheConfig) (memCache: InMemoryCache) =
