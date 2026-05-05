@@ -62,7 +62,7 @@ let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) (ups: UriProcessSt
             |> List.map (function
                 | PendingFetch(dt, uri) -> fetchUri client logger cacheConfig (dt, uri)
                 | x -> async.Return x)
-            |> Async.Parallel
+            |> fun asyncs -> Async.Parallel(asyncs, maxDegreeOfParallelism = 8)
 
         return List.ofArray processed
     }
