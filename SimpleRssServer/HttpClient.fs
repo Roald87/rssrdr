@@ -3,14 +3,10 @@ module SimpleRssServer.HttpClient
 open System
 open System.Net
 open System.Net.Http
-open System.Reflection
 open Microsoft.Extensions.Logging
 
+open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
-
-let private userAgent =
-    let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
-    $"rssrdr/{version}"
 
 let fetchUrlAsync
     (client: HttpClient)
@@ -24,10 +20,12 @@ let fetchUrlAsync
             use cts = new Threading.CancellationTokenSource(timeout)
 
             let request = new HttpRequestMessage(HttpMethod.Get, uri)
-            request.Headers.UserAgent.ParseAdd userAgent
+            request.Headers.UserAgent.ParseAdd $"rssrdr/{version}"
 
             lastModified
             |> Option.iter (fun date -> request.Headers.IfModifiedSince <- date)
+
+            logger.LogDebug $"Fetching url {uri.AbsoluteUri}"
 
             let startTime = DateTimeOffset.Now
             let! response = client.SendAsync(request, cts.Token) |> Async.AwaitTask

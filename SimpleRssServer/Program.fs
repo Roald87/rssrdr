@@ -15,18 +15,19 @@ open SimpleRssServer.RequestLog
 open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
+open System.Reflection
 
 let processRssRequest client (logger: ILogger) cacheConfig (memCache: InMemoryCache) (logPath: OsPath) (query: string) =
     let readCache = readFromCache cacheConfig memCache
 
     getRssUrls query
     |> List.map (toUriProcessState >> readCache) // try read cache before first fetch
-    |> fetchAllRssFeeds client logger cacheConfig
+    |> fetchAllRssFeeds client logger cacheConfig Int32.MaxValue
     |> Async.RunSynchronously
     |> List.map (readCache >> parseFeedResult logger) // read from cache in case of 304 Not modified
     |> List.collect checkIfDiscoveryFeeds
     |> List.map readCache // read discovered feeds from cache
-    |> fetchAllRssFeeds client logger cacheConfig
+    |> fetchAllRssFeeds client logger cacheConfig Int32.MaxValue
     |> Async.RunSynchronously
     |> List.map (
         readCache // previous fetch can contain 304s
@@ -115,7 +116,7 @@ let updateCache client (logger: ILogger) cacheConfig (memCache: InMemoryCache) (
     if not (List.isEmpty urls) then
         urls
         |> List.choose (getCacheAge logger cacheConfig)
-        |> fetchAllRssFeeds client logger cacheConfig
+        |> fetchAllRssFeeds client logger cacheConfig cacheConfig.UpdateParallelism
         |> Async.RunSynchronously
         |> List.iter (
             parseFeedResult logger
@@ -148,6 +149,8 @@ let rec clearCachePeriodically (logger: ILogger) (cacheDir: OsPath) (retention: 
     }
 
 let startServer (logger: ILogger) (cacheConfig: SimpleRssServer.Config.CacheConfig) (hosts: string list) =
+    logger.LogInformation("Starting SimpleRssServer version {version}", version)
+
     let listener = new HttpListener()
     hosts |> List.iter listener.Prefixes.Add
     listener.Start()

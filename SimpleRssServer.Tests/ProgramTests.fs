@@ -33,7 +33,8 @@ let makeCacheConfig () =
     OsDirectory.create cacheDir
 
     { Dir = cacheDir
-      Expiration = TimeSpan.FromHours 1.0 }
+      Expiration = TimeSpan.FromHours 1.0
+      UpdateParallelism = 4 }
 
 let createOutdatedCache (cachePath: OsPath) (content: string) =
     OsFile.writeAllText cachePath content

@@ -55,14 +55,14 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
                     ProcessingError e
     }
 
-let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) (ups: UriProcessState list) =
+let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) maxParallelism (ups: UriProcessState list) =
     async {
         let! processed =
             ups
             |> List.map (function
                 | PendingFetch(dt, uri) -> fetchUri client logger cacheConfig (dt, uri)
                 | x -> async.Return x)
-            |> fun asyncs -> Async.Parallel(asyncs, maxDegreeOfParallelism = 8)
+            |> fun asyncs -> Async.Parallel(asyncs, maxParallelism)
 
         return List.ofArray processed
     }
