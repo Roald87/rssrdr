@@ -2,6 +2,7 @@ module SimpleRssServer.Config
 
 open System
 open DomainPrimitiveTypes
+open System.Reflection
 
 type CacheConfig =
     { Dir: OsPath
@@ -19,3 +20,5 @@ let RequestLogRetention = TimeSpan.FromDays 7.0
 let CacheRetention = TimeSpan.FromDays 7.0
 
 let ArticleDescriptionLength = 255
+
+let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
