@@ -1,9 +1,7 @@
 module SimpleRssServer.Tests.HtmlRendererTests
 
 open System
-open System.Linq
 open System.Text
-open System.Xml.Linq
 open Xunit
 
 open SimpleRssServer.DomainModel
@@ -66,14 +64,8 @@ let ``removeFromQuery removes only the specified feed when two feeds share the s
     Assert.Equal("?rss=example.com/feed2", result)
 
 [<Fact>]
-let ``Test landing page displays correct version number using XML parser`` () =
-    let fsprojContent =
-        System.IO.File.ReadAllText "../../../../SimpleRssServer/SimpleRssServer.fsproj"
-
-    let xmlDoc = XDocument.Parse fsprojContent
-    let version = xmlDoc.Descendants(XName.Get "Version").FirstOrDefault().Value
-
-    Assert.Contains($"v{version}", string landingPage)
+let ``Test landing page displays correct version number`` () =
+    Assert.Contains($"v{versionNumber}", string landingPage)
 
 [<Fact>]
 let ``Test configPage prefills textarea with valid URIs`` () =
