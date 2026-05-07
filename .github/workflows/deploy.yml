@@ -60,4 +60,7 @@ jobs:
           find /var/www/rssrdr/* -not -name 'rss-cache' -not -path '/var/www/rssrdr/rss-cache/*' -exec rm -rf {} +
         "
         scp -r publish/* "$VPS_USER@$VPS_HOST:/var/www/rssrdr/"
-        ssh "$VPS_USER@$VPS_HOST" "sudo systemctl start rssrdr-server.service"
+        ssh "$VPS_USER@$VPS_HOST" "
+          chmod +x /var/www/rssrdr/SimpleRssServer
+          sudo systemctl start rssrdr-server.service
+        "
