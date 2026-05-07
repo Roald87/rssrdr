@@ -54,17 +54,23 @@ jobs:
         path: publish/
 
     - name: Setup SSH
+      env:
+        VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        VPS_HOST: ${{ secrets.VPS_HOST }}
       run: |
         mkdir -p ~/.ssh
-        echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+        echo "$VPS_SSH_KEY" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+        ssh-keyscan "$VPS_HOST" >> ~/.ssh/known_hosts
 
     - name: Deploy
+      env:
+        VPS_USER: ${{ secrets.VPS_USER }}
+        VPS_HOST: ${{ secrets.VPS_HOST }}
       run: |
-        ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "
+        ssh "$VPS_USER@$VPS_HOST" "
           sudo systemctl stop rssrdr-server.service
           find /var/www/rssrdr/* -not -name 'rss-cache' -not -path '/var/www/rssrdr/rss-cache/*' -exec rm -rf {} +
         "
-        scp -r publish/* ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/rssrdr/
-        ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} "sudo systemctl start rssrdr-server.service"
+        scp -r publish/* "$VPS_USER@$VPS_HOST:/var/www/rssrdr/"
+        ssh "$VPS_USER@$VPS_HOST" "sudo systemctl start rssrdr-server.service"
