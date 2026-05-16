@@ -13,13 +13,18 @@ open SimpleRssServer.MemoryCache
 
 type FetchFailure =
     { LastFailure: DateTimeOffset
-      ConsecutiveFailures: int }
+      ConsecutiveFailures: int
+      IsTimeout: bool }
 
 let failureFilePath (cachePath: OsPath) = cachePath + ".failures"
 
 let getBackoffHours failures =
     // Exponential backoff: 1hr, 2hrs, 4hrs, 8hrs, max 24hrs
     min 24.0 (Math.Pow(2.0, float (failures - 1)))
+
+let getTimeoutBackoffMinutes failures =
+    // 5min, 10min, 20min, ..., max 120min
+    min 120.0 (5.0 * Math.Pow(2.0, float (failures - 1)))
 
 let fileLastModified (path: OsPath) =
     if OsFile.exists path then
@@ -49,7 +54,7 @@ let clearFailure cachePath =
     if OsFile.exists failurePath then
         OsFile.delete failurePath
 
-let recordFailure (logger: ILogger) cachePath =
+let recordFailure (logger: ILogger) cachePath (isTimeout: bool) =
     let failurePath = failureFilePath cachePath
     createDirectoryForPath failurePath
 
@@ -60,15 +65,22 @@ let recordFailure (logger: ILogger) cachePath =
                 let existing = JsonSerializer.Deserialize<FetchFailure> json
 
                 { LastFailure = DateTimeOffset.Now
-                  ConsecutiveFailures = existing.ConsecutiveFailures + 1 }
+                  ConsecutiveFailures =
+                    if existing.IsTimeout = isTimeout then
+                        existing.ConsecutiveFailures + 1
+                    else
+                        1
+                  IsTimeout = isTimeout }
             with ex ->
                 logger.LogWarning(ex, "Failed to read existing failure record at {Path}, resetting count", failurePath)
 
                 { LastFailure = DateTimeOffset.Now
-                  ConsecutiveFailures = 1 }
+                  ConsecutiveFailures = 1
+                  IsTimeout = isTimeout }
         else
             { LastFailure = DateTimeOffset.Now
-              ConsecutiveFailures = 1 }
+              ConsecutiveFailures = 1
+              IsTimeout = isTimeout }
 
     OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
 
@@ -86,11 +98,12 @@ let readFailure (logger: ILogger) cachePath =
         None
 
 let nextRetry (logger: ILogger) cachePath =
-    match readFailure logger cachePath with
-    | None -> None // No failures recorded or can't read failure file
-    | Some failure ->
-        let backoffHours = getBackoffHours failure.ConsecutiveFailures
-        Some(failure.LastFailure.AddHours backoffHours)
+    readFailure logger cachePath
+    |> Option.map (fun failure ->
+        if failure.IsTimeout then
+            failure.LastFailure.AddMinutes(getTimeoutBackoffMinutes failure.ConsecutiveFailures)
+        else
+            failure.LastFailure.AddHours(getBackoffHours failure.ConsecutiveFailures))
 
 let clearExpiredCache (logger: ILogger) (cacheDir: OsPath) (retention: TimeSpan) =
     if not (OsDirectory.exists cacheDir) then

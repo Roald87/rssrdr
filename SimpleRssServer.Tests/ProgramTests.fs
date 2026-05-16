@@ -121,7 +121,8 @@ let ``processRssRequest clears failure file when HTTP returns 304`` () =
 
     let failure =
         { LastFailure = DateTimeOffset.Now.AddHours -3.0
-          ConsecutiveFailures = 2 }
+          ConsecutiveFailures = 2
+          IsTimeout = false }
 
     OsFile.writeAllText (failureFilePath cachePath) (System.Text.Json.JsonSerializer.Serialize failure)
 
@@ -368,7 +369,8 @@ let ``processRssRequest retries and clears failure file when backoff period has 
     // 2 consecutive failures → 2h backoff; LastFailure 3h ago → backoff has passed
     let failure =
         { LastFailure = DateTimeOffset.Now.AddHours -3.0
-          ConsecutiveFailures = 2 }
+          ConsecutiveFailures = 2
+          IsTimeout = false }
 
     OsFile.writeAllText (failureFilePath cachePath) (JsonSerializer.Serialize failure)
 
