@@ -54,7 +54,7 @@ let clearFailure cachePath =
     if OsFile.exists failurePath then
         OsFile.delete failurePath
 
-let recordFailure (logger: ILogger) cachePath (isTimeout: bool) =
+let private recordFailure (logger: ILogger) cachePath (isTimeout: bool) =
     let failurePath = failureFilePath cachePath
     createDirectoryForPath failurePath
 
@@ -83,6 +83,9 @@ let recordFailure (logger: ILogger) cachePath (isTimeout: bool) =
               IsTimeout = isTimeout }
 
     OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
+
+let recordHttpFailure (logger: ILogger) cachePath = recordFailure logger cachePath false
+let recordTimeoutFailure (logger: ILogger) cachePath = recordFailure logger cachePath true
 
 let readFailure (logger: ILogger) cachePath =
     let path = failureFilePath cachePath

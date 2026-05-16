@@ -36,7 +36,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     let failurePath = failureFilePath tmp.Path
 
     // Record first failure
-    recordFailure NullLogger.Instance tmp.Path false
+    recordHttpFailure NullLogger.Instance tmp.Path
 
     let failure1 =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -44,7 +44,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     Assert.Equal(1, failure1.ConsecutiveFailures)
 
     // Record second failure
-    recordFailure NullLogger.Instance tmp.Path false
+    recordHttpFailure NullLogger.Instance tmp.Path
 
     let failure2 =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -203,15 +203,15 @@ let ``Test recordFailure resets count when failure kind switches`` () =
     use tmp = new TempPath()
     let failurePath = failureFilePath tmp.Path
 
-    recordFailure NullLogger.Instance tmp.Path false
-    recordFailure NullLogger.Instance tmp.Path false
+    recordHttpFailure NullLogger.Instance tmp.Path
+    recordHttpFailure NullLogger.Instance tmp.Path
 
     let beforeSwitch =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
 
     Assert.Equal(2, beforeSwitch.ConsecutiveFailures)
 
-    recordFailure NullLogger.Instance tmp.Path true
+    recordTimeoutFailure NullLogger.Instance tmp.Path
 
     let afterSwitch =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -224,15 +224,15 @@ let ``Test recordFailure resets count when switching from timeout to http error`
     use tmp = new TempPath()
     let failurePath = failureFilePath tmp.Path
 
-    recordFailure NullLogger.Instance tmp.Path true
-    recordFailure NullLogger.Instance tmp.Path true
+    recordTimeoutFailure NullLogger.Instance tmp.Path
+    recordTimeoutFailure NullLogger.Instance tmp.Path
 
     let beforeSwitch =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
 
     Assert.Equal(2, beforeSwitch.ConsecutiveFailures)
 
-    recordFailure NullLogger.Instance tmp.Path false
+    recordHttpFailure NullLogger.Instance tmp.Path
 
     let afterSwitch =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
