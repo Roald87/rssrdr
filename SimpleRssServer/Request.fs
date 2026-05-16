@@ -51,7 +51,10 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
                     clearFailure cachePath
                     UnparsedHttpResponse(content, uri)
                 | Error e ->
-                    recordFailure logger cachePath
+                    match e with
+                    | HttpRequestTimedOut _ -> recordTimeoutFailure logger cachePath
+                    | _ -> recordHttpFailure logger cachePath
+
                     ProcessingError e
     }
 

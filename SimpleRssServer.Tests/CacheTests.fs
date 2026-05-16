@@ -18,7 +18,8 @@ let ``Test clearFailure deletes failure record`` () =
     // Create a failure record
     let failure =
         { LastFailure = DateTimeOffset.Now
-          ConsecutiveFailures = 2 }
+          ConsecutiveFailures = 2
+          IsTimeout = false }
 
     let json = JsonSerializer.Serialize failure
     OsFile.writeAllText failurePath json
@@ -35,7 +36,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     let failurePath = failureFilePath tmp.Path
 
     // Record first failure
-    recordFailure NullLogger.Instance tmp.Path
+    recordHttpFailure NullLogger.Instance tmp.Path
 
     let failure1 =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -43,7 +44,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     Assert.Equal(1, failure1.ConsecutiveFailures)
 
     // Record second failure
-    recordFailure NullLogger.Instance tmp.Path
+    recordHttpFailure NullLogger.Instance tmp.Path
 
     let failure2 =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -57,7 +58,8 @@ let ``Test get retry periods from failure file`` () =
 
     let failure1 =
         { LastFailure = DateTimeOffset.Now.AddMinutes -30.0
-          ConsecutiveFailures = 1 }
+          ConsecutiveFailures = 1
+          IsTimeout = false }
 
     let json1 = JsonSerializer.Serialize failure1
     OsFile.writeAllText failurePath json1
@@ -70,7 +72,8 @@ let ``Test get retry periods from failure file`` () =
 
     let failure2 =
         { LastFailure = DateTimeOffset.Now.AddHours -2.0
-          ConsecutiveFailures = 1 }
+          ConsecutiveFailures = 1
+          IsTimeout = false }
 
     let json2 = JsonSerializer.Serialize failure2
     OsFile.writeAllText failurePath json2
@@ -158,7 +161,8 @@ let ``Test clearExpiredCache also removes failure files`` () =
 
     let failure =
         { LastFailure = DateTimeOffset.Now.AddDays -10.0
-          ConsecutiveFailures = 3 }
+          ConsecutiveFailures = 3
+          IsTimeout = false }
 
     let json = JsonSerializer.Serialize failure
     OsFile.writeAllText failureFile json
@@ -193,6 +197,98 @@ let ``Test clearExpiredCache keeps empty directory`` () =
 
     // Assert
     Assert.True(OsDirectory.exists tmp.Path, "Expected empty cache directory to still exist")
+
+[<Fact>]
+let ``Test recordFailure resets count when failure kind switches`` () =
+    use tmp = new TempPath()
+    let failurePath = failureFilePath tmp.Path
+
+    recordHttpFailure NullLogger.Instance tmp.Path
+    recordHttpFailure NullLogger.Instance tmp.Path
+
+    let beforeSwitch =
+        JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
+
+    Assert.Equal(2, beforeSwitch.ConsecutiveFailures)
+
+    recordTimeoutFailure NullLogger.Instance tmp.Path
+
+    let afterSwitch =
+        JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
+
+    Assert.Equal(1, afterSwitch.ConsecutiveFailures)
+    Assert.True(afterSwitch.IsTimeout)
+
+[<Fact>]
+let ``Test recordFailure resets count when switching from timeout to http error`` () =
+    use tmp = new TempPath()
+    let failurePath = failureFilePath tmp.Path
+
+    recordTimeoutFailure NullLogger.Instance tmp.Path
+    recordTimeoutFailure NullLogger.Instance tmp.Path
+
+    let beforeSwitch =
+        JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
+
+    Assert.Equal(2, beforeSwitch.ConsecutiveFailures)
+
+    recordHttpFailure NullLogger.Instance tmp.Path
+
+    let afterSwitch =
+        JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
+
+    Assert.Equal(1, afterSwitch.ConsecutiveFailures)
+    Assert.False(afterSwitch.IsTimeout)
+
+[<Fact>]
+let ``Test getTimeoutBackoffMinutes follows doubling pattern and caps`` () =
+    Assert.Equal(5.0, getTimeoutBackoffMinutes 1)
+    Assert.Equal(20.0, getTimeoutBackoffMinutes 3)
+    Assert.Equal(120.0, getTimeoutBackoffMinutes 10)
+
+[<Fact>]
+let ``Test nextRetry uses short backoff for timeout failure`` () =
+    use tmp = new TempPath()
+    let failurePath = failureFilePath tmp.Path
+
+    let failure =
+        { LastFailure = DateTimeOffset.Now.AddMinutes -3.0
+          ConsecutiveFailures = 1
+          IsTimeout = true }
+
+    OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
+
+    match nextRetry NullLogger.Instance tmp.Path with
+    | Some d -> Assert.True(d > DateTimeOffset.Now, "5 min timeout backoff should not have elapsed after 3 min")
+    | None -> failwithf $"No failure file found at {failurePath}"
+
+[<Fact>]
+let ``Test nextRetry uses long backoff for http error failure`` () =
+    use tmp = new TempPath()
+    let failurePath = failureFilePath tmp.Path
+
+    let failure =
+        { LastFailure = DateTimeOffset.Now.AddMinutes -30.0
+          ConsecutiveFailures = 1
+          IsTimeout = false }
+
+    OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
+
+    match nextRetry NullLogger.Instance tmp.Path with
+    | Some d -> Assert.True(d > DateTimeOffset.Now, "1 h http error backoff should not have elapsed after 30 min")
+    | None -> failwithf $"No failure file found at {failurePath}"
+
+[<Fact>]
+let ``Test nextRetry uses long backoff for legacy file without IsTimeout`` () =
+    use tmp = new TempPath()
+    let failurePath = failureFilePath tmp.Path
+
+    let recentTimestamp = DateTimeOffset.Now.AddMinutes(-30.0).ToString("o")
+    OsFile.writeAllText failurePath $"""{{"LastFailure":"{recentTimestamp}","ConsecutiveFailures":1}}"""
+
+    match nextRetry NullLogger.Instance tmp.Path with
+    | Some d -> Assert.True(d > DateTimeOffset.Now, "Legacy file should fall back to long backoff")
+    | None -> failwithf $"No failure file found at {failurePath}"
 
 [<Fact>]
 let ``Test convertUrlToFilename`` () =
