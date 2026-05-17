@@ -22,12 +22,12 @@ let processRssRequest client (logger: ILogger) cacheConfig (memCache: InMemoryCa
 
     getRssUrls query
     |> List.map (toUriProcessState >> readCache) // try read cache before first fetch
-    |> fetchAllRssFeeds client logger cacheConfig Int32.MaxValue
+    |> fetchAllRssFeeds client logger cacheConfig UserFetchConfig
     |> Async.RunSynchronously
     |> List.map (readCache >> parseFeedResult logger) // read from cache in case of 304 Not modified
     |> List.collect checkIfDiscoveryFeeds
     |> List.map readCache // read discovered feeds from cache
-    |> fetchAllRssFeeds client logger cacheConfig Int32.MaxValue
+    |> fetchAllRssFeeds client logger cacheConfig UserFetchConfig
     |> Async.RunSynchronously
     |> List.map (
         readCache // previous fetch can contain 304s
@@ -65,35 +65,61 @@ let handleRequest
 
         let getSortedRssUris (q: Query) = q.GetValues "rss" |> List.sort
 
-        let buildFeedResponse render =
-            let rssArticles = getRssArticles ()
-            let procesedQuery = buildProcessedQuery rssArticles
-            let originalQuery = Query.Create context.Request.Url.Query
+        let writeResponse (content: string) =
+            async {
+                let buffer = content |> Encoding.UTF8.GetBytes
+                context.Response.ContentLength64 <- int64 buffer.Length
+                context.Response.ContentType <- "text/html"
 
-            if getSortedRssUris originalQuery <> getSortedRssUris procesedQuery then
-                context.Response.StatusCode <- HttpStatusCode.Found |> int
-                context.Response.RedirectLocation <- procesedQuery.ToString()
+                do!
+                    context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length)
+                    |> Async.AwaitTask
 
-            render procesedQuery rssArticles |> string
+                context.Response.OutputStream.Close()
+            }
 
-        let! responseString =
-            match context.Request.RawUrl with
-            | Prefix "/config.html" _ -> async.Return(getRssUrls context.Request.Url.Query |> configPage |> string)
-            | Prefix "/shuffle?rss=" _ -> async.Return(buildFeedResponse shuffledFeedsPage)
-            | Prefix "/?rss=" _ -> async.Return(buildFeedResponse chronologicalFeedsPage)
-            | "/robots.txt" -> async.Return(File.ReadAllText(Path.Combine("site", "robots.txt")))
-            | "/sitemap.xml" -> async.Return(File.ReadAllText(Path.Combine("site", "sitemap.xml")))
-            | _ -> async.Return(landingPage |> string)
+        let writeChunk (html: Html) =
+            async {
+                let bytes = html |> string |> Encoding.UTF8.GetBytes
 
-        let buffer = responseString |> Encoding.UTF8.GetBytes
-        context.Response.ContentLength64 <- int64 buffer.Length
-        context.Response.ContentType <- "text/html"
+                do!
+                    context.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length)
+                    |> Async.AwaitTask
 
-        do!
-            context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length)
-            |> Async.AwaitTask
+                do! context.Response.OutputStream.FlushAsync() |> Async.AwaitTask
+            }
 
-        context.Response.OutputStream.Close()
+        let streamFeedResponse (shell: Html) (render: Query -> Article list -> Html) =
+            async {
+                context.Response.SendChunked <- true
+                context.Response.ContentType <- "text/html"
+                do! writeChunk shell
+
+                let articles = getRssArticles ()
+                let originalQuery = Query.Create context.Request.Url.Query
+                let processedQuery = buildProcessedQuery articles
+
+                let content =
+                    if getSortedRssUris originalQuery <> getSortedRssUris processedQuery then
+                        metaRefreshContent (string processedQuery)
+                    else
+                        render processedQuery articles
+
+                do! writeChunk content
+                context.Response.OutputStream.Close()
+            }
+
+        match context.Request.RawUrl with
+        | Prefix "/config.html" _ -> do! writeResponse (getRssUrls context.Request.Url.Query |> configPage |> string)
+        | Prefix "/shuffle?rss=" _ ->
+            let query = Query.Create context.Request.Url.Query
+            do! streamFeedResponse (shuffledFeedsPageShell query) shuffledFeedsPageContent
+        | Prefix "/?rss=" _ ->
+            let query = Query.Create context.Request.Url.Query
+            do! streamFeedResponse (chronologicalFeedsPageShell query) chronologicalFeedsPageContent
+        | "/robots.txt" -> do! writeResponse (File.ReadAllText(Path.Combine("site", "robots.txt")))
+        | "/sitemap.xml" -> do! writeResponse (File.ReadAllText(Path.Combine("site", "sitemap.xml")))
+        | _ -> do! writeResponse (landingPage |> string)
     }
 
 let private getCacheAge (logger: ILogger) cacheConfig url =
@@ -116,7 +142,7 @@ let updateCache client (logger: ILogger) cacheConfig (memCache: InMemoryCache) (
     if not (List.isEmpty urls) then
         urls
         |> List.choose (getCacheAge logger cacheConfig)
-        |> fetchAllRssFeeds client logger cacheConfig cacheConfig.UpdateParallelism
+        |> fetchAllRssFeeds client logger cacheConfig CacheRefreshFetchConfig
         |> Async.RunSynchronously
         |> List.iter (
             parseFeedResult logger

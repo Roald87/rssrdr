@@ -28,7 +28,7 @@ let computeCacheAndBackoffState cacheModified nextAttempt expiration =
     | _, Some na -> InBackoffNoCache(TimeSpan.FromHours (na - DateTimeOffset.Now).TotalHours)
     | Some _, None -> CacheHit
 
-let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
+let private fetchUri client logger (cacheConfig: CacheConfig) (fetchConfig: FetchConfig) (dt, uri) =
     async {
         let cachePath = OsPath.combine cacheConfig.Dir (convertUrlToValidFilename uri)
 
@@ -39,7 +39,7 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
         | InBackoffWithCache waitTime -> return ProcessingError(PreviousHttpRequestFailedButPageCached(uri, waitTime))
         | InBackoffNoCache waitTime -> return ProcessingError(PreviousHttpRequestFailed(uri, waitTime))
         | _ ->
-            let! r = fetchUrlAsync client logger uri dt RequestTimeout
+            let! r = fetchUrlAsync client logger uri dt fetchConfig.Timeout
 
             return
                 match r with
@@ -58,14 +58,14 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (dt, uri) =
                     ProcessingError e
     }
 
-let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) maxParallelism (ups: UriProcessState list) =
+let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) (fetchConfig: FetchConfig) (ups: UriProcessState list) =
     async {
         let! processed =
             ups
             |> List.map (function
-                | PendingFetch(dt, uri) -> fetchUri client logger cacheConfig (dt, uri)
+                | PendingFetch(dt, uri) -> fetchUri client logger cacheConfig fetchConfig (dt, uri)
                 | x -> async.Return x)
-            |> fun asyncs -> Async.Parallel(asyncs, maxParallelism)
+            |> fun asyncs -> Async.Parallel(asyncs, fetchConfig.MaxParallelism)
 
         return List.ofArray processed
     }
