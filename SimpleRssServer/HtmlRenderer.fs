@@ -147,34 +147,57 @@ let private articlesToHtml (query: Query) (articles: Article list) : Html =
     |> List.map (fun a -> convertArticleToHtml deleteButtons[a.FeedUrl] a)
     |> Html.Concat
 
-let chronologicalFeedsPage (query: Query) (rssItems: Article list) : Html =
-    let body =
-        $"""
+let private loadingOverlay: Html =
+    Html """<div id="loading"><div class="spinner"></div><span>Loading feeds…</span></div>"""
+
+let private loadingHideStyle: Html =
+    Html """<style>#loading{display:none}</style>"""
+
+let chronologicalFeedsPageShell (query: Query) : Html =
+    $"""
     <body>
+        %s{string loadingOverlay}
         <div>
             <h1><a href="config.html/%s{query |> string}">rssrdr</a></h1>
             <a href="/config.html/%s{query |> string}">config/</a>
             <a href="/shuffle%s{query |> string}" style="margin-left: 20px;">shuffle/</a>
         </div>
     """
-        |> Html
+    |> Html
+    |> fun nav -> head + nav
 
-    let rssFeeds = rssItems |> List.sortByDescending _.PostDate |> articlesToHtml query
+let chronologicalFeedsPageContent (query: Query) (rssItems: Article list) : Html =
+    (rssItems |> List.sortByDescending _.PostDate |> articlesToHtml query)
+    + removeFeedScript
+    + loadingHideStyle
+    + footer
 
-    head + body + rssFeeds + removeFeedScript + footer
-
-let shuffledFeedsPage (query: Query) (rssItems: Article list) : Html =
-    let body =
-        $"""
+let shuffledFeedsPageShell (query: Query) : Html =
+    $"""
     <body>
+        %s{string loadingOverlay}
         <div>
             <h1><a href="config.html/%s{query |> string}">rssrdr</a></h1>
             <a href="/config.html/%s{query |> string}">config/</a>
             <a href="/%s{query |> string}" style="margin-left: 20px;">chronological/</a>
         </div>
     """
-        |> Html
+    |> Html
+    |> fun nav -> head + nav
 
-    let shuffledFeeds = rssItems |> List.randomShuffle |> articlesToHtml query
+let shuffledFeedsPageContent (query: Query) (rssItems: Article list) : Html =
+    (rssItems |> List.randomShuffle |> articlesToHtml query)
+    + removeFeedScript
+    + loadingHideStyle
+    + footer
 
-    head + body + shuffledFeeds + removeFeedScript + footer
+let metaRefreshContent (redirectUrl: string) : Html =
+    Html $"""<meta http-equiv="refresh" content="0; url={redirectUrl}">"""
+    + loadingHideStyle
+    + footer
+
+let chronologicalFeedsPage (query: Query) (rssItems: Article list) : Html =
+    chronologicalFeedsPageShell query + chronologicalFeedsPageContent query rssItems
+
+let shuffledFeedsPage (query: Query) (rssItems: Article list) : Html =
+    shuffledFeedsPageShell query + shuffledFeedsPageContent query rssItems
