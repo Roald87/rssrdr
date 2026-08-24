@@ -107,8 +107,24 @@ let private feedsForm (confirmedUris: string) (extras: Html) : Html =
                 const filteredFeeds = feeds.filter(feed => feed.trim() !== '');
                 const checked = Array.from(document.querySelectorAll('input[name="discovered"]:checked')).map(cb => cb.value);
                 const allFeeds = filteredFeeds.concat(checked);
-                const queryString = allFeeds.map(feed => `rss=${feed.trim()}`).join('&');
-                window.location.href = `/?${queryString}`;
+                if (document.getElementById('saveCollection')?.checked) {
+                    const existingCode = document.getElementById('existingCode')?.value;
+                    const form = document.createElement('form');
+                    form.method = 'post';
+                    form.action = existingCode ? `/s/${existingCode}` : '/s';
+                    allFeeds.forEach(feed => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'rss';
+                        input.value = feed.trim();
+                        form.appendChild(input);
+                    });
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    const queryString = allFeeds.map(feed => `rss=${feed.trim()}`).join('&');
+                    window.location.href = `/?${queryString}`;
+                }
             }
         </script>
         """
@@ -119,14 +135,36 @@ let private feedsForm (confirmedUris: string) (extras: Html) : Html =
 let landingPage: Html =
     head + aboveFeedInput + feedsForm "" Html.Empty + belowFeedInput
 
-let configPage (rssUrls: Result<Uri, UriError> list) : Html =
+let private saveCollectionCheckbox (existingCode: string option) : Html =
+    let checkedAttr = if existingCode.IsSome then " checked" else ""
+
+    let hiddenCodeInput =
+        match existingCode with
+        | Some code -> $"""<input type="hidden" id="existingCode" value="%s{WebUtility.HtmlEncode code}">"""
+        | None -> ""
+
+    $"""
+    <p>
+        <label>
+            <input type="checkbox" id="saveCollection"%s{checkedAttr}> Save feed collection<br>
+            <small>Creates a short link for you to easily access, edit and share your feeds. &#9888;&#65039; Note that everyone with this link can edit your collection!</small>
+        </label>
+    </p>
+    %s{hiddenCodeInput}
+    """
+    |> Html
+
+let configPage (rssUrls: Result<Uri, UriError> list) (existingCode: string option) : Html =
     let validRssUris =
         rssUrls
         |> validUris
         |> List.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
         |> String.concat "\n"
 
-    head + aboveFeedInput + feedsForm validRssUris Html.Empty + belowFeedInput
+    head
+    + aboveFeedInput
+    + feedsForm validRssUris (saveCollectionCheckbox existingCode)
+    + belowFeedInput
 
 let footer =
     """
@@ -153,18 +191,22 @@ let private loadingOverlay: Html =
 let private loadingHideStyle: Html =
     Html """<style>#loading{display:none}</style>"""
 
-let chronologicalFeedsPageShell (query: Query) : Html =
+let private feedsPageShell (titleHref: string) (configHref: string) (altHref: string) (altLabel: string) : Html =
     $"""
     <body>
         %s{string loadingOverlay}
         <div>
-            <h1><a href="config.html/%s{query |> string}">rssrdr</a></h1>
-            <a href="/config.html/%s{query |> string}">config/</a>
-            <a href="/shuffle%s{query |> string}" style="margin-left: 20px;">shuffle/</a>
+            <h1><a href="%s{titleHref}">rssrdr</a></h1>
+            <a href="%s{configHref}">config/</a>
+            <a href="%s{altHref}" style="margin-left: 20px;">%s{altLabel}</a>
         </div>
     """
     |> Html
     |> fun nav -> head + nav
+
+let chronologicalFeedsPageShell (query: Query) : Html =
+    let q = query |> string
+    feedsPageShell $"config.html/%s{q}" $"/config.html/%s{q}" $"/shuffle%s{q}" "shuffle/"
 
 let chronologicalFeedsPageContent (query: Query) (rssItems: Article list) : Html =
     (rssItems |> List.sortByDescending _.PostDate |> articlesToHtml query)
@@ -173,17 +215,8 @@ let chronologicalFeedsPageContent (query: Query) (rssItems: Article list) : Html
     + footer
 
 let shuffledFeedsPageShell (query: Query) : Html =
-    $"""
-    <body>
-        %s{string loadingOverlay}
-        <div>
-            <h1><a href="config.html/%s{query |> string}">rssrdr</a></h1>
-            <a href="/config.html/%s{query |> string}">config/</a>
-            <a href="/%s{query |> string}" style="margin-left: 20px;">chronological/</a>
-        </div>
-    """
-    |> Html
-    |> fun nav -> head + nav
+    let q = query |> string
+    feedsPageShell $"config.html/%s{q}" $"/config.html/%s{q}" $"/%s{q}" "chronological/"
 
 let shuffledFeedsPageContent (query: Query) (rssItems: Article list) : Html =
     (rssItems |> List.randomShuffle |> articlesToHtml query)
@@ -201,3 +234,22 @@ let chronologicalFeedsPage (query: Query) (rssItems: Article list) : Html =
 
 let shuffledFeedsPage (query: Query) (rssItems: Article list) : Html =
     shuffledFeedsPageShell query + shuffledFeedsPageContent query rssItems
+
+let collectionFeedsPageShell (shortCode: string) : Html =
+    let configHref = $"/config.html?s=%s{shortCode}"
+    feedsPageShell configHref configHref $"/s/%s{shortCode}/shuffle" "shuffle/"
+
+let collectionShuffledPageShell (shortCode: string) : Html =
+    let configHref = $"/config.html?s=%s{shortCode}"
+    feedsPageShell configHref configHref $"/s/%s{shortCode}" "chronological/"
+
+let collectionNotFoundPage (shortCode: string) : Html =
+    $"""
+    <body>
+        <h1><a href="/">rssrdr</a></h1>
+        <p>Collection <code>%s{WebUtility.HtmlEncode shortCode}</code> not found.</p>
+    </body>
+    </html>
+    """
+    |> Html
+    |> fun body -> head + body

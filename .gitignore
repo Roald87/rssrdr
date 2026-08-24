@@ -46,3 +46,4 @@ msbuild.wrn
 .aider*
 rss-cache/
 CLAUDE.md
+/SimpleRssServer/collections
