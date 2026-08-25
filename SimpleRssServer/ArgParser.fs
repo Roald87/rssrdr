@@ -11,33 +11,23 @@ type ParsedArgs =
     | Help
     | InvalidArgs of string
 
+let private logLevels =
+    Map
+        [ "debug", LogLevel.Debug
+          "info", LogLevel.Information
+          "warning", LogLevel.Warning
+          "error", LogLevel.Error ]
+
 [<TailCall>]
 let rec private parseArgs parts acc =
     match parts with
     | [] -> Args acc
     | "--help" :: _ -> Help
     | "--hostname" :: hostname :: rest -> parseArgs rest { acc with Hostname = Some hostname }
-    | "--loglevel" :: "debug" :: rest ->
-        parseArgs
-            rest
-            { acc with
-                LogLevel = Some LogLevel.Debug }
-    | "--loglevel" :: "info" :: rest ->
-        parseArgs
-            rest
-            { acc with
-                LogLevel = Some LogLevel.Information }
-    | "--loglevel" :: "warning" :: rest ->
-        parseArgs
-            rest
-            { acc with
-                LogLevel = Some LogLevel.Warning }
-    | "--loglevel" :: "error" :: rest ->
-        parseArgs
-            rest
-            { acc with
-                LogLevel = Some LogLevel.Error }
-    | "--loglevel" :: invalid :: _ -> InvalidArgs $"Log level {invalid} does not exist"
+    | "--loglevel" :: level :: rest ->
+        match logLevels.TryFind level with
+        | Some logLevel -> parseArgs rest { acc with LogLevel = Some logLevel }
+        | None -> InvalidArgs $"Log level {level} does not exist"
     | _ -> Args acc
 
 let parse (args: string) : ParsedArgs =
