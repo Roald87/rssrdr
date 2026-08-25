@@ -317,7 +317,34 @@ let rec clearCachePeriodically (logger: ILogger) (cacheDir: OsPath) (retention: 
         return! clearCachePeriodically logger cacheDir retention period
     }
 
+let private handleRequestSafely
+    (httpClient: Http.HttpClient)
+    (logger: ILogger)
+    (cacheConfig: SimpleRssServer.Config.CacheConfig)
+    (feedCache: InMemoryCache)
+    context
+    =
+    async {
+        try
+            do! handleRequest httpClient logger cacheConfig feedCache context
+        with ex ->
+            logger.LogInformation("Request handling error: {Message}", ex.Message)
+    }
+
 [<TailCall>]
+let rec private serverLoop
+    (listener: HttpListener)
+    (httpClient: Http.HttpClient)
+    (logger: ILogger)
+    (cacheConfig: SimpleRssServer.Config.CacheConfig)
+    (feedCache: InMemoryCache)
+    =
+    async {
+        let! context = listener.GetContextAsync() |> Async.AwaitTask
+        do! handleRequestSafely httpClient logger cacheConfig feedCache context
+        return! serverLoop listener httpClient logger cacheConfig feedCache
+    }
+
 let startServer (logger: ILogger) (cacheConfig: SimpleRssServer.Config.CacheConfig) (hosts: string list) =
     logger.LogInformation("Starting SimpleRssServer version {version}", version)
 
@@ -330,24 +357,12 @@ let startServer (logger: ILogger) (cacheConfig: SimpleRssServer.Config.CacheConf
     let httpClient = new Http.HttpClient()
     let feedCache = InMemoryCache logger
 
-    let rec loop () =
-        async {
-            let! context = listener.GetContextAsync() |> Async.AwaitTask
-
-            try
-                do! handleRequest httpClient logger cacheConfig feedCache context
-            with ex ->
-                logger.LogInformation("Request handling error: {Message}", ex.Message)
-
-            return! loop ()
-        }
-
     Async.Start(updateRssFeedsPeriodically httpClient logger cacheConfig feedCache)
 
     let cacheCleanupPeriod = TimeSpan.FromDays 1.0
     Async.Start(clearCachePeriodically logger cacheConfig.Dir CacheRetention cacheCleanupPeriod)
 
-    loop ()
+    serverLoop listener httpClient logger cacheConfig feedCache
 
 let helpMessage =
     """
