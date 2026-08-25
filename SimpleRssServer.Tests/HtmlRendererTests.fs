@@ -77,7 +77,7 @@ let ``Test configPage prefills textarea with valid URIs`` () =
           Ok validUri2
           Error(HostNameMustContainDot(InvalidUri.Create "invalid-uri")) ]
 
-    let resultHtml = configPage rssUrls |> string
+    let resultHtml = configPage rssUrls None |> string
 
     let textareaValue =
         let m =
@@ -98,4 +98,44 @@ let ``Test configPage prefills textarea with valid URIs`` () =
 let ``chronologicalFeedsPage with empty query shows config link without query string`` () =
     let result = chronologicalFeedsPage (Query.Create "") [] |> string
 
-    Assert.Contains("""href="config.html/">rssrdr""", result)
+    Assert.Contains("""href="/config.html/">rssrdr""", result)
+
+[<Fact>]
+let ``configPage contains save collection checkbox`` () =
+    let html = configPage [] None |> string
+
+    Assert.Contains("saveCollection", html)
+    Assert.Contains("Save feed collection", html)
+
+[<Fact>]
+let ``configPage save collection checkbox is unchecked by default`` () =
+    let html = configPage [] None |> string
+
+    Assert.DoesNotContain("id=\"saveCollection\" checked", html)
+
+[<Fact>]
+let ``configPage save collection checkbox is checked when editing an existing collection`` () =
+    let html = configPage [] (Some(CollectionId "abc123de456")) |> string
+
+    Assert.Contains("""id="saveCollection" checked""", html)
+    Assert.Contains("""id="existingCode" value="abc123de456""", html)
+
+[<Fact>]
+let ``collectionNotFoundPage shows collection id`` () =
+    let html = collectionNotFoundPage (CollectionId "abc123") |> string
+
+    Assert.Contains("abc123", html)
+
+[<Fact>]
+let ``collectionFeedsPageShell has config and shuffle links for the collection id`` () =
+    let html = collectionFeedsPageShell (CollectionId "mycode1") |> string
+
+    Assert.Contains("""href="/config.html?s=mycode1">config/""", html)
+    Assert.Contains("""href="/s/mycode1/shuffle" style="margin-left: 20px;">shuffle/""", html)
+
+[<Fact>]
+let ``collectionShuffledPageShell has config and chronological links for the collection id`` () =
+    let html = collectionShuffledPageShell (CollectionId "mycode1") |> string
+
+    Assert.Contains("""href="/config.html?s=mycode1">config/""", html)
+    Assert.Contains("""href="/s/mycode1" style="margin-left: 20px;">chronological/""", html)

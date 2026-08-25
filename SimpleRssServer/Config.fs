@@ -29,3 +29,6 @@ let CacheRetention = TimeSpan.FromDays 7.0
 let ArticleDescriptionLength = 255
 
 let version = Assembly.GetExecutingAssembly().GetName().Version.ToString()
+
+let CollectionsDir = OsPath "collections"
+let CollectionRetention = TimeSpan.FromDays 90.0

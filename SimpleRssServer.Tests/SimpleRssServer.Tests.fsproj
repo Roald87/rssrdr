@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="TestHelpers.fs" />
+    <Compile Include="CollectionsTests.fs" />
     <Compile Include="DomainPrimitiveTypesTests.fs" />
     <Compile Include="Roald87FeedReaderTests.fs" />
     <Compile Include="RssParserTests.fs" />
