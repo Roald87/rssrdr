@@ -11,18 +11,21 @@ let private dateFormat = "yyyy-MM-dd"
 
 let private expectedColumns = [ "url"; "date" ].Length
 
-let private readLogMap (logPath: OsPath) : Map<string, DateTime> =
+let private readLogParts (logPath: OsPath) : string[][] =
     if OsFile.exists logPath then
         OsFile.readAllLines logPath
         |> Array.map (fun line -> line.Trim().Split(' ', expectedColumns))
         |> Array.filter (fun parts -> parts.Length = expectedColumns)
-        |> Array.choose (fun parts ->
-            match DateTime.TryParseExact(parts[0], dateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None) with
-            | true, date -> Some(parts[1], date)
-            | _ -> None)
-        |> Map.ofArray
     else
-        Map.empty
+        [||]
+
+let private readLogMap (logPath: OsPath) : Map<string, DateTime> =
+    readLogParts logPath
+    |> Array.choose (fun parts ->
+        match DateTime.TryParseExact(parts[0], dateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None) with
+        | true, date -> Some(parts[1], date)
+        | _ -> None)
+    |> Map.ofArray
 
 let private writeLogMap (logPath: OsPath) (retention: TimeSpan) (logMap: Map<string, DateTime>) =
     let cutoff = (DateTime.Now - retention).Date
@@ -43,18 +46,13 @@ let updateRequestLog (requestLogPath: OsPath) (retention: TimeSpan) (uris: Uri l
     writeLogMap requestLogPath retention updated
 
 let uniqueValidRequestLogUrls (logPath: OsPath) =
-    if OsFile.exists logPath then
-        OsFile.readAllLines logPath
-        |> Array.toList
-        |> List.map (fun line -> line.Trim().Split(' ', expectedColumns))
-        |> List.filter (fun parts -> parts.Length = expectedColumns)
-        |> List.map (fun parts -> parts[1])
-        |> List.distinct
-        |> List.map FeedUri.create
-        |> List.choose Result.toOption
-        |> List.filter (fun x -> x.Scheme = Uri.UriSchemeHttp || x.Scheme = Uri.UriSchemeHttps)
-    else
-        []
+    readLogParts logPath
+    |> Array.map (fun parts -> parts[1])
+    |> Array.distinct
+    |> Array.toList
+    |> List.map FeedUri.create
+    |> List.choose Result.toOption
+    |> List.filter (fun x -> x.Scheme = Uri.UriSchemeHttp || x.Scheme = Uri.UriSchemeHttps)
 
 let logSuccessfulFeedRequestsAndParses (logPath: OsPath) (upss: UriProcessState list) =
     upss
