@@ -135,12 +135,13 @@ let private feedsForm (confirmedUris: string) (extras: Html) : Html =
 let landingPage: Html =
     head + aboveFeedInput + feedsForm "" Html.Empty + belowFeedInput
 
-let private saveCollectionCheckbox (existingCode: string option) : Html =
-    let checkedAttr = if existingCode.IsSome then " checked" else ""
+let private saveCollectionCheckbox (existingCollectionId: CollectionId option) : Html =
+    let checkedAttr = if existingCollectionId.IsSome then " checked" else ""
 
     let hiddenCodeInput =
-        match existingCode with
-        | Some code -> $"""<input type="hidden" id="existingCode" value="%s{WebUtility.HtmlEncode code}">"""
+        match existingCollectionId with
+        | Some collectionId ->
+            $"""<input type="hidden" id="existingCode" value="%s{WebUtility.HtmlEncode(string collectionId)}">"""
         | None -> ""
 
     $"""
@@ -154,7 +155,7 @@ let private saveCollectionCheckbox (existingCode: string option) : Html =
     """
     |> Html
 
-let configPage (rssUrls: Result<Uri, UriError> list) (existingCode: string option) : Html =
+let configPage (rssUrls: Result<Uri, UriError> list) (existingCollectionId: CollectionId option) : Html =
     let validRssUris =
         rssUrls
         |> validUris
@@ -163,7 +164,7 @@ let configPage (rssUrls: Result<Uri, UriError> list) (existingCode: string optio
 
     head
     + aboveFeedInput
-    + feedsForm validRssUris (saveCollectionCheckbox existingCode)
+    + feedsForm validRssUris (saveCollectionCheckbox existingCollectionId)
     + belowFeedInput
 
 let footer =
@@ -191,22 +192,22 @@ let private loadingOverlay: Html =
 let private loadingHideStyle: Html =
     Html """<style>#loading{display:none}</style>"""
 
-let private feedsPageShell (titleHref: string) (configHref: string) (altHref: string) (altLabel: string) : Html =
+let private feedsPageShell (configHref: string) (altHref: string) (altLabel: string) : Html =
     $"""
     <body>
         %s{string loadingOverlay}
         <div>
-            <h1><a href="%s{titleHref}">rssrdr</a></h1>
+            <h1><a href="%s{configHref}">rssrdr</a></h1>
             <a href="%s{configHref}">config/</a>
             <a href="%s{altHref}" style="margin-left: 20px;">%s{altLabel}</a>
         </div>
     """
     |> Html
-    |> fun nav -> head + nav
+    |> (+) head
 
 let chronologicalFeedsPageShell (query: Query) : Html =
     let q = query |> string
-    feedsPageShell $"config.html/%s{q}" $"/config.html/%s{q}" $"/shuffle%s{q}" "shuffle/"
+    feedsPageShell $"/config.html/%s{q}" $"/shuffle%s{q}" "shuffle/"
 
 let chronologicalFeedsPageContent (query: Query) (rssItems: Article list) : Html =
     (rssItems |> List.sortByDescending _.PostDate |> articlesToHtml query)
@@ -216,7 +217,7 @@ let chronologicalFeedsPageContent (query: Query) (rssItems: Article list) : Html
 
 let shuffledFeedsPageShell (query: Query) : Html =
     let q = query |> string
-    feedsPageShell $"config.html/%s{q}" $"/config.html/%s{q}" $"/%s{q}" "chronological/"
+    feedsPageShell $"/config.html/%s{q}" $"/%s{q}" "chronological/"
 
 let shuffledFeedsPageContent (query: Query) (rssItems: Article list) : Html =
     (rssItems |> List.randomShuffle |> articlesToHtml query)
@@ -235,19 +236,19 @@ let chronologicalFeedsPage (query: Query) (rssItems: Article list) : Html =
 let shuffledFeedsPage (query: Query) (rssItems: Article list) : Html =
     shuffledFeedsPageShell query + shuffledFeedsPageContent query rssItems
 
-let collectionFeedsPageShell (shortCode: string) : Html =
-    let configHref = $"/config.html?s=%s{shortCode}"
-    feedsPageShell configHref configHref $"/s/%s{shortCode}/shuffle" "shuffle/"
+let collectionFeedsPageShell (collectionId: CollectionId) : Html =
+    let configHref = $"/config.html?s=%s{string collectionId}"
+    feedsPageShell configHref $"/s/%s{string collectionId}/shuffle" "shuffle/"
 
-let collectionShuffledPageShell (shortCode: string) : Html =
-    let configHref = $"/config.html?s=%s{shortCode}"
-    feedsPageShell configHref configHref $"/s/%s{shortCode}" "chronological/"
+let collectionShuffledPageShell (collectionId: CollectionId) : Html =
+    let configHref = $"/config.html?s=%s{string collectionId}"
+    feedsPageShell configHref $"/s/%s{string collectionId}" "chronological/"
 
-let collectionNotFoundPage (shortCode: string) : Html =
+let collectionNotFoundPage (collectionId: CollectionId) : Html =
     $"""
     <body>
         <h1><a href="/">rssrdr</a></h1>
-        <p>Collection <code>%s{WebUtility.HtmlEncode shortCode}</code> not found.</p>
+        <p>Collection <code>%s{WebUtility.HtmlEncode(string collectionId)}</code> not found.</p>
     </body>
     </html>
     """

@@ -16,7 +16,6 @@ open SimpleRssServer.RequestLog
 open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
-open System.Reflection
 
 let private readFormBody (context: HttpListenerContext) =
     async {
@@ -58,6 +57,147 @@ let buildProcessedQuery (articles: Article list) : Query =
     |> List.distinct
     |> fun u -> Query.CreateWithKey("rss", u)
 
+let private getSortedRssUris (q: Query) = q.GetValues "rss" |> List.sort
+
+let private writeResponse (context: HttpListenerContext) (content: string) =
+    async {
+        let buffer = content |> Encoding.UTF8.GetBytes
+        context.Response.ContentLength64 <- int64 buffer.Length
+        context.Response.ContentType <- "text/html"
+
+        do!
+            context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length)
+            |> Async.AwaitTask
+
+        context.Response.OutputStream.Close()
+    }
+
+let private writeChunk (context: HttpListenerContext) (html: Html) =
+    async {
+        let bytes = html |> string |> Encoding.UTF8.GetBytes
+
+        do!
+            context.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length)
+            |> Async.AwaitTask
+
+        do! context.Response.OutputStream.FlushAsync() |> Async.AwaitTask
+    }
+
+let private redirectTo (context: HttpListenerContext) (url: string) =
+    async {
+        context.Response.Redirect url
+        context.Response.OutputStream.Close()
+    }
+
+/// Streams a feeds page for the current request's own `?rss=` query, redirecting first
+/// if fetching/discovery normalized the feed list (e.g. stripped a scheme, followed a discovery link).
+let private streamFeedResponse
+    client
+    (logger: ILogger)
+    cacheConfig
+    (memCache: InMemoryCache)
+    (context: HttpListenerContext)
+    (shell: Html)
+    (render: Query -> Article list -> Html)
+    =
+    async {
+        context.Response.SendChunked <- true
+        context.Response.ContentType <- "text/html"
+        do! writeChunk context shell
+
+        let articles =
+            processRssRequest client logger cacheConfig memCache RequestLogPath context.Request.Url.Query
+
+        let originalQuery = Query.Create context.Request.Url.Query
+        let processedQuery = buildProcessedQuery articles
+
+        let content =
+            if getSortedRssUris originalQuery <> getSortedRssUris processedQuery then
+                metaRefreshContent (string processedQuery)
+            else
+                render processedQuery articles
+
+        do! writeChunk context content
+        context.Response.OutputStream.Close()
+    }
+
+/// Looks up a collection by its id, rendering a "not found" page for an invalid
+/// or missing id, otherwise handing the saved feed list to `onFound`.
+let private loadCollectionOrNotFound
+    (context: HttpListenerContext)
+    (collectionId: CollectionId)
+    (onFound: string list -> Async<unit>)
+    =
+    async {
+        if not (isValidCollectionId collectionId) then
+            do! writeResponse context (collectionNotFoundPage collectionId |> string)
+        else
+            match tryLoad CollectionsDir collectionId with
+            | None -> do! writeResponse context (collectionNotFoundPage collectionId |> string)
+            | Some feeds -> do! onFound feeds
+    }
+
+let private handleConfigPage (context: HttpListenerContext) =
+    async {
+        let query = Query.Create context.Request.Url.Query
+
+        match query.GetValues "s" |> List.tryHead with
+        | Some rawId ->
+            let collectionId = CollectionId rawId
+
+            do!
+                loadCollectionOrNotFound context collectionId (fun feeds ->
+                    let rssUrls = feeds |> List.map FeedUri.createWithHttps
+                    writeResponse context (configPage rssUrls (Some collectionId) |> string))
+        | None -> do! writeResponse context (configPage (getRssUrls context.Request.Url.Query) None |> string)
+    }
+
+let private handleCreateCollection (context: HttpListenerContext) =
+    async {
+        let! formData = readFormBody context
+        let feeds = formData.GetValues "rss"
+        let collectionId = generateCollectionId ()
+        save CollectionsDir collectionId feeds
+        do! redirectTo context $"/s/{collectionId}"
+    }
+
+let private handleUpdateCollection (context: HttpListenerContext) (collectionId: CollectionId) =
+    async {
+        if isValidCollectionId collectionId then
+            let! formData = readFormBody context
+            let feeds = formData.GetValues "rss"
+            save CollectionsDir collectionId feeds
+            do! redirectTo context $"/s/{collectionId}"
+        else
+            do! writeResponse context (collectionNotFoundPage collectionId |> string)
+    }
+
+let private handleViewCollection
+    client
+    (logger: ILogger)
+    cacheConfig
+    (memCache: InMemoryCache)
+    (context: HttpListenerContext)
+    (collectionId: CollectionId)
+    (shell: Html)
+    (content: Query -> Article list -> Html)
+    =
+    loadCollectionOrNotFound context collectionId (fun feeds ->
+        async {
+            touch CollectionsDir collectionId
+            let collQuery = Query.CreateWithKey("rss", feeds)
+            context.Response.SendChunked <- true
+            context.Response.ContentType <- "text/html"
+
+            do! writeChunk context shell
+
+            let articles =
+                processRssRequest client logger cacheConfig memCache RequestLogPath (string collQuery)
+
+            do! writeChunk context (content collQuery articles)
+            context.Response.OutputStream.Close()
+        })
+
 let handleRequest
     client
     (logger: ILogger)
@@ -68,132 +208,60 @@ let handleRequest
     async {
         logger.LogDebug $"Received request {context.Request.Url}"
 
-        let getRssArticles () =
-            processRssRequest client logger cacheConfig memCache RequestLogPath context.Request.Url.Query
-
-        let getSortedRssUris (q: Query) = q.GetValues "rss" |> List.sort
-
-        let writeResponse (content: string) =
-            async {
-                let buffer = content |> Encoding.UTF8.GetBytes
-                context.Response.ContentLength64 <- int64 buffer.Length
-                context.Response.ContentType <- "text/html"
-
-                do!
-                    context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length)
-                    |> Async.AwaitTask
-
-                context.Response.OutputStream.Close()
-            }
-
-        let writeChunk (html: Html) =
-            async {
-                let bytes = html |> string |> Encoding.UTF8.GetBytes
-
-                do!
-                    context.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length)
-                    |> Async.AwaitTask
-
-                do! context.Response.OutputStream.FlushAsync() |> Async.AwaitTask
-            }
-
-        let redirectTo (url: string) =
-            async {
-                context.Response.Redirect url
-                context.Response.OutputStream.Close()
-            }
-
-        let streamFeedResponse (shell: Html) (render: Query -> Article list -> Html) =
-            async {
-                context.Response.SendChunked <- true
-                context.Response.ContentType <- "text/html"
-                do! writeChunk shell
-
-                let articles = getRssArticles ()
-                let originalQuery = Query.Create context.Request.Url.Query
-                let processedQuery = buildProcessedQuery articles
-
-                let content =
-                    if getSortedRssUris originalQuery <> getSortedRssUris processedQuery then
-                        metaRefreshContent (string processedQuery)
-                    else
-                        render processedQuery articles
-
-                do! writeChunk content
-                context.Response.OutputStream.Close()
-            }
-
         match context.Request.RawUrl with
-        | Prefix "/config.html" _ ->
-            let query = Query.Create context.Request.Url.Query
-
-            match query.GetValues "s" |> List.tryHead with
-            | Some code when isValidShortCode code ->
-                match tryLoad CollectionsDir code with
-                | Some feeds ->
-                    let rssUrls = feeds |> List.map FeedUri.createWithHttps
-                    do! writeResponse (configPage rssUrls (Some code) |> string)
-                | None -> do! writeResponse (collectionNotFoundPage code |> string)
-            | _ -> do! writeResponse (configPage (getRssUrls context.Request.Url.Query) None |> string)
+        | Prefix "/config.html" _ -> do! handleConfigPage context
         | Prefix "/shuffle?rss=" _ ->
             let query = Query.Create context.Request.Url.Query
-            do! streamFeedResponse (shuffledFeedsPageShell query) shuffledFeedsPageContent
+
+            do!
+                streamFeedResponse
+                    client
+                    logger
+                    cacheConfig
+                    memCache
+                    context
+                    (shuffledFeedsPageShell query)
+                    shuffledFeedsPageContent
         | Prefix "/?rss=" _ ->
             let query = Query.Create context.Request.Url.Query
-            do! streamFeedResponse (chronologicalFeedsPageShell query) chronologicalFeedsPageContent
-        | "/robots.txt" -> do! writeResponse (File.ReadAllText(Path.Combine("site", "robots.txt")))
-        | "/sitemap.xml" -> do! writeResponse (File.ReadAllText(Path.Combine("site", "sitemap.xml")))
-        | "/s" when context.Request.HttpMethod = "POST" ->
-            let! formData = readFormBody context
-            let feeds = formData.GetValues "rss"
-            let code = generateShortCode ()
-            save CollectionsDir code feeds
-            do! redirectTo $"/s/{code}"
-        | Prefix "/s/" rest when context.Request.HttpMethod = "POST" ->
-            let code = rest.Split('?')[0]
 
-            if isValidShortCode code then
-                let! formData = readFormBody context
-                let feeds = formData.GetValues "rss"
-                save CollectionsDir code feeds
-                do! redirectTo $"/s/{code}"
-            else
-                do! writeResponse (collectionNotFoundPage code |> string)
-        | Prefix "/s/" rest when context.Request.HttpMethod = "GET" ->
-            let pathPart = rest.Split('?')[0]
-            let isShuffle = pathPart.EndsWith "/shuffle"
-
-            let code =
-                if isShuffle then
-                    pathPart.Substring(0, pathPart.Length - "/shuffle".Length)
-                else
-                    pathPart
-
-            if not (isValidShortCode code) then
-                do! writeResponse (collectionNotFoundPage code |> string)
-            else
-                match tryLoad CollectionsDir code with
-                | None -> do! writeResponse (collectionNotFoundPage code |> string)
-                | Some feeds ->
-                    touch CollectionsDir code
-                    let collQuery = Query.CreateWithKey("rss", feeds)
-                    context.Response.SendChunked <- true
-                    context.Response.ContentType <- "text/html"
-
-                    let shell, content =
-                        if isShuffle then
-                            collectionShuffledPageShell code, shuffledFeedsPageContent
-                        else
-                            collectionFeedsPageShell code, chronologicalFeedsPageContent
-
-                    do! writeChunk shell
-
-                    let articles =
-                        processRssRequest client logger cacheConfig memCache RequestLogPath (string collQuery)
-
-                    do! writeChunk (content collQuery articles)
-                    context.Response.OutputStream.Close()
-        | _ -> do! writeResponse (landingPage |> string)
+            do!
+                streamFeedResponse
+                    client
+                    logger
+                    cacheConfig
+                    memCache
+                    context
+                    (chronologicalFeedsPageShell query)
+                    chronologicalFeedsPageContent
+        | "/robots.txt" -> do! writeResponse context (File.ReadAllText(Path.Combine("site", "robots.txt")))
+        | "/sitemap.xml" -> do! writeResponse context (File.ReadAllText(Path.Combine("site", "sitemap.xml")))
+        | "/s" when context.Request.HttpMethod = "POST" -> do! handleCreateCollection context
+        | CollectionShuffleId collectionId when context.Request.HttpMethod = "GET" ->
+            do!
+                handleViewCollection
+                    client
+                    logger
+                    cacheConfig
+                    memCache
+                    context
+                    collectionId
+                    (collectionShuffledPageShell collectionId)
+                    shuffledFeedsPageContent
+        | CollectionIdPath collectionId when context.Request.HttpMethod = "GET" ->
+            do!
+                handleViewCollection
+                    client
+                    logger
+                    cacheConfig
+                    memCache
+                    context
+                    collectionId
+                    (collectionFeedsPageShell collectionId)
+                    chronologicalFeedsPageContent
+        | CollectionIdPath collectionId when context.Request.HttpMethod = "POST" ->
+            do! handleUpdateCollection context collectionId
+        | _ -> do! writeResponse context (landingPage |> string)
     }
 
 let private getCacheAge (logger: ILogger) cacheConfig url =
@@ -249,6 +317,7 @@ let rec clearCachePeriodically (logger: ILogger) (cacheDir: OsPath) (retention: 
         return! clearCachePeriodically logger cacheDir retention period
     }
 
+[<TailCall>]
 let startServer (logger: ILogger) (cacheConfig: SimpleRssServer.Config.CacheConfig) (hosts: string list) =
     logger.LogInformation("Starting SimpleRssServer version {version}", version)
 

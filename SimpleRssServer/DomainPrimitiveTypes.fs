@@ -96,6 +96,11 @@ module OsFile =
     let writeAllLines (OsPath path) (lines: string list) = File.WriteAllLines(path, lines)
     let writeAllText (OsPath path) (content: string) = File.WriteAllText(path, content)
 
+type CollectionId =
+    | CollectionId of string
+
+    override this.ToString() = let (CollectionId s) = this in s
+
 type Html =
     | Html of string
 

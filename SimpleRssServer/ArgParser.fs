@@ -11,6 +11,7 @@ type ParsedArgs =
     | Help
     | InvalidArgs of string
 
+[<TailCall>]
 let parse (args: string) : ParsedArgs =
     let parts = args.Split ' '
 

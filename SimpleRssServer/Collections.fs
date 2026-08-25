@@ -9,19 +9,19 @@ open SimpleRssServer.DomainPrimitiveTypes
 let private toBase64Url (bytes: byte[]) =
     Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=')
 
-let generateShortCode () : string =
-    RandomNumberGenerator.GetBytes 8 |> toBase64Url
+let generateCollectionId () : CollectionId =
+    RandomNumberGenerator.GetBytes 8 |> toBase64Url |> CollectionId
 
-let isValidShortCode (code: string) =
-    Regex.IsMatch(code, @"^[A-Za-z0-9_-]{6,16}$")
+let isValidCollectionId (CollectionId collectionId) =
+    Regex.IsMatch(collectionId, @"^[A-Za-z0-9_-]{6,16}$")
 
-let private collectionFilePath (dir: OsPath) (code: string) = OsPath.join dir (code + ".txt")
+let private collectionFilePath (dir: OsPath) (CollectionId collectionId) = OsPath.join dir (collectionId + ".txt")
 
-let save (dir: OsPath) (code: string) (feeds: string list) =
-    OsFile.writeAllLines (collectionFilePath dir code) feeds
+let save (dir: OsPath) (collectionId: CollectionId) (feeds: string list) =
+    OsFile.writeAllLines (collectionFilePath dir collectionId) feeds
 
-let tryLoad (dir: OsPath) (code: string) : string list option =
-    let path = collectionFilePath dir code
+let tryLoad (dir: OsPath) (collectionId: CollectionId) : string list option =
+    let path = collectionFilePath dir collectionId
 
     if OsFile.exists path then
         OsFile.readAllLines path
@@ -31,11 +31,11 @@ let tryLoad (dir: OsPath) (code: string) : string list option =
     else
         None
 
-let touch (dir: OsPath) (code: string) =
-    OsFile.setLastWriteTime (collectionFilePath dir code) DateTime.Now
+let touch (dir: OsPath) (collectionId: CollectionId) =
+    OsFile.setLastWriteTime (collectionFilePath dir collectionId) DateTime.Now
 
-let delete (dir: OsPath) (code: string) =
-    let path = collectionFilePath dir code
+let delete (dir: OsPath) (collectionId: CollectionId) =
+    let path = collectionFilePath dir collectionId
 
     if OsFile.exists path then
         OsFile.delete path
