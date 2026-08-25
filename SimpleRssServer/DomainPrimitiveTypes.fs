@@ -90,6 +90,9 @@ module OsFile =
     let readAllLines (OsPath path) = File.ReadAllLines path
     let readAllText (OsPath path) = File.ReadAllText path
 
+    let isOlderThan (retention: TimeSpan) (path: OsPath) =
+        getLastWriteTime path < DateTime.Now - retention
+
     let setLastWriteTime (OsPath path) lastWriteTime =
         File.SetLastWriteTime(path, lastWriteTime)
 

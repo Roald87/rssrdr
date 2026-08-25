@@ -114,10 +114,8 @@ let clearExpiredCache (logger: ILogger) (cacheDir: OsPath) (retention: TimeSpan)
     if not (OsDirectory.exists cacheDir) then
         logger.LogWarning("Cache directory {Dir} does not exist", cacheDir)
     else
-        let now = DateTime.Now
-
         OsDirectory.getFiles cacheDir
-        |> Array.filter (fun f -> (now - OsFile.getLastWriteTime f) > retention)
+        |> Array.filter (OsFile.isOlderThan retention)
         |> Array.iter OsFile.delete
 
 let private invalidFilenameCharsRegex =

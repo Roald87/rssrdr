@@ -42,9 +42,7 @@ let delete (dir: OsPath) (collectionId: CollectionId) =
 
 let deleteInactive (dir: OsPath) (retention: TimeSpan) =
     if OsDirectory.exists dir then
-        let cutoff = DateTime.Now - retention
-
         OsDirectory.getFiles dir
         |> Array.filter (fun (OsPath p) -> p.EndsWith ".txt")
-        |> Array.filter (fun path -> OsFile.getLastWriteTime path < cutoff)
+        |> Array.filter (OsFile.isOlderThan retention)
         |> Array.iter OsFile.delete
