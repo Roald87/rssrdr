@@ -247,7 +247,7 @@ let private getCacheAge (logger: ILogger) cacheConfig url =
         )
 
         Some(PendingFetch(None, url))
-    | Some modTime when (DateTimeOffset.Now - modTime) > cacheConfig.Expiration -> Some(PendingFetch(cacheAge, url))
+    | Some modTime when isCacheExpired cacheConfig modTime -> Some(PendingFetch(cacheAge, url))
     | _ -> None
 
 let updateCache (appCtx: AppContext) (urls: Uri list) =

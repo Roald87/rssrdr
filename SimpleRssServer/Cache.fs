@@ -26,6 +26,9 @@ let getTimeoutBackoffMinutes failures =
     // 5min, 10min, 20min, ..., max 120min
     min 120.0 (5.0 * Math.Pow(2.0, float (failures - 1)))
 
+let isCacheExpired (cacheConfig: CacheConfig) (modTime: DateTimeOffset) =
+    (DateTimeOffset.Now - modTime) > cacheConfig.Expiration
+
 let fileLastModified (path: OsPath) =
     if OsFile.exists path then
         OsFile.getLastWriteTime path |> DateTimeOffset |> Some
@@ -54,6 +57,11 @@ let clearFailure cachePath =
     if OsFile.exists failurePath then
         OsFile.delete failurePath
 
+let private freshFailure (isTimeout: bool) =
+    { LastFailure = DateTimeOffset.Now
+      ConsecutiveFailures = 1
+      IsTimeout = isTimeout }
+
 let private recordFailure (logger: ILogger) cachePath (isTimeout: bool) =
     let failurePath = failureFilePath cachePath
     createDirectoryForPath failurePath
@@ -64,23 +72,17 @@ let private recordFailure (logger: ILogger) cachePath (isTimeout: bool) =
                 let json = OsFile.readAllText failurePath
                 let existing = JsonSerializer.Deserialize<FetchFailure> json
 
-                { LastFailure = DateTimeOffset.Now
-                  ConsecutiveFailures =
-                    if existing.IsTimeout = isTimeout then
-                        existing.ConsecutiveFailures + 1
-                    else
-                        1
-                  IsTimeout = isTimeout }
+                if existing.IsTimeout = isTimeout then
+                    { existing with
+                        LastFailure = DateTimeOffset.Now
+                        ConsecutiveFailures = existing.ConsecutiveFailures + 1 }
+                else
+                    freshFailure isTimeout
             with ex ->
                 logger.LogWarning(ex, "Failed to read existing failure record at {Path}, resetting count", failurePath)
-
-                { LastFailure = DateTimeOffset.Now
-                  ConsecutiveFailures = 1
-                  IsTimeout = isTimeout }
+                freshFailure isTimeout
         else
-            { LastFailure = DateTimeOffset.Now
-              ConsecutiveFailures = 1
-              IsTimeout = isTimeout }
+            freshFailure isTimeout
 
     OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
 
@@ -118,9 +120,11 @@ let clearExpiredCache (logger: ILogger) (cacheDir: OsPath) (retention: TimeSpan)
         |> Array.filter (fun f -> (now - OsFile.getLastWriteTime f) > retention)
         |> Array.iter OsFile.delete
 
+let private invalidFilenameCharsRegex =
+    RegularExpressions.Regex("[.?=:/]+", RegularExpressions.RegexOptions.Compiled)
+
 let convertUrlToValidFilename (uri: Uri) =
-    let replaceInvalidFilenameChars = RegularExpressions.Regex "[.?=:/]+"
-    replaceInvalidFilenameChars.Replace(uri.AbsoluteUri, "_") |> Filename
+    invalidFilenameCharsRegex.Replace(uri.AbsoluteUri, "_") |> Filename
 
 let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: UriProcessState) : UriProcessState =
     match ups with
@@ -133,11 +137,11 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
 
             match cacheModified with
             | None -> PendingFetch(None, u)
-            | Some modTime when (DateTimeOffset.Now - modTime) <= cacheConfig.Expiration ->
+            | Some modTime when isCacheExpired cacheConfig modTime -> PendingFetch(Some modTime, u)
+            | Some _ ->
                 match readCache cachePath with
                 | Some s -> UnparsedCachedContent(s, u)
                 | None -> PendingFetch(None, u)
-            | Some modTime -> PendingFetch(Some modTime, u)
     | ProcessingError e ->
         let (MessageUri uriStr) = e
         let feedUri = Uri uriStr
