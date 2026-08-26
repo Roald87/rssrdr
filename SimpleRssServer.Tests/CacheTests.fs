@@ -19,7 +19,7 @@ let ``Test clearFailure deletes failure record`` () =
     let failure =
         { LastFailure = DateTimeOffset.Now
           ConsecutiveFailures = 2
-          IsTimeout = false }
+          Kind = FetchFailureKind.HttpError }
 
     let json = JsonSerializer.Serialize failure
     OsFile.writeAllText failurePath json
@@ -59,7 +59,7 @@ let ``Test get retry periods from failure file`` () =
     let failure1 =
         { LastFailure = DateTimeOffset.Now.AddMinutes -30.0
           ConsecutiveFailures = 1
-          IsTimeout = false }
+          Kind = FetchFailureKind.HttpError }
 
     let json1 = JsonSerializer.Serialize failure1
     OsFile.writeAllText failurePath json1
@@ -73,7 +73,7 @@ let ``Test get retry periods from failure file`` () =
     let failure2 =
         { LastFailure = DateTimeOffset.Now.AddHours -2.0
           ConsecutiveFailures = 1
-          IsTimeout = false }
+          Kind = FetchFailureKind.HttpError }
 
     let json2 = JsonSerializer.Serialize failure2
     OsFile.writeAllText failurePath json2
@@ -162,7 +162,7 @@ let ``Test clearExpiredCache also removes failure files`` () =
     let failure =
         { LastFailure = DateTimeOffset.Now.AddDays -10.0
           ConsecutiveFailures = 3
-          IsTimeout = false }
+          Kind = FetchFailureKind.HttpError }
 
     let json = JsonSerializer.Serialize failure
     OsFile.writeAllText failureFile json
@@ -217,7 +217,7 @@ let ``Test recordFailure resets count when failure kind switches`` () =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
 
     Assert.Equal(1, afterSwitch.ConsecutiveFailures)
-    Assert.True(afterSwitch.IsTimeout)
+    Assert.Equal(FetchFailureKind.Timeout, afterSwitch.Kind)
 
 [<Fact>]
 let ``Test recordFailure resets count when switching from timeout to http error`` () =
@@ -238,7 +238,7 @@ let ``Test recordFailure resets count when switching from timeout to http error`
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
 
     Assert.Equal(1, afterSwitch.ConsecutiveFailures)
-    Assert.False(afterSwitch.IsTimeout)
+    Assert.Equal(FetchFailureKind.HttpError, afterSwitch.Kind)
 
 [<Fact>]
 let ``Test getTimeoutBackoffMinutes follows doubling pattern and caps`` () =
@@ -254,7 +254,7 @@ let ``Test nextRetry uses short backoff for timeout failure`` () =
     let failure =
         { LastFailure = DateTimeOffset.Now.AddMinutes -3.0
           ConsecutiveFailures = 1
-          IsTimeout = true }
+          Kind = FetchFailureKind.Timeout }
 
     OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
 
@@ -270,7 +270,7 @@ let ``Test nextRetry uses long backoff for http error failure`` () =
     let failure =
         { LastFailure = DateTimeOffset.Now.AddMinutes -30.0
           ConsecutiveFailures = 1
-          IsTimeout = false }
+          Kind = FetchFailureKind.HttpError }
 
     OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
 
@@ -278,13 +278,17 @@ let ``Test nextRetry uses long backoff for http error failure`` () =
     | Some d -> Assert.True(d > DateTimeOffset.Now, "1 h http error backoff should not have elapsed after 30 min")
     | None -> failwithf $"No failure file found at {failurePath}"
 
-[<Fact>]
-let ``Test nextRetry uses long backoff for legacy file without IsTimeout`` () =
+[<Theory>]
+// Pre-Kind file with no failure-kind field at all
+[<InlineData("""{"LastFailure":"{TS}","ConsecutiveFailures":1}""")>]
+// Pre-Kind file still carrying the old IsTimeout flag
+[<InlineData("""{"LastFailure":"{TS}","ConsecutiveFailures":1,"IsTimeout":true}""")>]
+let ``Test nextRetry falls back to long backoff for legacy file without Kind`` (template: string) =
     use tmp = new TempPath()
     let failurePath = failureFilePath tmp.Path
 
     let recentTimestamp = DateTimeOffset.Now.AddMinutes(-30.0).ToString("o")
-    OsFile.writeAllText failurePath $"""{{"LastFailure":"{recentTimestamp}","ConsecutiveFailures":1}}"""
+    OsFile.writeAllText failurePath (template.Replace("{TS}", recentTimestamp))
 
     match nextRetry NullLogger.Instance tmp.Path with
     | Some d -> Assert.True(d > DateTimeOffset.Now, "Legacy file should fall back to long backoff")

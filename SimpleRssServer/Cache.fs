@@ -5,16 +5,38 @@ open System
 open System.IO
 open System.Text
 open System.Text.Json
+open System.Text.Json.Serialization
 
 open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.MemoryCache
 
+[<JsonConverter(typeof<FetchFailureKindConverter>)>]
+[<Struct>]
+type FetchFailureKind =
+    | HttpError
+    | Timeout
+
+and private FetchFailureKindConverter() =
+    inherit JsonConverter<FetchFailureKind>()
+
+    override _.Read(reader, _, _) =
+        match reader.GetString() with
+        | "Timeout" -> Timeout
+        | _ -> HttpError
+
+    override _.Write(writer, value, _) =
+        writer.WriteStringValue(
+            match value with
+            | HttpError -> "HttpError"
+            | Timeout -> "Timeout"
+        )
+
 type FetchFailure =
     { LastFailure: DateTimeOffset
       ConsecutiveFailures: int
-      IsTimeout: bool }
+      Kind: FetchFailureKind }
 
 let failureFilePath (cachePath: OsPath) = cachePath + ".failures"
 
@@ -57,58 +79,47 @@ let clearFailure cachePath =
     if OsFile.exists failurePath then
         OsFile.delete failurePath
 
-let private freshFailure (isTimeout: bool) =
-    { LastFailure = DateTimeOffset.Now
-      ConsecutiveFailures = 1
-      IsTimeout = isTimeout }
-
-let private recordFailure (logger: ILogger) cachePath (isTimeout: bool) =
+let readFailureRecord (logger: ILogger) cachePath : FetchFailure option =
     let failurePath = failureFilePath cachePath
-    createDirectoryForPath failurePath
 
-    let failure =
-        if OsFile.exists failurePath then
-            try
-                let json = OsFile.readAllText failurePath
-                let existing = JsonSerializer.Deserialize<FetchFailure> json
-
-                if existing.IsTimeout = isTimeout then
-                    { existing with
-                        LastFailure = DateTimeOffset.Now
-                        ConsecutiveFailures = existing.ConsecutiveFailures + 1 }
-                else
-                    freshFailure isTimeout
-            with ex ->
-                logger.LogWarning(ex, "Failed to read existing failure record at {Path}, resetting count", failurePath)
-                freshFailure isTimeout
-        else
-            freshFailure isTimeout
-
-    OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
-
-let recordHttpFailure (logger: ILogger) cachePath = recordFailure logger cachePath false
-let recordTimeoutFailure (logger: ILogger) cachePath = recordFailure logger cachePath true
-
-let readFailure (logger: ILogger) cachePath =
-    let path = failureFilePath cachePath
-
-    if OsFile.exists path then
+    if OsFile.exists failurePath then
         try
-            let json = OsFile.readAllText path
-            Some(JsonSerializer.Deserialize<FetchFailure> json)
+            Some(JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath))
         with ex ->
-            logger.LogWarning(ex, "Failed to read failure record at {Path}", path)
+            logger.LogWarning(ex, "Failed to read failure record at {Path}", failurePath)
             None
     else
         None
 
+let private recordFailure (logger: ILogger) cachePath (kind: FetchFailureKind) =
+    let failurePath = failureFilePath cachePath
+    createDirectoryForPath failurePath
+
+    let failure =
+        match readFailureRecord logger cachePath with
+        | Some existing when existing.Kind = kind ->
+            { existing with
+                LastFailure = DateTimeOffset.Now
+                ConsecutiveFailures = existing.ConsecutiveFailures + 1 }
+        | _ ->
+            { LastFailure = DateTimeOffset.Now
+              ConsecutiveFailures = 1
+              Kind = kind }
+
+    OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
+
+let recordHttpFailure (logger: ILogger) cachePath =
+    recordFailure logger cachePath FetchFailureKind.HttpError
+
+let recordTimeoutFailure (logger: ILogger) cachePath =
+    recordFailure logger cachePath FetchFailureKind.Timeout
+
 let nextRetry (logger: ILogger) cachePath =
-    readFailure logger cachePath
+    readFailureRecord logger cachePath
     |> Option.map (fun failure ->
-        if failure.IsTimeout then
-            failure.LastFailure.AddMinutes(getTimeoutBackoffMinutes failure.ConsecutiveFailures)
-        else
-            failure.LastFailure.AddHours(getBackoffHours failure.ConsecutiveFailures))
+        match failure.Kind with
+        | Timeout -> failure.LastFailure.AddMinutes(getTimeoutBackoffMinutes failure.ConsecutiveFailures)
+        | HttpError -> failure.LastFailure.AddHours(getBackoffHours failure.ConsecutiveFailures))
 
 let clearExpiredCache (logger: ILogger) (cacheDir: OsPath) (retention: TimeSpan) =
     if not (OsDirectory.exists cacheDir) then
