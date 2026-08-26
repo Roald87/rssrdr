@@ -22,16 +22,18 @@ type AppContext =
     { Client: Http.HttpClient
       Logger: ILogger
       CacheConfig: CacheConfig
-      MemCache: InMemoryCache }
+      MemCache: InMemoryCache
+      CollectionsDir: OsPath
+      RequestLogPath: OsPath }
 
-let private readFormBody (context: HttpListenerContext) =
+let private readFormBody (httpCtx: HttpListenerContext) =
     async {
-        use reader = new StreamReader(context.Request.InputStream, Encoding.UTF8)
+        use reader = new StreamReader(httpCtx.Request.InputStream, Encoding.UTF8)
         let! body = reader.ReadToEndAsync() |> Async.AwaitTask
         return Query.Create("?" + body)
     }
 
-let processRssRequest (appCtx: AppContext) (logPath: OsPath) (query: string) =
+let processRssRequest (appCtx: AppContext) (query: string) =
     let readCache = readFromCache appCtx.CacheConfig appCtx.MemCache
 
     getRssUrls query
@@ -48,7 +50,7 @@ let processRssRequest (appCtx: AppContext) (logPath: OsPath) (query: string) =
         >> parseFeedResult appCtx.Logger
         >> cacheSuccessfulFetch appCtx.CacheConfig
     )
-    |> logSuccessfulFeedRequestsAndParses logPath
+    |> logSuccessfulFeedRequestsAndParses appCtx.RequestLogPath
     |> List.map (feedToArticles >> updateMemoryCache appCtx.MemCache)
     |> List.collect onlyFeedArticles
 
@@ -63,34 +65,34 @@ let private sitemapXml = File.ReadAllText(Path.Combine("site", "sitemap.xml"))
 
 let private getSortedRssUris (q: Query) = q.GetValues "rss" |> List.sort
 
-let private writeResponse (context: HttpListenerContext) (content: string) =
+let private writeResponse (httpCtx: HttpListenerContext) (content: string) =
     async {
         let buffer = content |> Encoding.UTF8.GetBytes
-        context.Response.ContentLength64 <- int64 buffer.Length
-        context.Response.ContentType <- "text/html"
+        httpCtx.Response.ContentLength64 <- int64 buffer.Length
+        httpCtx.Response.ContentType <- "text/html"
 
         do!
-            context.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length)
+            httpCtx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length)
             |> Async.AwaitTask
 
-        context.Response.OutputStream.Close()
+        httpCtx.Response.OutputStream.Close()
     }
 
-let private writeChunk (context: HttpListenerContext) (html: Html) =
+let private writeChunk (httpCtx: HttpListenerContext) (html: Html) =
     async {
         let bytes = html |> string |> Encoding.UTF8.GetBytes
 
         do!
-            context.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length)
+            httpCtx.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length)
             |> Async.AwaitTask
 
-        do! context.Response.OutputStream.FlushAsync() |> Async.AwaitTask
+        do! httpCtx.Response.OutputStream.FlushAsync() |> Async.AwaitTask
     }
 
-let private redirectTo (context: HttpListenerContext) (url: string) =
+let private redirectTo (httpCtx: HttpListenerContext) (url: string) =
     async {
-        context.Response.Redirect url
-        context.Response.OutputStream.Close()
+        httpCtx.Response.Redirect url
+        httpCtx.Response.OutputStream.Close()
     }
 
 /// Streams a feeds page for the current request's own `?rss=` query, redirecting first
@@ -106,7 +108,7 @@ let private streamFeedResponse
         httpCtx.Response.ContentType <- "text/html"
         do! writeChunk httpCtx shell
 
-        let articles = processRssRequest appCtx RequestLogPath httpCtx.Request.Url.Query
+        let articles = processRssRequest appCtx httpCtx.Request.Url.Query
 
         let originalQuery = Query.Create httpCtx.Request.Url.Query
         let processedQuery = buildProcessedQuery articles
@@ -124,52 +126,53 @@ let private streamFeedResponse
 /// Looks up a collection by its id, rendering a "not found" page for an invalid
 /// or missing id, otherwise handing the saved feed list to `onFound`.
 let private loadCollectionOrNotFound
-    (context: HttpListenerContext)
+    (appCtx: AppContext)
+    (httpCtx: HttpListenerContext)
     (collectionId: CollectionId)
     (onFound: string list -> Async<unit>)
     =
     async {
         if not (isValidCollectionId collectionId) then
-            do! writeResponse context (collectionNotFoundPage collectionId |> string)
+            do! writeResponse httpCtx (collectionNotFoundPage collectionId |> string)
         else
-            match tryLoad CollectionsDir collectionId with
-            | None -> do! writeResponse context (collectionNotFoundPage collectionId |> string)
+            match tryLoad appCtx.CollectionsDir collectionId with
+            | None -> do! writeResponse httpCtx (collectionNotFoundPage collectionId |> string)
             | Some feeds -> do! onFound feeds
     }
 
-let private handleConfigPage (context: HttpListenerContext) =
+let private handleConfigPage (appCtx: AppContext) (httpCtx: HttpListenerContext) =
     async {
-        let query = Query.Create context.Request.Url.Query
+        let query = Query.Create httpCtx.Request.Url.Query
 
         match query.GetValues "s" |> List.tryHead with
         | Some rawId ->
             let collectionId = CollectionId rawId
 
             do!
-                loadCollectionOrNotFound context collectionId (fun feeds ->
+                loadCollectionOrNotFound appCtx httpCtx collectionId (fun feeds ->
                     let rssUrls = feeds |> List.map FeedUri.createWithHttps
-                    writeResponse context (configPage rssUrls (Some collectionId) |> string))
-        | None -> do! writeResponse context (configPage (getRssUrls context.Request.Url.Query) None |> string)
+                    writeResponse httpCtx (configPage rssUrls (Some collectionId) |> string))
+        | None -> do! writeResponse httpCtx (configPage (getRssUrls httpCtx.Request.Url.Query) None |> string)
     }
 
-let private handleCreateCollection (context: HttpListenerContext) =
+let private handleCreateCollection (appCtx: AppContext) (httpCtx: HttpListenerContext) =
     async {
-        let! formData = readFormBody context
+        let! formData = readFormBody httpCtx
         let feeds = formData.GetValues "rss"
         let collectionId = generateCollectionId ()
-        save CollectionsDir collectionId feeds
-        do! redirectTo context $"/s/{collectionId}"
+        save appCtx.CollectionsDir collectionId feeds
+        do! redirectTo httpCtx $"/s/{collectionId}"
     }
 
-let private handleUpdateCollection (context: HttpListenerContext) (collectionId: CollectionId) =
+let private handleUpdateCollection (appCtx: AppContext) (httpCtx: HttpListenerContext) (collectionId: CollectionId) =
     async {
         if isValidCollectionId collectionId then
-            let! formData = readFormBody context
+            let! formData = readFormBody httpCtx
             let feeds = formData.GetValues "rss"
-            save CollectionsDir collectionId feeds
-            do! redirectTo context $"/s/{collectionId}"
+            save appCtx.CollectionsDir collectionId feeds
+            do! redirectTo httpCtx $"/s/{collectionId}"
         else
-            do! writeResponse context (collectionNotFoundPage collectionId |> string)
+            do! writeResponse httpCtx (collectionNotFoundPage collectionId |> string)
     }
 
 let private handleViewCollection
@@ -179,16 +182,16 @@ let private handleViewCollection
     (shell: Html)
     (content: Query -> Article list -> Html)
     =
-    loadCollectionOrNotFound httpCtx collectionId (fun feeds ->
+    loadCollectionOrNotFound appCtx httpCtx collectionId (fun feeds ->
         async {
-            touch CollectionsDir collectionId
+            touch appCtx.CollectionsDir collectionId
             let collQuery = Query.CreateWithKey("rss", feeds)
             httpCtx.Response.SendChunked <- true
             httpCtx.Response.ContentType <- "text/html"
 
             do! writeChunk httpCtx shell
 
-            let articles = processRssRequest appCtx RequestLogPath (string collQuery)
+            let articles = processRssRequest appCtx (string collQuery)
 
             do! writeChunk httpCtx (content collQuery articles)
             httpCtx.Response.OutputStream.Close()
@@ -199,7 +202,7 @@ let handleRequest (appCtx: AppContext) (httpCtx: HttpListenerContext) =
         appCtx.Logger.LogDebug $"Received request {httpCtx.Request.Url}"
 
         match parseRoute httpCtx.Request.HttpMethod httpCtx.Request.RawUrl with
-        | ConfigPage -> do! handleConfigPage httpCtx
+        | ConfigPage -> do! handleConfigPage appCtx httpCtx
         | ShuffleFeeds ->
             let query = Query.Create httpCtx.Request.Url.Query
 
@@ -210,7 +213,7 @@ let handleRequest (appCtx: AppContext) (httpCtx: HttpListenerContext) =
             do! streamFeedResponse appCtx httpCtx (chronologicalFeedsPageShell query) chronologicalFeedsPageContent
         | RobotsTxt -> do! writeResponse httpCtx robotsTxt
         | SitemapXml -> do! writeResponse httpCtx sitemapXml
-        | CreateCollection -> do! handleCreateCollection httpCtx
+        | CreateCollection -> do! handleCreateCollection appCtx httpCtx
         | ViewCollectionShuffle collectionId ->
             do!
                 handleViewCollection
@@ -227,7 +230,7 @@ let handleRequest (appCtx: AppContext) (httpCtx: HttpListenerContext) =
                     collectionId
                     (collectionFeedsPageShell collectionId)
                     chronologicalFeedsPageContent
-        | UpdateCollection collectionId -> do! handleUpdateCollection httpCtx collectionId
+        | UpdateCollection collectionId -> do! handleUpdateCollection appCtx httpCtx collectionId
         | LandingPage -> do! writeResponse httpCtx (landingPage |> string)
     }
 
@@ -266,21 +269,21 @@ let rec updateRssFeedsPeriodically (appCtx: AppContext) =
     async {
         appCtx.Logger.LogDebug "Periodically updating RSS feeds."
 
-        uniqueValidRequestLogUrls RequestLogPath |> updateCache appCtx
+        uniqueValidRequestLogUrls appCtx.RequestLogPath |> updateCache appCtx
 
         do! Async.Sleep appCtx.CacheConfig.Expiration
         return! updateRssFeedsPeriodically appCtx
     }
 
 [<TailCall>]
-let rec clearCachePeriodically (logger: ILogger) (cacheDir: OsPath) (retention: TimeSpan) (period: TimeSpan) =
+let rec clearCachePeriodically (appCtx: AppContext) (retention: TimeSpan) (period: TimeSpan) =
     async {
-        logger.LogDebug("Clearing cache files older than {retention} days.", retention.Days)
-        clearExpiredCache logger cacheDir retention
-        deleteInactive CollectionsDir CollectionRetention
+        appCtx.Logger.LogDebug("Clearing cache files older than {retention} days.", retention.Days)
+        clearExpiredCache appCtx.Logger appCtx.CacheConfig.Dir retention
+        deleteInactive appCtx.CollectionsDir CollectionRetention
 
         do! Async.Sleep period
-        return! clearCachePeriodically logger cacheDir retention period
+        return! clearCachePeriodically appCtx retention period
     }
 
 let private handleRequestSafely (appCtx: AppContext) httpCtx =
@@ -312,12 +315,14 @@ let startServer (logger: ILogger) (cacheConfig: SimpleRssServer.Config.CacheConf
         { Client = new Http.HttpClient()
           Logger = logger
           CacheConfig = cacheConfig
-          MemCache = InMemoryCache logger }
+          MemCache = InMemoryCache logger
+          CollectionsDir = CollectionsDir
+          RequestLogPath = RequestLogPath }
 
     Async.Start(updateRssFeedsPeriodically appCtx)
 
     let cacheCleanupPeriod = TimeSpan.FromDays 1.0
-    Async.Start(clearCachePeriodically logger cacheConfig.Dir CacheRetention cacheCleanupPeriod)
+    Async.Start(clearCachePeriodically appCtx CacheRetention cacheCleanupPeriod)
 
     serverLoop listener appCtx
 

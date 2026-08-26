@@ -44,13 +44,20 @@ let createOutdatedCache (cachePath: OsPath) (content: string) =
 let makeTempLogPath () =
     OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".txt"))
 
+let makeTempCollectionsDir () =
+    let dir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
+    OsDirectory.create dir
+    dir
+
 let makeMemCache () = InMemoryCache NullLogger.Instance
 
 let makeCtx client cacheConfig memCache : AppContext =
     { Client = client
       Logger = NullLogger.Instance
       CacheConfig = cacheConfig
-      MemCache = memCache }
+      MemCache = memCache
+      CollectionsDir = makeTempCollectionsDir ()
+      RequestLogPath = makeTempLogPath () }
 
 [<Fact>]
 let ``processRssRequest fetches feed, returns all articles, and writes cache`` () =
@@ -59,13 +66,12 @@ let ``processRssRequest fetches feed, returns all articles, and writes cache`` (
     let articleCount = 5
     let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
     let cacheConfig = makeCacheConfig ()
-    let logPath = makeTempLogPath ()
     let client = httpOkClient xmlContent
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) logPath $"?rss={feedUrl}"
+    let articles = processRssRequest ctx $"?rss={feedUrl}"
 
     // Assert
     Assert.Equal(articleCount, articles.Length)
@@ -77,7 +83,7 @@ let ``processRssRequest fetches feed, returns all articles, and writes cache`` (
 
     Assert.True(OsFile.exists expectedCachePath, "Expected cache file to be written")
     Assert.Equal(xmlContent, OsFile.readAllText expectedCachePath)
-    Assert.Contains(feedUrl, OsFile.readAllText logPath)
+    Assert.Contains(feedUrl, OsFile.readAllText ctx.RequestLogPath)
     Assert.Equal(Some articles, memCache.TryGet(feedUrl, cacheConfig.Expiration))
 
 [<Fact>]
@@ -87,7 +93,6 @@ let ``processRssRequest uses cached content when HTTP returns 304 Not Modified``
     let articleCount = 5
     let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
     let cacheConfig = makeCacheConfig ()
-    let logPath = makeTempLogPath ()
 
     let cachePath =
         OsPath.combine cacheConfig.Dir (convertUrlToValidFilename (Uri feedUrl))
@@ -99,17 +104,17 @@ let ``processRssRequest uses cached content when HTTP returns 304 Not Modified``
 
     let client = new HttpClient(handler)
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) logPath $"?rss={feedUrl}"
+    let articles = processRssRequest ctx $"?rss={feedUrl}"
 
     // Assert
     Assert.Equal(1, handler.CallCount)
     Assert.Equal(articleCount, articles.Length)
     Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
     Assert.Equal(DummyXmlFeedFactory.articleTitle articleCount, articles[articles.Length - 1].Title)
-    Assert.Contains(feedUrl, OsFile.readAllText logPath)
+    Assert.Contains(feedUrl, OsFile.readAllText ctx.RequestLogPath)
     Assert.Equal(Some articles, memCache.TryGet(feedUrl, cacheConfig.Expiration))
 
 [<Fact>]
@@ -136,10 +141,10 @@ let ``processRssRequest clears failure file when HTTP returns 304`` () =
 
     let client = new HttpClient(handler)
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={feedUrl}"
+    let articles = processRssRequest ctx $"?rss={feedUrl}"
 
     // Assert
     Assert.False(OsFile.exists (failureFilePath cachePath), "Expected failure file to be removed after 304")
@@ -158,7 +163,6 @@ let ``processRssRequest serves articles from cache and makes no HTTP request`` (
     let articleCount = 5
     let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
     let cacheConfig = makeCacheConfig ()
-    let logPath = makeTempLogPath ()
 
     let cachePath =
         OsPath.combine cacheConfig.Dir (convertUrlToValidFilename (Uri feedUrl))
@@ -166,16 +170,16 @@ let ``processRssRequest serves articles from cache and makes no HTTP request`` (
     OsFile.writeAllText cachePath xmlContent
 
     let memCache = makeMemCache ()
+    let ctx = makeCtx mockClientThrowsWhenCalled cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx mockClientThrowsWhenCalled cacheConfig memCache) logPath $"?rss={feedUrl}"
+    let articles = processRssRequest ctx $"?rss={feedUrl}"
 
     // Assert
     Assert.Equal(articleCount, articles.Length)
     Assert.Equal(DummyXmlFeedFactory.articleTitle 1, articles[0].Title)
     Assert.Equal(DummyXmlFeedFactory.articleTitle articleCount, articles[articles.Length - 1].Title)
-    Assert.Contains(feedUrl, OsFile.readAllText logPath)
+    Assert.Contains(feedUrl, OsFile.readAllText ctx.RequestLogPath)
     Assert.Equal(Some articles, memCache.TryGet(feedUrl, cacheConfig.Expiration))
 
 [<Fact>]
@@ -204,27 +208,24 @@ let ``processRssRequest fetches via HTTP only on first call, subsequent calls re
 
     let client = new HttpClient(handler)
     let query = $"?rss={feedUrl1}&rss={feedUrl2}"
-    let logPath = makeTempLogPath ()
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act & Assert — first call fetches both feeds
-    let articles1 =
-        processRssRequest (makeCtx client cacheConfig memCache) logPath query
+    let articles1 = processRssRequest ctx query
 
     Assert.Equal(2, handler.CallCount)
     Assert.Equal(articleCount * 2, articles1.Length)
-    Assert.Contains(feedUrl1, OsFile.readAllText logPath)
-    Assert.Contains(feedUrl2, OsFile.readAllText logPath)
+    Assert.Contains(feedUrl1, OsFile.readAllText ctx.RequestLogPath)
+    Assert.Contains(feedUrl2, OsFile.readAllText ctx.RequestLogPath)
 
     // Second and third calls must read from disk cache — HTTP call count stays at 2
-    let articles2 =
-        processRssRequest (makeCtx client cacheConfig memCache) logPath query
+    let articles2 = processRssRequest ctx query
 
     Assert.Equal(2, handler.CallCount)
     Assert.Equal(articleCount * 2, articles2.Length)
 
-    let articles3 =
-        processRssRequest (makeCtx client cacheConfig memCache) logPath query
+    let articles3 = processRssRequest ctx query
 
     Assert.Equal(2, handler.CallCount)
     Assert.Equal(articleCount * 2, articles3.Length)
@@ -248,10 +249,10 @@ let ``processRssRequest shows stale cache articles and error article on HTTP tim
 
     let client = new HttpClient(timeoutHandler ())
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={feedUrl}"
+    let articles = processRssRequest ctx $"?rss={feedUrl}"
 
     // Assert: stale cached articles + one error article
     Assert.Equal(articleCount + 1, articles.Length)
@@ -266,10 +267,10 @@ let ``processRssRequest shows only error article on HTTP timeout with no cache``
     let cacheConfig = makeCacheConfig ()
     let client = new HttpClient(timeoutHandler ())
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={feedUrl}"
+    let articles = processRssRequest ctx $"?rss={feedUrl}"
 
     // Assert: only one error article, no cache to fall back on
     Assert.Equal(1, articles.Length)
@@ -297,10 +298,10 @@ let ``processRssRequest shows PreviousHttpRequestFailed and skips HTTP on second
 
     let client = new HttpClient(handler)
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act — first call: HTTP times out, failure file should be created
-    let articles1 =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={feedUrl}"
+    let articles1 = processRssRequest ctx $"?rss={feedUrl}"
 
     Assert.Equal(1, handler.CallCount)
     Assert.Equal(1, articles1.Length)
@@ -308,8 +309,7 @@ let ``processRssRequest shows PreviousHttpRequestFailed and skips HTTP on second
     Assert.True(OsFile.exists (failureFilePath cachePath), "Expected failure file to be created after HTTP error")
 
     // Act — second call: should skip HTTP due to backoff
-    let articles2 =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={feedUrl}"
+    let articles2 = processRssRequest ctx $"?rss={feedUrl}"
 
     // Assert: no new HTTP request made, error article reflects backoff
     Assert.Equal(1, handler.CallCount)
@@ -338,10 +338,10 @@ let ``processRssRequest shows PreviousHttpRequestFailedButPageCached and skips H
             Task.FromException<HttpResponseMessage>(TaskCanceledException "Simulated timeout"))
 
     let client = new HttpClient(handler)
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act — first call: HTTP times out, stale cache shown, failure file should be created
-    let articles1 =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={feedUrl}"
+    let articles1 = processRssRequest ctx $"?rss={feedUrl}"
 
     Assert.Equal(1, handler.CallCount)
     Assert.Equal(articleCount + 1, articles1.Length)
@@ -349,8 +349,7 @@ let ``processRssRequest shows PreviousHttpRequestFailedButPageCached and skips H
     Assert.True(OsFile.exists (failureFilePath cachePath), "Expected failure file to be created after HTTP error")
 
     // Act — second call: should skip HTTP due to backoff
-    let articles2 =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={feedUrl}"
+    let articles2 = processRssRequest ctx $"?rss={feedUrl}"
 
     // Assert: no new HTTP request made, stale articles shown with backoff error
     Assert.Equal(1, handler.CallCount)
@@ -381,10 +380,10 @@ let ``processRssRequest retries and clears failure file when backoff period has 
 
     let client = httpOkClient newXml
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={feedUrl}"
+    let articles = processRssRequest ctx $"?rss={feedUrl}"
 
     // Assert — new content returned and failure file cleared
     Assert.Equal(articleCount, articles.Length)
@@ -416,10 +415,10 @@ let ``processRssRequest shows error article when HTML page has no feed links`` (
 
     let client = httpClientWithResponses responses
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={htmlUrl}"
+    let articles = processRssRequest ctx $"?rss={htmlUrl}"
 
     // Assert
     Assert.Equal(1, articles.Length)
@@ -435,7 +434,6 @@ let ``processRssRequest shows articles when HTML page has single feed link`` () 
     let articleCount = 3
     let xmlContent = DummyXmlFeedFactory.create feedUrl articleCount
     let cacheConfig = makeCacheConfig ()
-    let logPath = makeTempLogPath ()
 
     let htmlContent =
         $"""<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="{feedUrl}"></head><body></body></html>"""
@@ -453,15 +451,15 @@ let ``processRssRequest shows articles when HTML page has single feed link`` () 
 
     let client = httpClientWithResponses responses
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) logPath $"?rss={htmlUrl}"
+    let articles = processRssRequest ctx $"?rss={htmlUrl}"
 
     // Assert: articles from discovered feed, no error
     Assert.Equal(articleCount, articles.Length)
     Assert.DoesNotContain(articles, fun a -> a.Title = "Error")
-    Assert.Contains(feedUrl, OsFile.readAllText logPath)
+    Assert.Contains(feedUrl, OsFile.readAllText ctx.RequestLogPath)
     Assert.Equal(Some articles, memCache.TryGet(feedUrl, cacheConfig.Expiration))
 
 [<Fact>]
@@ -489,10 +487,10 @@ let ``processRssRequest returns processed query with discovered feed URL instead
 
     let client = httpClientWithResponses responses
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={htmlUrl}"
+    let articles = processRssRequest ctx $"?rss={htmlUrl}"
 
     let queryUrls = buildProcessedQuery articles |> fun x -> x.GetValues "rss"
 
@@ -510,7 +508,6 @@ let ``processRssRequest resolves relative feed URL in discovered feed against or
     let articleCount = 3
     let xmlContent = DummyXmlFeedFactory.create resolvedFeedUrl articleCount
     let cacheConfig = makeCacheConfig ()
-    let logPath = makeTempLogPath ()
 
     let htmlContent =
         $"""<html><head><link rel="alternate" type="application/rss+xml" title="Feed" href="{relativeFeedPath}"></head><body></body></html>"""
@@ -528,10 +525,10 @@ let ``processRssRequest resolves relative feed URL in discovered feed against or
 
     let client = httpClientWithResponses responses
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) logPath $"?rss={htmlUrl}"
+    let articles = processRssRequest ctx $"?rss={htmlUrl}"
 
     // Assert: relative feed URL was resolved, articles returned with no error
     Assert.Contains(articles, fun a -> a.FeedUrl = resolvedFeedUrl)
@@ -579,9 +576,10 @@ let ``updateCache fetches new feed content and overwrites stale cache files`` ()
 
     let client = new HttpClient(handler)
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    updateCache (makeCtx client cacheConfig memCache) [ Uri feedUrl1; Uri feedUrl2 ]
+    updateCache ctx [ Uri feedUrl1; Uri feedUrl2 ]
 
     // Assert — new content is written to both cache files
     Assert.Equal(newXml1, OsFile.readAllText cachePath1)
@@ -613,9 +611,10 @@ let ``updateCache updates file write time but keeps cache content when server re
 
     let client = new HttpClient(handler)
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    updateCache (makeCtx client cacheConfig memCache) [ Uri feedUrl ]
+    updateCache ctx [ Uri feedUrl ]
 
     // Assert — cache content is unchanged
     Assert.Equal(cachedXml, OsFile.readAllText cachePath)
@@ -639,9 +638,10 @@ let ``updateCache fetches and saves feed when no cache file exists`` () =
 
     let client = httpOkClient xmlContent
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    updateCache (makeCtx client cacheConfig memCache) [ Uri feedUrl ]
+    updateCache ctx [ Uri feedUrl ]
 
     // Assert — cache file is created with fetched content
     Assert.True(OsFile.exists cachePath)
@@ -668,9 +668,10 @@ let ``updateCache skips HTTP request and does not touch file when cache is still
 
     let client = new HttpClient(handler)
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    updateCache (makeCtx client cacheConfig memCache) [ Uri feedUrl ]
+    updateCache ctx [ Uri feedUrl ]
 
     // Assert — no HTTP request was made
     Assert.Equal(0, handler.CallCount)
@@ -690,7 +691,6 @@ let ``processRssRequest shows articles from both feeds when HTML page has two fe
     let xml1 = DummyXmlFeedFactory.create feedUrl1 articleCount
     let xml2 = DummyXmlFeedFactory.create feedUrl2 articleCount
     let cacheConfig = makeCacheConfig ()
-    let logPath = makeTempLogPath ()
 
     let htmlContent =
         $"""<html><head>
@@ -715,16 +715,16 @@ let ``processRssRequest shows articles from both feeds when HTML page has two fe
 
     let client = httpClientWithResponses responses
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) logPath $"?rss={htmlUrl}"
+    let articles = processRssRequest ctx $"?rss={htmlUrl}"
 
     // Assert: articles from both discovered feeds, no error
     Assert.Equal(articleCount * 2, articles.Length)
     Assert.DoesNotContain(articles, fun a -> a.Title = "Error")
-    Assert.Contains(feedUrl1, OsFile.readAllText logPath)
-    Assert.Contains(feedUrl2, OsFile.readAllText logPath)
+    Assert.Contains(feedUrl1, OsFile.readAllText ctx.RequestLogPath)
+    Assert.Contains(feedUrl2, OsFile.readAllText ctx.RequestLogPath)
     Assert.True(memCache.TryGet(feedUrl1, cacheConfig.Expiration).IsSome)
     Assert.True(memCache.TryGet(feedUrl2, cacheConfig.Expiration).IsSome)
 
@@ -746,13 +746,10 @@ let ``processRssRequest serves articles from memory cache and skips HTTP`` () =
               Text = "" })
 
     memCache.Set(feedUrl, cachedArticles)
+    let ctx = makeCtx mockClientThrowsWhenCalled cacheConfig memCache
 
     // Act — HTTP client throws if called
-    let result =
-        processRssRequest
-            (makeCtx mockClientThrowsWhenCalled cacheConfig memCache)
-            (makeTempLogPath ())
-            $"?rss={feedUrl}"
+    let result = processRssRequest ctx $"?rss={feedUrl}"
 
     // Assert: articles served from memory, no HTTP call
     Assert.Equal(articleCount, result.Length)
@@ -777,16 +774,15 @@ let ``processRssRequest falls through to disk cache when memory cache entry is s
     OsFile.writeAllText cachePath xmlContent
     OsFile.setLastWriteTime cachePath (DateTime.Now.AddSeconds 5.0)
 
+    let ctx =
+        makeCtx
+            mockClientThrowsWhenCalled
+            { cacheConfig with
+                Expiration = TimeSpan.Zero }
+            memCache
+
     // Act — HTTP client throws if called (must serve from disk, not HTTP)
-    let articles =
-        processRssRequest
-            (makeCtx
-                mockClientThrowsWhenCalled
-                { cacheConfig with
-                    Expiration = TimeSpan.Zero }
-                memCache)
-            (makeTempLogPath ())
-            $"?rss={feedUrl}"
+    let articles = processRssRequest ctx $"?rss={feedUrl}"
 
     // Assert: articles come from disk cache (not empty stale memory entry), no HTTP call
     Assert.Equal(articleCount, articles.Length)
@@ -808,17 +804,16 @@ let ``processRssRequest skips HTTP on second call when sharing InMemoryCache acr
             Task.FromResult response)
 
     let client = new HttpClient(handler)
+    let ctx = makeCtx client cacheConfig memCache
 
     // Act — first call fetches from HTTP and populates memory cache
-    let articles1 =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={feedUrl}"
+    let articles1 = processRssRequest ctx $"?rss={feedUrl}"
 
     Assert.Equal(1, handler.CallCount)
     Assert.Equal(articleCount, articles1.Length)
 
     // Act — second call with same InMemoryCache hits memory, no HTTP
-    let articles2 =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={feedUrl}"
+    let articles2 = processRssRequest ctx $"?rss={feedUrl}"
 
     Assert.Equal(1, handler.CallCount)
     Assert.Equal(articleCount, articles2.Length)
@@ -885,9 +880,9 @@ let ``buildProcessedQuery strips https from a discovered feed url`` () =
 
     let client = httpClientWithResponses responses
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={pagePath}"
+    let articles = processRssRequest ctx $"?rss={pagePath}"
 
     let result = buildProcessedQuery articles |> fun q -> q.GetValues "rss"
     Assert.Equal(1, result.Length)
@@ -919,9 +914,9 @@ let ``buildProcessedQuery keeps http scheme for a discovered feed url`` () =
 
     let client = httpClientWithResponses responses
     let memCache = makeMemCache ()
+    let ctx = makeCtx client cacheConfig memCache
 
-    let articles =
-        processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={pagePath}"
+    let articles = processRssRequest ctx $"?rss={pagePath}"
 
     let result = buildProcessedQuery articles |> fun q -> q.GetValues "rss"
     Assert.Equal(1, result.Length)
