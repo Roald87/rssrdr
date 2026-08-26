@@ -44,13 +44,20 @@ let createOutdatedCache (cachePath: OsPath) (content: string) =
 let makeTempLogPath () =
     OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".txt"))
 
+let makeTempCollectionsDir () =
+    let dir = OsPath(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
+    OsDirectory.create dir
+    dir
+
 let makeMemCache () = InMemoryCache NullLogger.Instance
 
 let makeCtx client cacheConfig memCache : AppContext =
     { Client = client
       Logger = NullLogger.Instance
       CacheConfig = cacheConfig
-      MemCache = memCache }
+      MemCache = memCache
+      CollectionsDir = makeTempCollectionsDir ()
+      RequestLogPath = makeTempLogPath () }
 
 [<Fact>]
 let ``processRssRequest fetches feed, returns all articles, and writes cache`` () =
