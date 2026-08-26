@@ -61,3 +61,50 @@ let ``Test getRssUrls adds https if missing`` () =
         [ Ok(Uri "https://example.com/feed"); Ok(Uri "http://example.com/feed2") ]
 
     Assert.Equal<Result<Uri, UriError> list>(expected, result)
+
+// computeCacheAndBackoffState: cacheModified = when the cache file was written (None = no cache),
+// nextAttempt = next allowed retry from backoff (None = no failure record).
+
+let private oneHour = TimeSpan.FromHours 1.0
+
+[<Fact>]
+let ``computeCacheAndBackoffState: no cache and no failures`` () =
+    Assert.Equal(NoCacheNoFailures, computeCacheAndBackoffState None None oneHour)
+
+[<Fact>]
+let ``computeCacheAndBackoffState: fresh cache and no failures is a cache hit`` () =
+    let cacheModified = Some(DateTimeOffset.Now.AddMinutes -30.0)
+    Assert.Equal(CacheHit, computeCacheAndBackoffState cacheModified None oneHour)
+
+[<Fact>]
+let ``computeCacheAndBackoffState: stale cache and no failures is expired`` () =
+    let cacheModified = Some(DateTimeOffset.Now.AddHours -2.0)
+    Assert.Equal(CacheExpired, computeCacheAndBackoffState cacheModified None oneHour)
+
+[<Fact>]
+let ``computeCacheAndBackoffState: elapsed backoff is ready to retry`` () =
+    let nextAttempt = Some(DateTimeOffset.Now.AddHours -1.0)
+    Assert.Equal(ReadyToRetry, computeCacheAndBackoffState None nextAttempt oneHour)
+
+[<Fact>]
+let ``computeCacheAndBackoffState: an elapsed backoff wins over a stale cache`` () =
+    let cacheModified = Some(DateTimeOffset.Now.AddHours -5.0)
+    let nextAttempt = Some(DateTimeOffset.Now.AddHours -1.0)
+    Assert.Equal(ReadyToRetry, computeCacheAndBackoffState cacheModified nextAttempt oneHour)
+
+[<Fact>]
+let ``computeCacheAndBackoffState: active backoff with a cache reports the wait time`` () =
+    let cacheModified = Some(DateTimeOffset.Now.AddMinutes -30.0)
+    let nextAttempt = Some(DateTimeOffset.Now.AddHours 2.0)
+
+    match computeCacheAndBackoffState cacheModified nextAttempt oneHour with
+    | InBackoffWithCache waitTime -> Assert.True(abs (waitTime.TotalHours - 2.0) < 0.1)
+    | other -> Assert.Fail $"expected InBackoffWithCache, got {other}"
+
+[<Fact>]
+let ``computeCacheAndBackoffState: active backoff without a cache reports the wait time`` () =
+    let nextAttempt = Some(DateTimeOffset.Now.AddHours 2.0)
+
+    match computeCacheAndBackoffState None nextAttempt oneHour with
+    | InBackoffNoCache waitTime -> Assert.True(abs (waitTime.TotalHours - 2.0) < 0.1)
+    | other -> Assert.Fail $"expected InBackoffNoCache, got {other}"
