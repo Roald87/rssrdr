@@ -16,6 +16,7 @@
     <Compile Include="CacheTests.fs" />
     <Compile Include="HtmlRendererTests.fs" />
     <Compile Include="RequestLogTests.fs" />
+    <Compile Include="RouterTests.fs" />
     <Compile Include="ProgramTests.fs" />
   </ItemGroup>
   <ItemGroup>

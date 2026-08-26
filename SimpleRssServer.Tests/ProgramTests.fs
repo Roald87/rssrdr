@@ -834,7 +834,7 @@ let getSortedQueryUrls (q: Query) = q.GetValues "rss" |> List.sort
 
 // Scenario 1: user enters example.com/feed (no scheme) → stored as example.com/feed, no redirect
 [<Fact>]
-let ``handleRequest keeps no-scheme url in query and does not redirect`` () =
+let ``buildProcessedQuery keeps no-scheme url in query so no redirect is triggered`` () =
     let articles = [ makeArticle "https://example.com/feed" ]
     let originalQuery = Query.Create "?rss=example.com/feed"
     let processedQuery = buildProcessedQuery articles
@@ -843,7 +843,7 @@ let ``handleRequest keeps no-scheme url in query and does not redirect`` () =
 
 // Scenario 2: user enters http://example.com/feed → stored as http://example.com/feed, no redirect
 [<Fact>]
-let ``handleRequest keeps http scheme in query and does not redirect`` () =
+let ``buildProcessedQuery keeps http scheme in query so no redirect is triggered`` () =
     let articles = [ makeArticle "http://example.com/feed" ]
     let originalQuery = Query.Create "?rss=http://example.com/feed"
     let processedQuery = buildProcessedQuery articles
@@ -852,7 +852,7 @@ let ``handleRequest keeps http scheme in query and does not redirect`` () =
 
 // Scenario 3: user enters https://example.com/feed → stripped to example.com/feed via redirect
 [<Fact>]
-let ``handleRequest strips https scheme from query via redirect`` () =
+let ``buildProcessedQuery strips https scheme from query so a redirect is triggered`` () =
     let articles = [ makeArticle "https://example.com/feed" ]
     let originalQuery = Query.Create "?rss=https://example.com/feed"
     let processedQuery = buildProcessedQuery articles
@@ -861,7 +861,7 @@ let ``handleRequest strips https scheme from query via redirect`` () =
 
 // Scenario 4: user enters example.com/ → discovery finds https://example.com/feed → redirect to example.com/feed
 [<Fact>]
-let ``handleRequest strips https from discovered feed url in redirect`` () =
+let ``buildProcessedQuery strips https from a discovered feed url`` () =
     let pagePath = $"example.com/page/{Guid.NewGuid()}"
     let htmlUrl = $"https://{pagePath}"
     let feedGuid = Guid.NewGuid()
@@ -895,7 +895,7 @@ let ``handleRequest strips https from discovered feed url in redirect`` () =
 
 // Scenario 5: user enters example.com/ → discovery finds http://example.com/feed → redirect to http://example.com/feed
 [<Fact>]
-let ``handleRequest keeps http scheme for discovered feed url in redirect`` () =
+let ``buildProcessedQuery keeps http scheme for a discovered feed url`` () =
     let pagePath = $"example.com/page/{Guid.NewGuid()}"
     let htmlUrl = $"https://{pagePath}"
     let feedGuid = Guid.NewGuid()

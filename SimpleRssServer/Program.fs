@@ -13,6 +13,7 @@ open SimpleRssServer.Logging
 open SimpleRssServer.MemoryCache
 open SimpleRssServer.Request
 open SimpleRssServer.RequestLog
+open SimpleRssServer.Router
 open SimpleRssServer.RssParser
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
@@ -197,20 +198,20 @@ let handleRequest (appCtx: AppContext) (httpCtx: HttpListenerContext) =
     async {
         appCtx.Logger.LogDebug $"Received request {httpCtx.Request.Url}"
 
-        match httpCtx.Request.RawUrl with
-        | Prefix "/config.html" _ -> do! handleConfigPage httpCtx
-        | Prefix "/shuffle?rss=" _ ->
+        match parseRoute httpCtx.Request.HttpMethod httpCtx.Request.RawUrl with
+        | ConfigPage -> do! handleConfigPage httpCtx
+        | ShuffleFeeds ->
             let query = Query.Create httpCtx.Request.Url.Query
 
             do! streamFeedResponse appCtx httpCtx (shuffledFeedsPageShell query) shuffledFeedsPageContent
-        | Prefix "/?rss=" _ ->
+        | ChronologicalFeeds ->
             let query = Query.Create httpCtx.Request.Url.Query
 
             do! streamFeedResponse appCtx httpCtx (chronologicalFeedsPageShell query) chronologicalFeedsPageContent
-        | "/robots.txt" -> do! writeResponse httpCtx robotsTxt
-        | "/sitemap.xml" -> do! writeResponse httpCtx sitemapXml
-        | "/s" when httpCtx.Request.HttpMethod = "POST" -> do! handleCreateCollection httpCtx
-        | CollectionShuffleId collectionId when httpCtx.Request.HttpMethod = "GET" ->
+        | RobotsTxt -> do! writeResponse httpCtx robotsTxt
+        | SitemapXml -> do! writeResponse httpCtx sitemapXml
+        | CreateCollection -> do! handleCreateCollection httpCtx
+        | ViewCollectionShuffle collectionId ->
             do!
                 handleViewCollection
                     appCtx
@@ -218,7 +219,7 @@ let handleRequest (appCtx: AppContext) (httpCtx: HttpListenerContext) =
                     collectionId
                     (collectionShuffledPageShell collectionId)
                     shuffledFeedsPageContent
-        | CollectionIdPath collectionId when httpCtx.Request.HttpMethod = "GET" ->
+        | ViewCollection collectionId ->
             do!
                 handleViewCollection
                     appCtx
@@ -226,9 +227,8 @@ let handleRequest (appCtx: AppContext) (httpCtx: HttpListenerContext) =
                     collectionId
                     (collectionFeedsPageShell collectionId)
                     chronologicalFeedsPageContent
-        | CollectionIdPath collectionId when httpCtx.Request.HttpMethod = "POST" ->
-            do! handleUpdateCollection httpCtx collectionId
-        | _ -> do! writeResponse httpCtx (landingPage |> string)
+        | UpdateCollection collectionId -> do! handleUpdateCollection httpCtx collectionId
+        | LandingPage -> do! writeResponse httpCtx (landingPage |> string)
     }
 
 let private getCacheAge (logger: ILogger) cacheConfig url =
