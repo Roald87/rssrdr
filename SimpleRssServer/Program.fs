@@ -57,6 +57,9 @@ let buildProcessedQuery (articles: Article list) : Query =
     |> List.distinct
     |> fun u -> Query.CreateWithKey("rss", u)
 
+let private robotsTxt = File.ReadAllText(Path.Combine("site", "robots.txt"))
+let private sitemapXml = File.ReadAllText(Path.Combine("site", "sitemap.xml"))
+
 let private getSortedRssUris (q: Query) = q.GetValues "rss" |> List.sort
 
 let private writeResponse (context: HttpListenerContext) (content: string) =
@@ -204,8 +207,8 @@ let handleRequest (appCtx: AppContext) (httpCtx: HttpListenerContext) =
             let query = Query.Create httpCtx.Request.Url.Query
 
             do! streamFeedResponse appCtx httpCtx (chronologicalFeedsPageShell query) chronologicalFeedsPageContent
-        | "/robots.txt" -> do! writeResponse httpCtx (File.ReadAllText(Path.Combine("site", "robots.txt")))
-        | "/sitemap.xml" -> do! writeResponse httpCtx (File.ReadAllText(Path.Combine("site", "sitemap.xml")))
+        | "/robots.txt" -> do! writeResponse httpCtx robotsTxt
+        | "/sitemap.xml" -> do! writeResponse httpCtx sitemapXml
         | "/s" when httpCtx.Request.HttpMethod = "POST" -> do! handleCreateCollection httpCtx
         | CollectionShuffleId collectionId when httpCtx.Request.HttpMethod = "GET" ->
             do!
