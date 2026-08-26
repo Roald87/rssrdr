@@ -36,13 +36,17 @@ module FeedUri =
         with _ ->
             ""
 
-    let removeScheme (s: string) =
-        let s = s.Replace("http://", "")
-        s.Replace("https://", "")
-
     let removeHttpsScheme (s: string) =
         if s.StartsWith("https://", StringComparison.OrdinalIgnoreCase) then
             s.Substring 8
+        else
+            s
+
+    let removeSchemes (s: string) =
+        let s = removeHttpsScheme s
+
+        if s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) then
+            s.Substring 7
         else
             s
 

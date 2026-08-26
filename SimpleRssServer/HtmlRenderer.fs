@@ -9,16 +9,16 @@ open DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
 
 let removeFromQuery (query: Query) (feedToRemove: string) : string =
-    let normalizedFeedUrl = FeedUri.removeScheme feedToRemove
+    let normalizedFeedUrl = FeedUri.removeSchemes feedToRemove
 
     let remaining =
         query.Value.GetValues "rss"
-        |> Array.filter (fun u -> FeedUri.removeScheme u <> normalizedFeedUrl)
+        |> Array.filter (fun u -> FeedUri.removeSchemes u <> normalizedFeedUrl)
+        |> Array.toList
 
-    if remaining.Length = 0 then
-        "/"
-    else
-        "?" + (remaining |> Array.map (fun u -> $"rss={u}") |> String.concat "&")
+    match Query.CreateWithKey("rss", remaining) |> string with
+    | "" -> "/"
+    | q -> q
 
 let head: Html = File.ReadAllText(Path.Combine("site", "head.html")) |> Html
 
@@ -29,7 +29,7 @@ let private deleteFeedButton (query: Query) (feedUrl: string) : Html =
     let removeUrl = removeFromQuery query feedUrl
 
     $"""<button class="remove-feed"
-            title="Remove {feedUrl |> FeedUri.removeScheme} from your feed"
+            title="Remove {feedUrl |> FeedUri.removeSchemes} from your feed"
             onclick="removeFeed('{removeUrl}', '{feedUrl}')">{trashIcon}</button>"""
     |> Html
 

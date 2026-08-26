@@ -65,15 +65,15 @@ let ``Uri.createWithHttps should return Error for invalid host`` () =
 
 [<Fact>]
 let ``Uri.StripScheme removes https scheme`` () =
-    Assert.Equal("example.com/feed", FeedUri.removeScheme "https://example.com/feed")
+    Assert.Equal("example.com/feed", FeedUri.removeSchemes "https://example.com/feed")
 
 [<Fact>]
 let ``Uri.StripScheme removes http scheme`` () =
-    Assert.Equal("example.com/feed", FeedUri.removeScheme "http://example.com/feed")
+    Assert.Equal("example.com/feed", FeedUri.removeSchemes "http://example.com/feed")
 
 [<Fact>]
 let ``Uri.StripScheme leaves url without scheme unchanged`` () =
-    Assert.Equal("example.com/feed", FeedUri.removeScheme "example.com/feed")
+    Assert.Equal("example.com/feed", FeedUri.removeSchemes "example.com/feed")
 
 [<Fact>]
 let ``Query.Create empty string gives empty ToString`` () =

@@ -494,11 +494,11 @@ let ``processRssRequest returns processed query with discovered feed URL instead
     let articles =
         processRssRequest (makeCtx client cacheConfig memCache) (makeTempLogPath ()) $"?rss={htmlUrl}"
 
-    let queryUrls = getFeedUrlQuery articles |> fun x -> x.GetValues "rss"
+    let queryUrls = buildProcessedQuery articles |> fun x -> x.GetValues "rss"
 
     // Assert: processed query contains the feed URL, not the original page URL
     Assert.Equal(1, queryUrls.Length)
-    Assert.Equal(feedUrl, queryUrls[0])
+    Assert.Equal(FeedUri.removeHttpsScheme feedUrl, queryUrls[0])
     Assert.Equal(Some articles, memCache.TryGet(feedUrl, cacheConfig.Expiration))
 
 [<Fact>]
