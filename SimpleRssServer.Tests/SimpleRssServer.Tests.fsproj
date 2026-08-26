@@ -18,6 +18,7 @@
     <Compile Include="RequestLogTests.fs" />
     <Compile Include="RouterTests.fs" />
     <Compile Include="ProgramTests.fs" />
+    <Compile Include="RequestHandlingTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Roald87.FeedReader" Version="2.2.0" />
