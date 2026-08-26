@@ -14,11 +14,11 @@ let removeFromQuery (query: Query) (feedToRemove: string) : string =
     let remaining =
         query.Value.GetValues "rss"
         |> Array.filter (fun u -> FeedUri.removeScheme u <> normalizedFeedUrl)
+        |> Array.toList
 
-    if remaining.Length = 0 then
-        "/"
-    else
-        "?" + (remaining |> Array.map (fun u -> $"rss={u}") |> String.concat "&")
+    match Query.CreateWithKey("rss", remaining) |> string with
+    | "" -> "/"
+    | q -> q
 
 let head: Html = File.ReadAllText(Path.Combine("site", "head.html")) |> Html
 

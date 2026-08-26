@@ -51,12 +51,6 @@ let processRssRequest (appCtx: AppContext) (logPath: OsPath) (query: string) =
     |> List.map (feedToArticles >> updateMemoryCache appCtx.MemCache)
     |> List.collect onlyFeedArticles
 
-let getFeedUrlQuery articles =
-    articles
-    |> List.map _.FeedUrl
-    |> List.distinct
-    |> fun u -> Query.CreateWithKey("rss", u)
-
 let buildProcessedQuery (articles: Article list) : Query =
     articles
     |> List.map (fun a -> FeedUri.removeHttpsScheme a.FeedUrl)
