@@ -23,20 +23,15 @@ let private freePort () =
     probe.Stop()
     port
 
-let private tempPath () =
-    Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())
-
 /// Runs `handleRequest` behind a real HttpListener bound to a loopback port, with a
 /// mock HttpClient (feed url -> RSS xml) and throwaway cache/collections/log locations.
 /// Requests are served one at a time, mirroring the production server loop.
 type private TestServer(feeds: Map<string, string>) =
     let port = freePort ()
-    let cacheDir = OsPath(tempPath ())
-    let collectionsDir = OsPath(tempPath ())
-    let logPath = OsPath(tempPath () + ".txt")
-
-    do OsDirectory.create cacheDir
-    do OsDirectory.create collectionsDir
+    let baseUrl = $"http://localhost:{port}"
+    let cacheDir = new TempDir()
+    let collectionsDir = new TempDir()
+    let logFile = new TempPath()
 
     let handler =
         new MockHttpMessageHandler(fun request ->
@@ -51,14 +46,14 @@ type private TestServer(feeds: Map<string, string>) =
         { Client = new HttpClient(handler)
           Logger = NullLogger.Instance
           CacheConfig =
-            { Dir = cacheDir
+            { Dir = cacheDir.Path
               Expiration = TimeSpan.FromHours 1.0 }
           MemCache = InMemoryCache NullLogger.Instance
-          CollectionsDir = collectionsDir
-          RequestLogPath = logPath }
+          CollectionsDir = collectionsDir.Path
+          RequestLogPath = logFile.Path }
 
     let listener = new HttpListener()
-    do listener.Prefixes.Add $"http://localhost:{port}/"
+    do listener.Prefixes.Add(baseUrl + "/")
     do listener.Start()
 
     let rec loop () =
@@ -81,20 +76,17 @@ type private TestServer(feeds: Map<string, string>) =
 
     do Async.Start(loop ())
 
-    member _.BaseUrl = $"http://localhost:{port}"
-    member _.CollectionsDir = collectionsDir
-    member _.RequestLogPath = logPath
+    member _.BaseUrl = baseUrl
+    member _.CollectionsDir = collectionsDir.Path
+    member _.RequestLogPath = logFile.Path
 
     interface IDisposable with
         member _.Dispose() =
             listener.Stop()
             listener.Close()
-
-            for dir in [ cacheDir; collectionsDir ] do
-                try
-                    OsDirectory.deleteRecursive dir
-                with _ ->
-                    ()
+            (cacheDir :> IDisposable).Dispose()
+            (collectionsDir :> IDisposable).Dispose()
+            (logFile :> IDisposable).Dispose()
 
 let private newClient () =
     let client = new HttpClient(new HttpClientHandler(AllowAutoRedirect = false))
