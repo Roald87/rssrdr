@@ -63,21 +63,6 @@ let ``touch updates last-write-time`` () =
     Assert.True(OsFile.getLastWriteTime path > before)
 
 [<Fact>]
-let ``delete removes the file`` () =
-    use dir = new TempDir()
-    let collectionId = CollectionId "testcode3"
-    save dir.Path collectionId [ "example.com/feed" ]
-
-    delete dir.Path collectionId
-
-    Assert.False(OsFile.exists (OsPath.join dir.Path "testcode3.txt"))
-
-[<Fact>]
-let ``delete is no-op for missing file`` () =
-    use dir = new TempDir()
-    delete dir.Path (CollectionId "nonexistent")
-
-[<Fact>]
 let ``deleteInactive removes files past retention`` () =
     use dir = new TempDir()
     let collectionId = CollectionId "oldfile"

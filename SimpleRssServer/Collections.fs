@@ -34,12 +34,6 @@ let tryLoad (dir: OsPath) (collectionId: CollectionId) : string list option =
 let touch (dir: OsPath) (collectionId: CollectionId) =
     OsFile.setLastWriteTime (collectionFilePath dir collectionId) DateTime.Now
 
-let delete (dir: OsPath) (collectionId: CollectionId) =
-    let path = collectionFilePath dir collectionId
-
-    if OsFile.exists path then
-        OsFile.delete path
-
 let deleteInactive (dir: OsPath) (retention: TimeSpan) =
     if OsDirectory.exists dir then
         OsDirectory.getFiles dir
