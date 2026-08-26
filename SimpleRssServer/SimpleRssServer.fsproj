@@ -8,6 +8,7 @@
     <Compile Include="DomainModel.fs" />
     <Compile Include="Config.fs" />
     <Compile Include="Helper.fs" />
+    <Compile Include="Router.fs" />
     <Compile Include="Logging.fs" />
     <Compile Include="HttpClient.fs" />
     <Compile Include="MemoryCache.fs" />
