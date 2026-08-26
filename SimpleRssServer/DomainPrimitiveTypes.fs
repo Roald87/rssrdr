@@ -42,7 +42,7 @@ module FeedUri =
         else
             s
 
-    let removeScheme (s: string) =
+    let removeSchemes (s: string) =
         let s = removeHttpsScheme s
 
         if s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) then
