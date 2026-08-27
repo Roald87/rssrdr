@@ -109,10 +109,9 @@ let private recordFailure (logger: ILogger) cachePath (kind: FetchFailureKind) =
     OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
 
 let recordHttpFailure (logger: ILogger) cachePath =
-    recordFailure logger cachePath FetchFailureKind.HttpError
+    recordFailure logger cachePath HttpError
 
-let recordTimeoutFailure (logger: ILogger) cachePath =
-    recordFailure logger cachePath FetchFailureKind.Timeout
+let recordTimeoutFailure (logger: ILogger) cachePath = recordFailure logger cachePath Timeout
 
 let nextRetry (logger: ILogger) cachePath =
     readFailureRecord logger cachePath

@@ -22,7 +22,7 @@ type TempPath() =
     let path = OsPath(Path.GetRandomFileName())
     member _.Path = path
 
-    interface System.IDisposable with
+    interface IDisposable with
         member _.Dispose() = deleteFile path
 
 type TempDir() =
@@ -30,7 +30,7 @@ type TempDir() =
     do OsDirectory.create path
     member _.Path = path
 
-    interface System.IDisposable with
+    interface IDisposable with
         member _.Dispose() = OsDirectory.deleteRecursive path
 
 module DummyXmlFeedFactory =
@@ -54,14 +54,14 @@ module DummyXmlFeedFactory =
 
 type MockHttpResponseHandler(response: HttpResponseMessage) =
     inherit HttpMessageHandler()
-    override _.SendAsync(request, cancellationToken) = Task.FromResult response
+    override _.SendAsync(_, _) = Task.FromResult response
 
 type MockHttpMessageHandler(sendAsyncImpl: HttpRequestMessage -> Task<HttpResponseMessage>) =
     inherit HttpMessageHandler()
     let mutable callCount = 0
     member _.CallCount = callCount
 
-    override _.SendAsync(request, cancellationToken) =
+    override _.SendAsync(request, _) =
         Threading.Interlocked.Increment(&callCount) |> ignore
         sendAsyncImpl request
 
