@@ -12,6 +12,7 @@
     <Compile Include="Logging.fs" />
     <Compile Include="HttpClient.fs" />
     <Compile Include="MemoryCache.fs" />
+    <Compile Include="AppContext.fs" />
     <Compile Include="Cache.fs" />
     <Compile Include="RequestLog.fs" />
     <Compile Include="Collections.fs" />
@@ -19,6 +20,7 @@
     <Compile Include="RssParser.fs" />
     <Compile Include="HtmlRenderer.fs" />
     <Compile Include="ArgParser.fs" />
+    <Compile Include="RequestHandlers.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

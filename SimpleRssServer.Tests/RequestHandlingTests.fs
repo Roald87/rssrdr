@@ -10,10 +10,11 @@ open System.Threading.Tasks
 open Microsoft.Extensions.Logging.Abstractions
 open Xunit
 
+open SimpleRssServer.AppContext
 open SimpleRssServer.Config
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.MemoryCache
-open Program
+open SimpleRssServer.RequestHandlers
 open TestHelpers
 
 let private freePort () =
