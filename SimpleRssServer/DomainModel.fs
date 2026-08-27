@@ -67,3 +67,17 @@ module ActivePatterns =
         | HttpException(uri, _) -> uri.AbsoluteUri
         | InvalidRssFeedFormat(uri, _) -> uri.AbsoluteUri
         | NoRssFeedsFoundInPage uri -> uri.AbsoluteUri
+
+    /// The feed's Uri, for errors that carry one. Invalid-uri errors carry only the
+    /// raw (possibly unparsable) string the user entered, so they have none.
+    let (|DomainErrorUri|_|) (msg: DomainError) =
+        match msg with
+        | InvalidUriHostname _
+        | InvalidUriFormat _ -> None
+        | PreviousHttpRequestFailed(uri, _) -> Some uri
+        | PreviousHttpRequestFailedButPageCached(uri, _) -> Some uri
+        | HttpRequestTimedOut(uri, _) -> Some uri
+        | HttpRequestNonSuccessStatus(uri, _) -> Some uri
+        | HttpException(uri, _) -> Some uri
+        | InvalidRssFeedFormat(uri, _) -> Some uri
+        | NoRssFeedsFoundInPage uri -> Some uri

@@ -9,6 +9,7 @@ open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
+open SimpleRssServer.MemoryCache
 open TestHelpers
 
 [<Fact>]
@@ -377,3 +378,35 @@ let ``applyBackoff: states other than PendingFetch pass through`` () =
     let ups = FeedArticles []
 
     Assert.Equal(ups, applyBackoff NullLogger.Instance (cacheConfigIn tmp.Path) ups)
+
+[<Fact>]
+let ``readFromCache: ProcessingError with no associated Uri (invalid hostname) passes through unchanged`` () =
+    use tmp = new TempDir()
+    let memCache = InMemoryCache NullLogger.Instance
+    let ups = ProcessingError(InvalidUriHostname(InvalidUri.Create "invalid-url"))
+
+    Assert.Equal(ups, readFromCache (cacheConfigIn tmp.Path) memCache ups)
+
+[<Fact>]
+let ``readFromCache: ProcessingError with a Uri and no stale cache passes through unchanged`` () =
+    use tmp = new TempDir()
+    let memCache = InMemoryCache NullLogger.Instance
+    let uri = Uri "https://example.com/feed"
+    let ups = ProcessingError(PreviousHttpRequestFailed(uri, TimeSpan.FromHours 1.0))
+
+    Assert.Equal(ups, readFromCache (cacheConfigIn tmp.Path) memCache ups)
+
+[<Fact>]
+let ``readFromCache: ProcessingError with a Uri and a stale cache returns UnparsedStaleCachedContent`` () =
+    use tmp = new TempDir()
+    let memCache = InMemoryCache NullLogger.Instance
+    let uri = Uri "https://example.com/feed"
+    let error = PreviousHttpRequestFailed(uri, TimeSpan.FromHours 1.0)
+    writeCache (cachePathFor (cacheConfigIn tmp.Path) uri) "<rss>stale</rss>"
+
+    match readFromCache (cacheConfigIn tmp.Path) memCache (ProcessingError error) with
+    | UnparsedStaleCachedContent(content, u, e) ->
+        Assert.Equal("<rss>stale</rss>", content)
+        Assert.Equal(uri, u)
+        Assert.Equal(error, e)
+    | other -> Assert.Fail $"expected UnparsedStaleCachedContent, got {other}"
