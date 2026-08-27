@@ -92,6 +92,17 @@ let private redirectTo (httpCtx: HttpListenerContext) (url: string) =
         httpCtx.Response.OutputStream.Close()
     }
 
+let private streamChunkedPage (httpCtx: HttpListenerContext) (shell: Html) (renderContent: unit -> Async<Html>) =
+    async {
+        httpCtx.Response.SendChunked <- true
+        httpCtx.Response.ContentType <- "text/html"
+        do! writeChunk httpCtx shell
+
+        let! content = renderContent ()
+        do! writeChunk httpCtx content
+        httpCtx.Response.OutputStream.Close()
+    }
+
 /// Streams a feeds page for the current request's own `?rss=` query, redirecting first
 /// if fetching/discovery normalized the feed list (e.g. stripped a scheme, followed a discovery link).
 let private streamFeedResponse
@@ -100,25 +111,19 @@ let private streamFeedResponse
     (shell: Html)
     (render: Query -> Article list -> Html)
     =
-    async {
-        httpCtx.Response.SendChunked <- true
-        httpCtx.Response.ContentType <- "text/html"
-        do! writeChunk httpCtx shell
+    streamChunkedPage httpCtx shell (fun () ->
+        async {
+            let articles = processRssRequest appCtx httpCtx.Request.Url.Query
 
-        let articles = processRssRequest appCtx httpCtx.Request.Url.Query
+            let originalQuery = Query.Create httpCtx.Request.Url.Query
+            let processedQuery = buildProcessedQuery articles
 
-        let originalQuery = Query.Create httpCtx.Request.Url.Query
-        let processedQuery = buildProcessedQuery articles
-
-        let content =
-            if getSortedRssUris originalQuery <> getSortedRssUris processedQuery then
-                metaRefreshContent (string processedQuery)
-            else
-                render processedQuery articles
-
-        do! writeChunk httpCtx content
-        httpCtx.Response.OutputStream.Close()
-    }
+            return
+                if getSortedRssUris originalQuery <> getSortedRssUris processedQuery then
+                    metaRefreshContent (string processedQuery)
+                else
+                    render processedQuery articles
+        })
 
 /// Looks up a collection by its id, rendering a "not found" page for an invalid
 /// or missing id, otherwise handing the saved feed list to `onFound`.
@@ -183,15 +188,10 @@ let private handleViewCollection
         async {
             touch appCtx.CollectionsDir collectionId
             let collQuery = Query.CreateWithKey("rss", feeds)
-            httpCtx.Response.SendChunked <- true
-            httpCtx.Response.ContentType <- "text/html"
 
-            do! writeChunk httpCtx shell
-
-            let articles = processRssRequest appCtx (string collQuery)
-
-            do! writeChunk httpCtx (content collQuery articles)
-            httpCtx.Response.OutputStream.Close()
+            do!
+                streamChunkedPage httpCtx shell (fun () ->
+                    async { return content collQuery (processRssRequest appCtx (string collQuery)) })
         })
 
 let handleRequest (appCtx: AppContext) (httpCtx: HttpListenerContext) =
