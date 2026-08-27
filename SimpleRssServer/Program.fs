@@ -36,13 +36,15 @@ let private readFormBody (httpCtx: HttpListenerContext) =
 let processRssRequest (appCtx: AppContext) (query: string) =
     let readCache = readFromCache appCtx.CacheConfig appCtx.MemCache
 
+    let applyBackoff = applyBackoff appCtx.Logger appCtx.CacheConfig
+
     getRssUrls query
-    |> List.map (toUriProcessState >> readCache) // try read cache before first fetch
+    |> List.map (toUriProcessState >> readCache >> applyBackoff) // read cache, then skip feeds still in backoff
     |> fetchAllRssFeeds appCtx.Client appCtx.Logger appCtx.CacheConfig UserFetchConfig
     |> Async.RunSynchronously
     |> List.map (readCache >> parseFeedResult appCtx.Logger) // read from cache in case of 304 Not modified
     |> List.collect checkIfDiscoveryFeeds
-    |> List.map readCache // read discovered feeds from cache
+    |> List.map (readCache >> applyBackoff) // read discovered feeds from cache, then apply backoff
     |> fetchAllRssFeeds appCtx.Client appCtx.Logger appCtx.CacheConfig UserFetchConfig
     |> Async.RunSynchronously
     |> List.map (
@@ -254,6 +256,7 @@ let updateCache (appCtx: AppContext) (urls: Uri list) =
     if not (List.isEmpty urls) then
         urls
         |> List.choose (getCacheAge appCtx.Logger appCtx.CacheConfig)
+        |> List.map (applyBackoff appCtx.Logger appCtx.CacheConfig)
         |> fetchAllRssFeeds appCtx.Client appCtx.Logger appCtx.CacheConfig CacheRefreshFetchConfig
         |> Async.RunSynchronously
         |> List.iter (
