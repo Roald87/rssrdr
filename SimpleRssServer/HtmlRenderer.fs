@@ -52,7 +52,7 @@ let convertArticleToHtml (deleteButton: Html) (article: Article) : Html =
     |> Html
 
 let versionNumber =
-    let version = Reflection.Assembly.GetExecutingAssembly().GetName().Version
+    let version = SimpleRssServer.Config.assemblyVersion
     $"{version.Major}.{version.Minor}.{version.Build}"
 
 let private aboveFeedInput: Html =
@@ -159,7 +159,7 @@ let configPage (rssUrls: Result<Uri, UriError> list) (existingCollectionId: Coll
     let validRssUris =
         rssUrls
         |> validUris
-        |> List.map (fun u -> u.AbsoluteUri.Replace("https://", ""))
+        |> List.map (fun u -> FeedUri.removeHttpsScheme u.AbsoluteUri)
         |> String.concat "\n"
 
     head
@@ -232,9 +232,6 @@ let metaRefreshContent (redirectUrl: string) : Html =
 
 let chronologicalFeedsPage (query: Query) (rssItems: Article list) : Html =
     chronologicalFeedsPageShell query + chronologicalFeedsPageContent query rssItems
-
-let shuffledFeedsPage (query: Query) (rssItems: Article list) : Html =
-    shuffledFeedsPageShell query + shuffledFeedsPageContent query rssItems
 
 let collectionFeedsPageShell (collectionId: CollectionId) : Html =
     let configHref = $"/config.html?s=%s{string collectionId}"

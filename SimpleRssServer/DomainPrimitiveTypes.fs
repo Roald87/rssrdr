@@ -75,18 +75,6 @@ module OsPath =
     let join (OsPath path) (filename: string) = Path.Combine(path, filename) |> OsPath
     let getDirectoryName (OsPath path) = Path.GetDirectoryName path |> OsPath
 
-module OsDirectory =
-    let create (OsPath path) =
-        Directory.CreateDirectory path |> ignore
-
-    let deleteRecursive (OsPath path) =
-        Directory.Delete(path, recursive = true)
-
-    let exists (OsPath path) = Directory.Exists path
-
-    let getFiles (OsPath path) =
-        Directory.GetFiles path |> Array.map OsPath
-
 module OsFile =
     let exists (OsPath path) = File.Exists path
     let delete (OsPath path) = File.Delete path
@@ -102,6 +90,25 @@ module OsFile =
 
     let writeAllLines (OsPath path) (lines: string list) = File.WriteAllLines(path, lines)
     let writeAllText (OsPath path) (content: string) = File.WriteAllText(path, content)
+
+module OsDirectory =
+    let create (OsPath path) =
+        Directory.CreateDirectory path |> ignore
+
+    let deleteRecursive (OsPath path) =
+        Directory.Delete(path, recursive = true)
+
+    let exists (OsPath path) = Directory.Exists path
+
+    let getFiles (OsPath path) =
+        Directory.GetFiles path |> Array.map OsPath
+
+    /// Deletes files in `dir` matching `predicate` that haven't been written to in `retention`.
+    let deleteFilesOlderThan (retention: TimeSpan) (predicate: OsPath -> bool) (dir: OsPath) =
+        getFiles dir
+        |> Array.filter predicate
+        |> Array.filter (OsFile.isOlderThan retention)
+        |> Array.iter OsFile.delete
 
 type CollectionId =
     | CollectionId of string

@@ -2,7 +2,6 @@ module SimpleRssServer.Cache
 
 open Microsoft.Extensions.Logging
 open System
-open System.IO
 open System.Text
 open System.Text.Json
 open System.Text.Json.Serialization
@@ -51,11 +50,14 @@ let getTimeoutBackoffMinutes failures =
 let isCacheExpired (cacheConfig: CacheConfig) (modTime: DateTimeOffset) =
     (DateTimeOffset.Now - modTime) > cacheConfig.Expiration
 
+// File.GetLastWriteTime returns this sentinel for a missing file, letting us check
+// existence and last-write-time in a single filesystem stat instead of two.
+let private missingFileTimestamp = DateTime.FromFileTime 0L
+
 let fileLastModified (path: OsPath) =
-    if OsFile.exists path then
-        OsFile.getLastWriteTime path |> DateTimeOffset |> Some
-    else
-        None
+    match OsFile.getLastWriteTime path with
+    | t when t = missingFileTimestamp -> None
+    | t -> Some(DateTimeOffset t)
 
 let readCache (cachePath: OsPath) =
     if OsFile.exists cachePath then
@@ -67,7 +69,7 @@ let createDirectoryForPath (path: OsPath) =
     let (OsPath dir) = OsPath.getDirectoryName path
 
     if not (String.IsNullOrEmpty dir) then
-        Directory.CreateDirectory dir |> ignore
+        OsDirectory.create (OsPath dir)
 
 let writeCache cachePath (content: string) =
     createDirectoryForPath cachePath
@@ -124,15 +126,16 @@ let clearExpiredCache (logger: ILogger) (cacheDir: OsPath) (retention: TimeSpan)
     if not (OsDirectory.exists cacheDir) then
         logger.LogWarning("Cache directory {Dir} does not exist", cacheDir)
     else
-        OsDirectory.getFiles cacheDir
-        |> Array.filter (OsFile.isOlderThan retention)
-        |> Array.iter OsFile.delete
+        cacheDir |> OsDirectory.deleteFilesOlderThan retention (fun _ -> true)
 
 let private invalidFilenameCharsRegex =
     RegularExpressions.Regex("[.?=:/]+", RegularExpressions.RegexOptions.Compiled)
 
 let convertUrlToValidFilename (uri: Uri) =
     invalidFilenameCharsRegex.Replace(uri.AbsoluteUri, "_") |> Filename
+
+let cachePathFor (cacheConfig: CacheConfig) (uri: Uri) =
+    OsPath.combine cacheConfig.Dir (convertUrlToValidFilename uri)
 
 type BackoffState =
     | ReadyToFetch
@@ -156,7 +159,7 @@ let computeBackoffState (cacheModified: DateTimeOffset option) (nextAttempt: Dat
 let applyBackoff (logger: ILogger) (cacheConfig: CacheConfig) (ups: UriProcessState) : UriProcessState =
     match ups with
     | PendingFetch(cacheModified, uri) ->
-        let cachePath = OsPath.combine cacheConfig.Dir (convertUrlToValidFilename uri)
+        let cachePath = cachePathFor cacheConfig uri
 
         match computeBackoffState cacheModified (nextRetry logger cachePath) with
         | ReadyToFetch -> ups
@@ -170,7 +173,7 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
         match memCache.TryGet(u.AbsoluteUri, cacheConfig.Expiration) with
         | Some articles -> FeedArticles articles
         | None ->
-            let cachePath = OsPath.combine cacheConfig.Dir (convertUrlToValidFilename u)
+            let cachePath = cachePathFor cacheConfig u
             let cacheModified = fileLastModified cachePath
 
             match cacheModified with
@@ -183,7 +186,7 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
     | ProcessingError e ->
         let (MessageUri uriStr) = e
         let feedUri = Uri uriStr
-        let cachePath = OsPath.combine cacheConfig.Dir (convertUrlToValidFilename feedUri)
+        let cachePath = cachePathFor cacheConfig feedUri
 
         match readCache cachePath with
         | Some content -> UnparsedStaleCachedContent(content, feedUri, e)
@@ -193,9 +196,7 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
 let cacheSuccessfulFetch cacheConfig ups =
     match ups with
     | ParsedLiveFeed(xml, feed) ->
-        let cachePath =
-            OsPath.combine cacheConfig.Dir (convertUrlToValidFilename (Uri feed.Link))
-
+        let cachePath = cachePathFor cacheConfig (Uri feed.Link)
         writeCache cachePath xml.Value
     | _ -> ()
 
