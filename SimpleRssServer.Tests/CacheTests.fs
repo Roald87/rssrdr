@@ -2,11 +2,12 @@ module SimpleRssServer.Tests.CacheTests
 
 open Microsoft.Extensions.Logging.Abstractions
 open System
-open System.IO
 open System.Text.Json
 open Xunit
 
 open SimpleRssServer.Cache
+open SimpleRssServer.Config
+open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
 open TestHelpers
 
@@ -302,3 +303,77 @@ let ``Test convertUrlToFilename`` () =
         Filename "https_abc_com_test_rss_blabla",
         convertUrlToValidFilename (Uri "https://abc.com/test?rss=blabla")
     )
+
+// computeBackoffState: cacheModified = when a (possibly stale) cache file was written (None = no cache),
+// nextAttempt = next allowed retry from the failure record (None = no failure record).
+
+[<Fact>]
+let ``computeBackoffState: no failure record is ready to fetch`` () =
+    let failureRecord = None
+    Assert.Equal(ReadyToFetch, computeBackoffState None failureRecord)
+    Assert.Equal(ReadyToFetch, computeBackoffState (Some(DateTimeOffset.Now.AddHours -2.0)) failureRecord)
+
+[<Fact>]
+let ``computeBackoffState: elapsed backoff is ready to fetch`` () =
+    let nextAttempt = Some(DateTimeOffset.Now.AddHours -1.0)
+    Assert.Equal(ReadyToFetch, computeBackoffState None nextAttempt)
+    Assert.Equal(ReadyToFetch, computeBackoffState (Some(DateTimeOffset.Now.AddHours -5.0)) nextAttempt)
+
+[<Fact>]
+let ``computeBackoffState: active backoff with a cache reports the wait time`` () =
+    let cacheModified = Some(DateTimeOffset.Now.AddMinutes -30.0)
+    let nextAttempt = Some(DateTimeOffset.Now.AddHours 2.0)
+
+    match computeBackoffState cacheModified nextAttempt with
+    | InBackoffWithCache waitTime -> Assert.True(abs (waitTime.TotalHours - 2.0) < 0.1)
+    | other -> Assert.Fail $"expected InBackoffWithCache, got {other}"
+
+[<Fact>]
+let ``computeBackoffState: active backoff without a cache reports the wait time`` () =
+    let nextAttempt = Some(DateTimeOffset.Now.AddHours 2.0)
+
+    match computeBackoffState None nextAttempt with
+    | InBackoffNoCache waitTime -> Assert.True(abs (waitTime.TotalHours - 2.0) < 0.1)
+    | other -> Assert.Fail $"expected InBackoffNoCache, got {other}"
+
+let private cacheConfigIn (dir: OsPath) =
+    { Dir = dir
+      Expiration = TimeSpan.FromHours 1.0 }
+
+[<Fact>]
+let ``applyBackoff: PendingFetch without a failure record is left untouched`` () =
+    use tmp = new TempDir()
+    let uri = Uri "https://example.com/feed"
+    let ups = PendingFetch(None, uri)
+
+    Assert.Equal(ups, applyBackoff NullLogger.Instance (cacheConfigIn tmp.Path) ups)
+
+[<Fact>]
+let ``applyBackoff: PendingFetch in backoff without a cache becomes PreviousHttpRequestFailed`` () =
+    use tmp = new TempDir()
+    let uri = Uri "https://example.com/feed"
+    let cachePath = OsPath.combine tmp.Path (convertUrlToValidFilename uri)
+    recordHttpFailure NullLogger.Instance cachePath
+
+    match applyBackoff NullLogger.Instance (cacheConfigIn tmp.Path) (PendingFetch(None, uri)) with
+    | ProcessingError(PreviousHttpRequestFailed(u, _)) -> Assert.Equal(uri, u)
+    | other -> Assert.Fail $"expected ProcessingError PreviousHttpRequestFailed, got {other}"
+
+[<Fact>]
+let ``applyBackoff: PendingFetch in backoff with a stale cache becomes PreviousHttpRequestFailedButPageCached`` () =
+    use tmp = new TempDir()
+    let uri = Uri "https://example.com/feed"
+    let cachePath = OsPath.combine tmp.Path (convertUrlToValidFilename uri)
+    recordHttpFailure NullLogger.Instance cachePath
+    let staleCacheModified = Some(DateTimeOffset.Now.AddHours -5.0)
+
+    match applyBackoff NullLogger.Instance (cacheConfigIn tmp.Path) (PendingFetch(staleCacheModified, uri)) with
+    | ProcessingError(PreviousHttpRequestFailedButPageCached(u, _)) -> Assert.Equal(uri, u)
+    | other -> Assert.Fail $"expected ProcessingError PreviousHttpRequestFailedButPageCached, got {other}"
+
+[<Fact>]
+let ``applyBackoff: states other than PendingFetch pass through`` () =
+    use tmp = new TempDir()
+    let ups = FeedArticles []
+
+    Assert.Equal(ups, applyBackoff NullLogger.Instance (cacheConfigIn tmp.Path) ups)

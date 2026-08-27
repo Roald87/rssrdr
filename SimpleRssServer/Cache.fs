@@ -135,6 +135,36 @@ let private invalidFilenameCharsRegex =
 let convertUrlToValidFilename (uri: Uri) =
     invalidFilenameCharsRegex.Replace(uri.AbsoluteUri, "_") |> Filename
 
+type BackoffState =
+    | ReadyToFetch
+    | InBackoffWithCache of waitTime: TimeSpan
+    | InBackoffNoCache of waitTime: TimeSpan
+
+/// Given whether a (possibly stale) cache file exists and the next allowed retry
+/// time from the failure record, decide whether a fetch is currently permitted.
+let computeBackoffState (cacheModified: DateTimeOffset option) (nextAttempt: DateTimeOffset option) =
+    match nextAttempt with
+    | Some na when na > DateTimeOffset.Now ->
+        let waitTime = na - DateTimeOffset.Now
+
+        match cacheModified with
+        | Some _ -> InBackoffWithCache waitTime
+        | None -> InBackoffNoCache waitTime
+    | _ -> ReadyToFetch
+
+/// Pipeline step: turn a PendingFetch that is still inside its backoff window into
+/// a ProcessingError so the fetch stage never contacts a feed we should leave alone.
+let applyBackoff (logger: ILogger) (cacheConfig: CacheConfig) (ups: UriProcessState) : UriProcessState =
+    match ups with
+    | PendingFetch(cacheModified, uri) ->
+        let cachePath = OsPath.combine cacheConfig.Dir (convertUrlToValidFilename uri)
+
+        match computeBackoffState cacheModified (nextRetry logger cachePath) with
+        | ReadyToFetch -> ups
+        | InBackoffWithCache waitTime -> ProcessingError(PreviousHttpRequestFailedButPageCached(uri, waitTime))
+        | InBackoffNoCache waitTime -> ProcessingError(PreviousHttpRequestFailed(uri, waitTime))
+    | _ -> ups
+
 let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: UriProcessState) : UriProcessState =
     match ups with
     | TryFetchFromCache u ->
