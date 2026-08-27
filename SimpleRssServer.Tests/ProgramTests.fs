@@ -9,11 +9,13 @@ open System.Text.Json
 open System.Threading.Tasks
 open Xunit
 
+open SimpleRssServer.AppContext
 open SimpleRssServer.Cache
 open SimpleRssServer.Config
 open SimpleRssServer.DomainPrimitiveTypes
 open SimpleRssServer.DomainModel
 open SimpleRssServer.MemoryCache
+open SimpleRssServer.RequestHandlers
 open Program
 open TestHelpers
 
