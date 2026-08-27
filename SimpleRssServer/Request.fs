@@ -19,11 +19,11 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (fetchConfig: Fetc
 
         return
             match r with
-            | Ok "No changes" ->
+            | Ok NotModified ->
                 OsFile.setLastWriteTime cachePath DateTime.Now
                 clearFailure cachePath
                 TryFetchFromCache uri
-            | Ok content ->
+            | Ok(Content content) ->
                 clearFailure cachePath
                 UnparsedHttpResponse(content, uri)
             | Error e ->

@@ -35,9 +35,9 @@ let fetchUrlAsync
 
             if response.IsSuccessStatusCode then
                 let! content = response.Content.ReadAsStringAsync() |> Async.AwaitTask
-                return Ok content
+                return Ok(Content content)
             else if response.StatusCode = HttpStatusCode.NotModified then
-                return Ok "No changes"
+                return Ok NotModified
             else
                 logger.LogError $"Failed to get {uri}. Error: {response.StatusCode}."
                 return Error(HttpRequestNonSuccessStatus(uri, response.StatusCode))

@@ -35,7 +35,7 @@ let ``Test fetchUrlAsync with successful response`` () =
         fetchUrlAsync client logger (Uri "http://example.com") (Some DateTimeOffset.Now) (TimeSpan.FromSeconds 5.0)
         |> Async.RunSynchronously
 
-    Assert.Equal(expectedContent, getOk result)
+    Assert.Equal(Content expectedContent, getOk result)
 
 [<Fact>]
 let ``Test fetchUrlAsync with unsuccessful response`` () =
@@ -81,7 +81,7 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
         fetchUrlAsync client logger url (Some lastModifiedDate) (TimeSpan.FromSeconds 5.0)
         |> Async.RunSynchronously
 
-    Assert.Equal("No changes", getOk result1)
+    Assert.Equal(NotModified, getOk result1)
 
     // Case 2: When If-Modified-Since is before lastModifiedDate
     let earlierDate = lastModifiedDate.AddDays -1.0
@@ -90,14 +90,14 @@ let ``GetAsync returns NotModified or OK based on IfModifiedSince header`` () =
         fetchUrlAsync client logger url (Some earlierDate) (TimeSpan.FromSeconds 5.0)
         |> Async.RunSynchronously
 
-    Assert.Equal("Content has changed since the last modification date", getOk result2)
+    Assert.Equal(Content "Content has changed since the last modification date", getOk result2)
 
     // Case 3: When If-Modified-Since is not provided
     let result3 =
         fetchUrlAsync client logger url None (TimeSpan.FromSeconds 5.0)
         |> Async.RunSynchronously
 
-    Assert.Equal("Content has changed since the last modification date", getOk result3)
+    Assert.Equal(Content "Content has changed since the last modification date", getOk result3)
 
 type DelayedResponseHandler(delay: TimeSpan) =
     inherit HttpMessageHandler()

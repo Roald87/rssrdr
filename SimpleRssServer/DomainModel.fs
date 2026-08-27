@@ -24,6 +24,10 @@ and DomainError =
     | HttpRequestNonSuccessStatus of Uri * HttpStatusCode
     | HttpException of Uri * Exception
 
+type FetchResponse =
+    | Content of string
+    | NotModified
+
 type Article =
     { PostDate: DateTime option
       Title: string
