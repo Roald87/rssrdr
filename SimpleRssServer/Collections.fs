@@ -5,6 +5,7 @@ open System.Security.Cryptography
 open System.Text.RegularExpressions
 
 open SimpleRssServer.DomainPrimitiveTypes
+open SimpleRssServer.Helper
 
 let private toBase64Url (bytes: byte[]) =
     Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=')
@@ -24,10 +25,7 @@ let tryLoad (dir: OsPath) (collectionId: CollectionId) : string list option =
     let path = collectionFilePath dir collectionId
 
     if OsFile.exists path then
-        OsFile.readAllLines path
-        |> Array.toList
-        |> List.filter (fun s -> s.Trim() <> "")
-        |> Some
+        OsFile.readAllLines path |> Array.toList |> List.filter isText |> Some
     else
         None
 
@@ -36,7 +34,5 @@ let touch (dir: OsPath) (collectionId: CollectionId) =
 
 let deleteInactive (dir: OsPath) (retention: TimeSpan) =
     if OsDirectory.exists dir then
-        OsDirectory.getFiles dir
-        |> Array.filter (fun (OsPath p) -> p.EndsWith ".txt")
-        |> Array.filter (OsFile.isOlderThan retention)
-        |> Array.iter OsFile.delete
+        dir
+        |> OsDirectory.deleteFilesOlderThan retention (fun (OsPath p) -> p.EndsWith ".txt")

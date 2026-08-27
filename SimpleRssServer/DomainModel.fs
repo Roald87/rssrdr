@@ -6,9 +6,7 @@ open SimpleRssServer.DomainPrimitiveTypes
 open System.Net
 open Roald87.FeedReader
 
-type FeedUri = FeedUri of Uri
-
-and DomainError =
+type DomainError =
     // Uri errors
     | InvalidUriHostname of InvalidUri
     | InvalidUriFormat of InvalidUri * Exception
