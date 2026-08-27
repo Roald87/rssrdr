@@ -6,7 +6,6 @@ open SimpleRssServer.AppContext
 open SimpleRssServer.Cache
 open SimpleRssServer.Collections
 open SimpleRssServer.Config
-open SimpleRssServer.Helper
 open SimpleRssServer.Logging
 open SimpleRssServer.MemoryCache
 open SimpleRssServer.Request
