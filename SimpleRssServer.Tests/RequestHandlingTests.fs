@@ -111,6 +111,14 @@ let private body (response: HttpResponseMessage) =
 let private siteFile name =
     File.ReadAllText(Path.Combine("site", name))
 
+let private siteFileBytes name =
+    File.ReadAllBytes(Path.Combine("site", name))
+
+let private bodyBytes (response: HttpResponseMessage) =
+    response.Content.ReadAsByteArrayAsync()
+    |> Async.AwaitTask
+    |> Async.RunSynchronously
+
 let private landingMarker = "The simplest RSS reader on the planet"
 
 [<Fact>]
@@ -152,6 +160,17 @@ let ``GET /sitemap.xml serves the static file`` () =
 
     Assert.Equal(HttpStatusCode.OK, response.StatusCode)
     Assert.Equal(siteFile "sitemap.xml", body response)
+
+[<Fact>]
+let ``GET /apple-touch-icon.png serves the static file`` () =
+    use server = new TestServer(Map.empty)
+    use client = newClient ()
+
+    let response = get client $"{server.BaseUrl}/apple-touch-icon.png"
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+    Assert.Equal("image/png", response.Content.Headers.ContentType.MediaType)
+    Assert.Equal<byte[]>(siteFileBytes "apple-touch-icon.png", bodyBytes response)
 
 [<Fact>]
 let ``GET /config.html serves the config page`` () =

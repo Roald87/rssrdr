@@ -60,6 +60,9 @@ let buildProcessedQuery (articles: Article list) : Query =
 let private robotsTxt = File.ReadAllText(Path.Combine("site", "robots.txt"))
 let private sitemapXml = File.ReadAllText(Path.Combine("site", "sitemap.xml"))
 
+let private appleTouchIcon =
+    File.ReadAllBytes(Path.Combine("site", "apple-touch-icon.png"))
+
 let private getSortedRssUris (q: Query) = q.GetValues "rss" |> List.sort
 
 let private writeResponse (httpCtx: HttpListenerContext) (content: string) =
@@ -70,6 +73,18 @@ let private writeResponse (httpCtx: HttpListenerContext) (content: string) =
 
         do!
             httpCtx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length)
+            |> Async.AwaitTask
+
+        httpCtx.Response.OutputStream.Close()
+    }
+
+let private writeBytesResponse (httpCtx: HttpListenerContext) (contentType: string) (bytes: byte[]) =
+    async {
+        httpCtx.Response.ContentLength64 <- int64 bytes.Length
+        httpCtx.Response.ContentType <- contentType
+
+        do!
+            httpCtx.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length)
             |> Async.AwaitTask
 
         httpCtx.Response.OutputStream.Close()
@@ -210,6 +225,7 @@ let handleRequest (appCtx: AppContext) (httpCtx: HttpListenerContext) =
             do! streamFeedResponse appCtx httpCtx (chronologicalFeedsPageShell query) chronologicalFeedsPageContent
         | RobotsTxt -> do! writeResponse httpCtx robotsTxt
         | SitemapXml -> do! writeResponse httpCtx sitemapXml
+        | AppleTouchIcon -> do! writeBytesResponse httpCtx "image/png" appleTouchIcon
         | CreateCollection -> do! handleCreateCollection appCtx httpCtx
         | ViewCollectionShuffle collectionId ->
             do!

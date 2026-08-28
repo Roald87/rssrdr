@@ -12,6 +12,7 @@ type Route =
     | ShuffleFeeds
     | RobotsTxt
     | SitemapXml
+    | AppleTouchIcon
     | CreateCollection
     | ViewCollection of CollectionId
     | ViewCollectionShuffle of CollectionId
@@ -27,6 +28,7 @@ let parseRoute (method: string) (rawUrl: string) : Route =
     | Prefix "/?rss=" _ -> ChronologicalFeeds
     | "/robots.txt" -> RobotsTxt
     | "/sitemap.xml" -> SitemapXml
+    | "/apple-touch-icon.png" -> AppleTouchIcon
     | "/s" when method = "POST" -> CreateCollection
     | CollectionShuffleId collectionId when method = "GET" -> ViewCollectionShuffle collectionId
     | CollectionIdPath collectionId when method = "GET" -> ViewCollection collectionId
