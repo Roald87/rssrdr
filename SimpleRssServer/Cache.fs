@@ -183,9 +183,7 @@ let readFromCache (cacheConfig: CacheConfig) (memCache: InMemoryCache) (ups: Uri
                 match readCache cachePath with
                 | Some s -> UnparsedCachedContent(s, u)
                 | None -> PendingFetch(None, u)
-    | ProcessingError e ->
-        let (MessageUri uriStr) = e
-        let feedUri = Uri uriStr
+    | ProcessingError(DomainErrorUri feedUri as e) ->
         let cachePath = cachePathFor cacheConfig feedUri
 
         match readCache cachePath with
