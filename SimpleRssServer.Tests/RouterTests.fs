@@ -34,6 +34,10 @@ let ``sitemap.xml routes to SitemapXml`` () =
     Assert.Equal(SitemapXml, parseRoute "GET" "/sitemap.xml")
 
 [<Fact>]
+let ``apple-touch-icon.png routes to AppleTouchIcon`` () =
+    Assert.Equal(AppleTouchIcon, parseRoute "GET" "/apple-touch-icon.png")
+
+[<Fact>]
 let ``POST /s routes to CreateCollection`` () =
     Assert.Equal(CreateCollection, parseRoute "POST" "/s")
 
