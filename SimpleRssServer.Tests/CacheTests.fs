@@ -342,6 +342,36 @@ let private cacheConfigIn (dir: OsPath) =
       Expiration = TimeSpan.FromHours 1.0 }
 
 [<Fact>]
+let ``getCacheAge: missing cache file yields a PendingFetch with no modification time`` () =
+    use tmp = new TempDir()
+    let uri = Uri "https://example.com/feed"
+
+    match getCacheAge NullLogger.Instance (cacheConfigIn tmp.Path) uri with
+    | Some(PendingFetch(None, u)) -> Assert.Equal(uri, u)
+    | other -> Assert.Fail $"expected Some (PendingFetch (None, _)), got {other}"
+
+[<Fact>]
+let ``getCacheAge: expired cache file yields a PendingFetch with its modification time`` () =
+    use tmp = new TempDir()
+    let uri = Uri "https://example.com/feed"
+    let cachePath = cachePathFor (cacheConfigIn tmp.Path) uri
+    writeCache cachePath "cached content"
+    OsFile.setLastWriteTime cachePath (DateTime.Now.AddHours -5.0)
+
+    match getCacheAge NullLogger.Instance (cacheConfigIn tmp.Path) uri with
+    | Some(PendingFetch(Some _, u)) -> Assert.Equal(uri, u)
+    | other -> Assert.Fail $"expected Some (PendingFetch (Some _, _)), got {other}"
+
+[<Fact>]
+let ``getCacheAge: fresh cache file yields None`` () =
+    use tmp = new TempDir()
+    let uri = Uri "https://example.com/feed"
+    let cachePath = cachePathFor (cacheConfigIn tmp.Path) uri
+    writeCache cachePath "cached content"
+
+    Assert.Equal(None, getCacheAge NullLogger.Instance (cacheConfigIn tmp.Path) uri)
+
+[<Fact>]
 let ``applyBackoff: PendingFetch without a failure record is left untouched`` () =
     use tmp = new TempDir()
     let uri = Uri "https://example.com/feed"

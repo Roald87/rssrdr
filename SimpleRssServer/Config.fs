@@ -24,6 +24,7 @@ let CacheRefreshFetchConfig =
 
 let RequestLogPath = OsPath "rss-cache/request-log.txt"
 let RequestLogRetention = TimeSpan.FromDays 7.0
+let CacheCleanupPeriod = TimeSpan.FromDays 1.0
 let CacheRetention = TimeSpan.FromDays 7.0
 
 let ArticleDescriptionLength = 255
