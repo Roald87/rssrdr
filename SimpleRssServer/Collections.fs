@@ -24,7 +24,7 @@ let save (dir: OsPath) (collectionId: CollectionId) (feeds: string list) =
 let tryLoad (dir: OsPath) (collectionId: CollectionId) : string list option =
     let path = collectionFilePath dir collectionId
 
-    if OsFile.exists path then
+    if isValidCollectionId collectionId && OsFile.exists path then
         OsFile.readAllLines path |> Array.toList |> List.filter isText |> Some
     else
         None
