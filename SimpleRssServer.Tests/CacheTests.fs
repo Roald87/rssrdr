@@ -39,7 +39,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     let failurePath = failureFilePath tmp.Path
 
     // Record first failure
-    recordHttpFailure NullLogger.Instance tmp.Path
+    recordFailureOfKind NullLogger.Instance tmp.Path HttpError
 
     let failure1 =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -47,7 +47,7 @@ let ``Test recordFailure tracks consecutive failures`` () =
     Assert.Equal(1, failure1.ConsecutiveFailures)
 
     // Record second failure
-    recordHttpFailure NullLogger.Instance tmp.Path
+    recordFailureOfKind NullLogger.Instance tmp.Path HttpError
 
     let failure2 =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -206,15 +206,15 @@ let ``Test recordFailure resets count when failure kind switches`` () =
     use tmp = new TempPath()
     let failurePath = failureFilePath tmp.Path
 
-    recordHttpFailure NullLogger.Instance tmp.Path
-    recordHttpFailure NullLogger.Instance tmp.Path
+    recordFailureOfKind NullLogger.Instance tmp.Path HttpError
+    recordFailureOfKind NullLogger.Instance tmp.Path HttpError
 
     let beforeSwitch =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
 
     Assert.Equal(2, beforeSwitch.ConsecutiveFailures)
 
-    recordTimeoutFailure NullLogger.Instance tmp.Path
+    recordFailureOfKind NullLogger.Instance tmp.Path Timeout
 
     let afterSwitch =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -227,15 +227,15 @@ let ``Test recordFailure resets count when switching from timeout to http error`
     use tmp = new TempPath()
     let failurePath = failureFilePath tmp.Path
 
-    recordTimeoutFailure NullLogger.Instance tmp.Path
-    recordTimeoutFailure NullLogger.Instance tmp.Path
+    recordFailureOfKind NullLogger.Instance tmp.Path Timeout
+    recordFailureOfKind NullLogger.Instance tmp.Path Timeout
 
     let beforeSwitch =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
 
     Assert.Equal(2, beforeSwitch.ConsecutiveFailures)
 
-    recordHttpFailure NullLogger.Instance tmp.Path
+    recordFailureOfKind NullLogger.Instance tmp.Path HttpError
 
     let afterSwitch =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -256,13 +256,23 @@ let ``recordFailure classifies HttpRequestTimedOut as a Timeout failure`` () =
 
     Assert.Equal(FetchFailureKind.Timeout, failure.Kind)
 
-[<Fact>]
-let ``recordFailure classifies other DomainErrors as an HttpError failure`` () =
+[<Theory>]
+[<InlineData("HttpRequestNonSuccessStatus")>]
+[<InlineData("HttpException")>]
+[<InlineData("InvalidRssFeedFormat")>]
+let ``recordFailure classifies other DomainErrors as an HttpError failure`` (errorTag: string) =
     use tmp = new TempPath()
     let failurePath = failureFilePath tmp.Path
     let uri = Uri "https://example.com/feed"
 
-    recordFailure NullLogger.Instance tmp.Path (HttpRequestNonSuccessStatus(uri, HttpStatusCode.InternalServerError))
+    let error =
+        match errorTag with
+        | "HttpRequestNonSuccessStatus" -> HttpRequestNonSuccessStatus(uri, HttpStatusCode.InternalServerError)
+        | "HttpException" -> HttpException(uri, Exception "boom")
+        | "InvalidRssFeedFormat" -> InvalidRssFeedFormat(uri, Exception "bad xml")
+        | other -> failwith $"unexpected error tag: {other}"
+
+    recordFailure NullLogger.Instance tmp.Path error
 
     let failure =
         JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
@@ -381,7 +391,7 @@ let ``applyBackoff: PendingFetch in backoff without a cache becomes PreviousHttp
     use tmp = new TempDir()
     let uri = Uri "https://example.com/feed"
     let cachePath = OsPath.combine tmp.Path (convertUrlToValidFilename uri)
-    recordHttpFailure NullLogger.Instance cachePath
+    recordFailureOfKind NullLogger.Instance cachePath HttpError
 
     match applyBackoff NullLogger.Instance (cacheConfigIn tmp.Path) (PendingFetch(None, uri)) with
     | ProcessingError(PreviousHttpRequestFailed(u, _)) -> Assert.Equal(uri, u)
@@ -392,7 +402,7 @@ let ``applyBackoff: PendingFetch in backoff with a stale cache becomes PreviousH
     use tmp = new TempDir()
     let uri = Uri "https://example.com/feed"
     let cachePath = OsPath.combine tmp.Path (convertUrlToValidFilename uri)
-    recordHttpFailure NullLogger.Instance cachePath
+    recordFailureOfKind NullLogger.Instance cachePath HttpError
     let staleCacheModified = Some(DateTimeOffset.Now.AddHours -5.0)
 
     match applyBackoff NullLogger.Instance (cacheConfigIn tmp.Path) (PendingFetch(staleCacheModified, uri)) with

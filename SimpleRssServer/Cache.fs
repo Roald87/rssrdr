@@ -93,7 +93,7 @@ let readFailureRecord (logger: ILogger) cachePath : FetchFailure option =
     else
         None
 
-let private recordFailureOfKind (logger: ILogger) cachePath (kind: FetchFailureKind) =
+let recordFailureOfKind (logger: ILogger) cachePath (kind: FetchFailureKind) =
     let failurePath = failureFilePath cachePath
     createDirectoryForPath failurePath
 
@@ -110,21 +110,12 @@ let private recordFailureOfKind (logger: ILogger) cachePath (kind: FetchFailureK
 
     OsFile.writeAllText failurePath (JsonSerializer.Serialize failure)
 
-let recordHttpFailure (logger: ILogger) cachePath =
-    recordFailureOfKind logger cachePath HttpError
-
-let recordTimeoutFailure (logger: ILogger) cachePath =
-    recordFailureOfKind logger cachePath Timeout
-
-let private classifyFailure (e: DomainError) : FetchFailureKind =
-    match e with
-    | HttpRequestTimedOut _ -> Timeout
-    | _ -> HttpError
-
 /// Classifies a fetch failure and records it, so callers just report the error
 /// without needing to know about FetchFailureKind or backoff bookkeeping.
 let recordFailure (logger: ILogger) cachePath (e: DomainError) =
-    recordFailureOfKind logger cachePath (classifyFailure e)
+    match e with
+    | HttpRequestTimedOut _ -> recordFailureOfKind logger cachePath Timeout
+    | _ -> recordFailureOfKind logger cachePath HttpError
 
 let nextRetry (logger: ILogger) cachePath =
     readFailureRecord logger cachePath
