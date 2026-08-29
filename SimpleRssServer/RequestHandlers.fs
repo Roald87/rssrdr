@@ -140,23 +140,6 @@ let private streamFeedResponse
                     render processedQuery articles
         })
 
-/// Looks up a collection by its id, rendering a "not found" page for an invalid
-/// or missing id, otherwise handing the saved feed list to `onFound`.
-let private loadCollectionOrNotFound
-    (appCtx: AppContext)
-    (httpCtx: HttpListenerContext)
-    (collectionId: CollectionId)
-    (onFound: string list -> Async<unit>)
-    =
-    async {
-        if not (isValidCollectionId collectionId) then
-            do! writeResponse httpCtx (collectionNotFoundPage collectionId |> string)
-        else
-            match tryLoad appCtx.CollectionsDir collectionId with
-            | None -> do! writeResponse httpCtx (collectionNotFoundPage collectionId |> string)
-            | Some feeds -> do! onFound feeds
-    }
-
 let private handleConfigPage (appCtx: AppContext) (httpCtx: HttpListenerContext) =
     async {
         let query = Query.Create httpCtx.Request.Url.Query
@@ -165,10 +148,11 @@ let private handleConfigPage (appCtx: AppContext) (httpCtx: HttpListenerContext)
         | Some rawId ->
             let collectionId = CollectionId rawId
 
-            do!
-                loadCollectionOrNotFound appCtx httpCtx collectionId (fun feeds ->
-                    let rssUrls = feeds |> List.map FeedUri.createWithHttps
-                    writeResponse httpCtx (configPage rssUrls (Some collectionId) |> string))
+            match tryLoad appCtx.CollectionsDir collectionId with
+            | None -> do! writeResponse httpCtx (collectionNotFoundPage collectionId |> string)
+            | Some feeds ->
+                let rssUrls = feeds |> List.map FeedUri.createWithHttps
+                do! writeResponse httpCtx (configPage rssUrls (Some collectionId) |> string)
         | None -> do! writeResponse httpCtx (configPage (getRssUrls httpCtx.Request.Url.Query) None |> string)
     }
 
@@ -199,15 +183,17 @@ let private handleViewCollection
     (shell: Html)
     (content: Query -> Article list -> Html)
     =
-    loadCollectionOrNotFound appCtx httpCtx collectionId (fun feeds ->
-        async {
+    async {
+        match tryLoad appCtx.CollectionsDir collectionId with
+        | None -> do! writeResponse httpCtx (collectionNotFoundPage collectionId |> string)
+        | Some feeds ->
             touch appCtx.CollectionsDir collectionId
             let collQuery = Query.CreateWithKey("rss", feeds)
 
             do!
                 streamChunkedPage httpCtx shell (fun () ->
                     async { return content collQuery (processRssRequest appCtx (string collQuery)) })
-        })
+    }
 
 let handleRequest (appCtx: AppContext) (httpCtx: HttpListenerContext) =
     async {

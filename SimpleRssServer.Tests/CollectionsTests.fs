@@ -49,6 +49,14 @@ let ``tryLoad returns None for missing file`` () =
     Assert.Equal(None, tryLoad dir.Path (CollectionId "nonexistent"))
 
 [<Fact>]
+let ``tryLoad returns None for an invalid id even if a matching file exists`` () =
+    use dir = new TempDir()
+    let collectionId = CollectionId "short"
+    OsFile.writeAllLines (OsPath.join dir.Path "short.txt") [ "example.com/feed" ]
+
+    Assert.Equal(None, tryLoad dir.Path collectionId)
+
+[<Fact>]
 let ``touch updates last-write-time`` () =
     use dir = new TempDir()
     let collectionId = CollectionId "testcode2"
