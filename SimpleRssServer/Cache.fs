@@ -156,6 +156,20 @@ let computeBackoffState (cacheModified: DateTimeOffset option) (nextAttempt: Dat
         | None -> InBackoffNoCache waitTime
     | _ -> ReadyToFetch
 
+let getCacheAge (logger: ILogger) (cacheConfig: CacheConfig) (url: Uri) =
+    let cacheAge = cachePathFor cacheConfig url |> fileLastModified
+
+    match cacheAge with
+    | None ->
+        logger.LogWarning(
+            "No cache file found for {Url}, which is unexpected during a periodic update. Updating cache regardless.",
+            url
+        )
+
+        Some(PendingFetch(None, url))
+    | Some modTime when isCacheExpired cacheConfig modTime -> Some(PendingFetch(cacheAge, url))
+    | _ -> None
+
 /// Pipeline step: turn a PendingFetch that is still inside its backoff window into
 /// a ProcessingError so the fetch stage never contacts a feed we should leave alone.
 let applyBackoff (logger: ILogger) (cacheConfig: CacheConfig) (ups: UriProcessState) : UriProcessState =

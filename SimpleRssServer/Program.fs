@@ -12,24 +12,7 @@ open SimpleRssServer.Request
 open SimpleRssServer.RequestHandlers
 open SimpleRssServer.RequestLog
 open SimpleRssServer.RssParser
-open SimpleRssServer.DomainModel
 open SimpleRssServer.DomainPrimitiveTypes
-
-let private getCacheAge (logger: ILogger) cacheConfig url =
-    let cacheAge =
-        OsPath.combine cacheConfig.Dir (url |> convertUrlToValidFilename)
-        |> fileLastModified
-
-    match cacheAge with
-    | None ->
-        logger.LogWarning(
-            "No cache file found for {Url}, which is unexpected during a periodic update. Updating cache regardless.",
-            url
-        )
-
-        Some(PendingFetch(None, url))
-    | Some modTime when isCacheExpired cacheConfig modTime -> Some(PendingFetch(cacheAge, url))
-    | _ -> None
 
 let updateCache (appCtx: AppContext) (urls: Uri list) =
     if not (List.isEmpty urls) then
@@ -47,17 +30,6 @@ let updateCache (appCtx: AppContext) (urls: Uri list) =
         )
 
 [<TailCall>]
-let rec updateRssFeedsPeriodically (appCtx: AppContext) =
-    async {
-        appCtx.Logger.LogDebug "Periodically updating RSS feeds."
-
-        uniqueValidRequestLogUrls appCtx.RequestLogPath |> updateCache appCtx
-
-        do! Async.Sleep appCtx.CacheConfig.Expiration
-        return! updateRssFeedsPeriodically appCtx
-    }
-
-[<TailCall>]
 let rec clearCachePeriodically (appCtx: AppContext) (retention: TimeSpan) (period: TimeSpan) =
     async {
         appCtx.Logger.LogDebug("Clearing cache files older than {retention} days.", retention.Days)
@@ -66,6 +38,17 @@ let rec clearCachePeriodically (appCtx: AppContext) (retention: TimeSpan) (perio
 
         do! Async.Sleep period
         return! clearCachePeriodically appCtx retention period
+    }
+
+[<TailCall>]
+let rec updateRssFeedsPeriodically (appCtx: AppContext) =
+    async {
+        appCtx.Logger.LogDebug "Periodically updating RSS feeds."
+
+        uniqueValidRequestLogUrls appCtx.RequestLogPath |> updateCache appCtx
+
+        do! Async.Sleep appCtx.CacheConfig.Expiration
+        return! updateRssFeedsPeriodically appCtx
     }
 
 [<TailCall>]
@@ -94,9 +77,7 @@ let startServer (logger: ILogger) (cacheConfig: SimpleRssServer.Config.CacheConf
           RequestLogPath = RequestLogPath }
 
     Async.Start(updateRssFeedsPeriodically appCtx)
-
-    let cacheCleanupPeriod = TimeSpan.FromDays 1.0
-    Async.Start(clearCachePeriodically appCtx CacheRetention cacheCleanupPeriod)
+    Async.Start(clearCachePeriodically appCtx CacheRetention CacheCleanupPeriod)
 
     serverLoop listener appCtx
 
