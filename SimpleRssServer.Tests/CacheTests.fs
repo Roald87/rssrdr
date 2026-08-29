@@ -2,6 +2,7 @@ module SimpleRssServer.Tests.CacheTests
 
 open Microsoft.Extensions.Logging.Abstractions
 open System
+open System.Net
 open System.Text.Json
 open Xunit
 
@@ -241,6 +242,32 @@ let ``Test recordFailure resets count when switching from timeout to http error`
 
     Assert.Equal(1, afterSwitch.ConsecutiveFailures)
     Assert.Equal(FetchFailureKind.HttpError, afterSwitch.Kind)
+
+[<Fact>]
+let ``recordFailure classifies HttpRequestTimedOut as a Timeout failure`` () =
+    use tmp = new TempPath()
+    let failurePath = failureFilePath tmp.Path
+    let uri = Uri "https://example.com/feed"
+
+    recordFailure NullLogger.Instance tmp.Path (HttpRequestTimedOut(uri, TimeSpan.FromSeconds 5.0))
+
+    let failure =
+        JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
+
+    Assert.Equal(FetchFailureKind.Timeout, failure.Kind)
+
+[<Fact>]
+let ``recordFailure classifies other DomainErrors as an HttpError failure`` () =
+    use tmp = new TempPath()
+    let failurePath = failureFilePath tmp.Path
+    let uri = Uri "https://example.com/feed"
+
+    recordFailure NullLogger.Instance tmp.Path (HttpRequestNonSuccessStatus(uri, HttpStatusCode.InternalServerError))
+
+    let failure =
+        JsonSerializer.Deserialize<FetchFailure>(OsFile.readAllText failurePath)
+
+    Assert.Equal(FetchFailureKind.HttpError, failure.Kind)
 
 [<Fact>]
 let ``Test getTimeoutBackoffMinutes follows doubling pattern and caps`` () =
