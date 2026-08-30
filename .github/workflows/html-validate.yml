@@ -56,9 +56,8 @@ jobs:
       - name: Install matching chromedriver
         run: |
           chrome_version=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
-          npx --yes @puppeteer/browsers install "chromedriver@${chrome_version}"
-          chromedriver_path=$(find "$HOME/.cache/puppeteer/chromedriver" -type f -name chromedriver)
-          echo "CHROMEDRIVER_PATH=$chromedriver_path" >> "$GITHUB_ENV"
+          install_output=$(npx --yes @puppeteer/browsers install "chromedriver@${chrome_version}")
+          echo "CHROMEDRIVER_PATH=${install_output##* }" >> "$GITHUB_ENV"
 
       - name: Accessibility check (axe-core)
         run: |
