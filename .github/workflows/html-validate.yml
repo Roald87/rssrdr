@@ -49,9 +49,16 @@ jobs:
         run: docker run --rm -v "$PWD/html-out:/html:ro" ghcr.io/validator/validator:latest vnu --also-check-css /html
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: "24"
+
+      - name: Install matching chromedriver
+        run: |
+          chrome_version=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
+          npx --yes @puppeteer/browsers install "chromedriver@${chrome_version}"
+          chromedriver_path=$(find "$HOME/.cache/puppeteer/chromedriver" -type f -name chromedriver)
+          echo "CHROMEDRIVER_PATH=$chromedriver_path" >> "$GITHUB_ENV"
 
       - name: Accessibility check (axe-core)
         run: |
@@ -60,4 +67,5 @@ jobs:
             "http://127.0.0.1:5000/config.html" \
             "http://127.0.0.1:5000/?rss=http://127.0.0.1:8081/spectrum.rss" \
             "http://127.0.0.1:5000/shuffle?rss=http://127.0.0.1:8081/spectrum.rss" \
+            --chromedriver-path "$CHROMEDRIVER_PATH" \
             --exit
