@@ -189,8 +189,8 @@ let private articlesToHtml (query: Query) (articles: Article list) : Html =
 let private loadingOverlay: Html =
     Html """<div id="loading"><div class="spinner"></div><span>Loading feeds…</span></div>"""
 
-let private loadingHideStyle: Html =
-    Html """<style>#loading{display:none}</style>"""
+let private hideLoadingScript: Html =
+    Html """<script>document.getElementById('loading').style.display='none';</script>"""
 
 let private feedsPageShell (configHref: string) (altHref: string) (altLabel: string) : Html =
     $"""
@@ -212,7 +212,7 @@ let chronologicalFeedsPageShell (query: Query) : Html =
 let chronologicalFeedsPageContent (query: Query) (rssItems: Article list) : Html =
     (rssItems |> List.sortByDescending _.PostDate |> articlesToHtml query)
     + removeFeedScript
-    + loadingHideStyle
+    + hideLoadingScript
     + footer
 
 let shuffledFeedsPageShell (query: Query) : Html =
@@ -222,12 +222,12 @@ let shuffledFeedsPageShell (query: Query) : Html =
 let shuffledFeedsPageContent (query: Query) (rssItems: Article list) : Html =
     (rssItems |> List.randomShuffle |> articlesToHtml query)
     + removeFeedScript
-    + loadingHideStyle
+    + hideLoadingScript
     + footer
 
 let metaRefreshContent (redirectUrl: string) : Html =
     Html $"""<meta http-equiv="refresh" content="0; url={redirectUrl}">"""
-    + loadingHideStyle
+    + hideLoadingScript
     + footer
 
 let chronologicalFeedsPage (query: Query) (rssItems: Article list) : Html =
