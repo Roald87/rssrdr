@@ -45,5 +45,19 @@ jobs:
           curl -sf "http://127.0.0.1:5000/?rss=http://127.0.0.1:8081/spectrum.rss" -o html-out/chronological.html
           curl -sf "http://127.0.0.1:5000/shuffle?rss=http://127.0.0.1:8081/spectrum.rss" -o html-out/shuffle.html
 
-      - name: Validate HTML against W3C/WHATWG standards
-        run: docker run --rm -v "$PWD/html-out:/html:ro" ghcr.io/validator/validator:latest vnu /html
+      - name: Validate HTML and CSS against W3C/WHATWG standards
+        run: docker run --rm -v "$PWD/html-out:/html:ro" ghcr.io/validator/validator:latest vnu --also-check-css /html
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Accessibility check (axe-core)
+        run: |
+          npx --yes @axe-core/cli@4 \
+            "http://127.0.0.1:5000/" \
+            "http://127.0.0.1:5000/config.html" \
+            "http://127.0.0.1:5000/?rss=http://127.0.0.1:8081/spectrum.rss" \
+            "http://127.0.0.1:5000/shuffle?rss=http://127.0.0.1:8081/spectrum.rss" \
+            --exit
