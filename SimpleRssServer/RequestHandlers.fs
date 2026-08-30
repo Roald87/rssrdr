@@ -58,25 +58,13 @@ let buildProcessedQuery (articles: Article list) : Query =
     |> fun u -> Query.CreateWithKey("rss", u)
 
 let private robotsTxt = File.ReadAllText(Path.Combine("site", "robots.txt"))
+
 let private sitemapXml = File.ReadAllText(Path.Combine("site", "sitemap.xml"))
 
 let private appleTouchIcon =
     File.ReadAllBytes(Path.Combine("site", "apple-touch-icon.png"))
 
 let private getSortedRssUris (q: Query) = q.GetValues "rss" |> List.sort
-
-let private writeResponse (httpCtx: HttpListenerContext) (content: string) =
-    async {
-        let buffer = content |> Encoding.UTF8.GetBytes
-        httpCtx.Response.ContentLength64 <- int64 buffer.Length
-        httpCtx.Response.ContentType <- "text/html"
-
-        do!
-            httpCtx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length)
-            |> Async.AwaitTask
-
-        httpCtx.Response.OutputStream.Close()
-    }
 
 let private writeBytesResponse (httpCtx: HttpListenerContext) (contentType: string) (bytes: byte[]) =
     async {
@@ -88,6 +76,13 @@ let private writeBytesResponse (httpCtx: HttpListenerContext) (contentType: stri
             |> Async.AwaitTask
 
         httpCtx.Response.OutputStream.Close()
+    }
+
+let private writeResponse (httpCtx: HttpListenerContext) (content: string) =
+    async {
+        let buffer = content |> Encoding.UTF8.GetBytes
+
+        do! writeBytesResponse httpCtx "text/html" buffer
     }
 
 let private writeChunk (httpCtx: HttpListenerContext) (html: Html) =
