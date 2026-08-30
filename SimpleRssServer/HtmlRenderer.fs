@@ -58,6 +58,7 @@ let versionNumber =
 let private aboveFeedInput: Html =
     """
     <body>
+    <main>
     <div>
         <h1 class="h1">rssrdr</h1>
     </div>
@@ -70,6 +71,7 @@ let private aboveFeedInput: Html =
 let belowFeedInput: Html =
     """
     <p><small><a href="https://github.com/Roald87/rssrdr">Source code</a> - v{{version}}</small></p>
+    </main>
     </body>
     </html>
     """
@@ -169,6 +171,7 @@ let configPage (rssUrls: Result<Uri, UriError> list) (existingCollectionId: Coll
 
 let footer =
     """
+    </main>
     </body>
     </html>
     """
@@ -195,6 +198,7 @@ let private hideLoadingScript: Html =
 let private feedsPageShell (configHref: string) (altHref: string) (altLabel: string) : Html =
     $"""
     <body>
+    <main>
         %s{string loadingOverlay}
         <div>
             <h1><a href="%s{configHref}">rssrdr</a></h1>
@@ -244,8 +248,10 @@ let collectionShuffledPageShell (collectionId: CollectionId) : Html =
 let collectionNotFoundPage (collectionId: CollectionId) : Html =
     $"""
     <body>
+    <main>
         <h1><a href="/">rssrdr</a></h1>
         <p>Collection <code>%s{WebUtility.HtmlEncode(string collectionId)}</code> not found.</p>
+    </main>
     </body>
     </html>
     """
