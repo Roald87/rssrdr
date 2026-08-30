@@ -58,6 +58,7 @@ let versionNumber =
 let private aboveFeedInput: Html =
     """
     <body>
+    <main>
     <div>
         <h1 class="h1">rssrdr</h1>
     </div>
@@ -70,6 +71,7 @@ let private aboveFeedInput: Html =
 let belowFeedInput: Html =
     """
     <p><small><a href="https://github.com/Roald87/rssrdr">Source code</a> - v{{version}}</small></p>
+    </main>
     </body>
     </html>
     """
@@ -169,6 +171,7 @@ let configPage (rssUrls: Result<Uri, UriError> list) (existingCollectionId: Coll
 
 let footer =
     """
+    </main>
     </body>
     </html>
     """
@@ -189,12 +192,13 @@ let private articlesToHtml (query: Query) (articles: Article list) : Html =
 let private loadingOverlay: Html =
     Html """<div id="loading"><div class="spinner"></div><span>Loading feeds…</span></div>"""
 
-let private loadingHideStyle: Html =
-    Html """<style>#loading{display:none}</style>"""
+let private hideLoadingScript: Html =
+    Html """<script>document.getElementById('loading').style.display='none';</script>"""
 
 let private feedsPageShell (configHref: string) (altHref: string) (altLabel: string) : Html =
     $"""
     <body>
+    <main>
         %s{string loadingOverlay}
         <div>
             <h1><a href="%s{configHref}">rssrdr</a></h1>
@@ -212,7 +216,7 @@ let chronologicalFeedsPageShell (query: Query) : Html =
 let chronologicalFeedsPageContent (query: Query) (rssItems: Article list) : Html =
     (rssItems |> List.sortByDescending _.PostDate |> articlesToHtml query)
     + removeFeedScript
-    + loadingHideStyle
+    + hideLoadingScript
     + footer
 
 let shuffledFeedsPageShell (query: Query) : Html =
@@ -222,12 +226,12 @@ let shuffledFeedsPageShell (query: Query) : Html =
 let shuffledFeedsPageContent (query: Query) (rssItems: Article list) : Html =
     (rssItems |> List.randomShuffle |> articlesToHtml query)
     + removeFeedScript
-    + loadingHideStyle
+    + hideLoadingScript
     + footer
 
 let metaRefreshContent (redirectUrl: string) : Html =
     Html $"""<meta http-equiv="refresh" content="0; url={redirectUrl}">"""
-    + loadingHideStyle
+    + hideLoadingScript
     + footer
 
 let chronologicalFeedsPage (query: Query) (rssItems: Article list) : Html =
@@ -244,8 +248,10 @@ let collectionShuffledPageShell (collectionId: CollectionId) : Html =
 let collectionNotFoundPage (collectionId: CollectionId) : Html =
     $"""
     <body>
+    <main>
         <h1><a href="/">rssrdr</a></h1>
         <p>Collection <code>%s{WebUtility.HtmlEncode(string collectionId)}</code> not found.</p>
+    </main>
     </body>
     </html>
     """

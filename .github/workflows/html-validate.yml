@@ -1,0 +1,70 @@
+name: HTML Validation
+
+on:
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  html-validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build server
+        run: dotnet build SimpleRssServer -c Release
+
+      - name: Serve fixture RSS feed
+        working-directory: SimpleRssServer.Tests/data
+        run: nohup python3 -m http.server 8081 --bind 127.0.0.1 > /tmp/fixture-server.log 2>&1 &
+
+      - name: Start rssrdr server
+        working-directory: SimpleRssServer
+        run: |
+          nohup dotnet bin/Release/net10.0/SimpleRssServer.dll > /tmp/rssrdr.log 2>&1 &
+
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:5000/ >/dev/null 2>&1 && exit 0
+            sleep 1
+          done
+
+          echo "Server did not start in time"
+          cat /tmp/rssrdr.log
+          exit 1
+
+      - name: Fetch sample pages
+        run: |
+          mkdir -p html-out
+          curl -sf "http://127.0.0.1:5000/" -o html-out/landing.html
+          curl -sf "http://127.0.0.1:5000/config.html" -o html-out/config.html
+          curl -sf "http://127.0.0.1:5000/?rss=http://127.0.0.1:8081/spectrum.rss" -o html-out/chronological.html
+          curl -sf "http://127.0.0.1:5000/shuffle?rss=http://127.0.0.1:8081/spectrum.rss" -o html-out/shuffle.html
+
+      - name: Validate HTML and CSS against W3C/WHATWG standards
+        run: docker run --rm -v "$PWD/html-out:/html:ro" ghcr.io/validator/validator:latest vnu --also-check-css /html
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+
+      - name: Install matching chromedriver
+        run: |
+          chrome_version=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+')
+          install_output=$(npx --yes @puppeteer/browsers install "chromedriver@${chrome_version}")
+          echo "CHROMEDRIVER_PATH=${install_output##* }" >> "$GITHUB_ENV"
+
+      - name: Accessibility check (axe-core)
+        run: |
+          npx --yes @axe-core/cli@4 \
+            "http://127.0.0.1:5000/" \
+            "http://127.0.0.1:5000/config.html" \
+            "http://127.0.0.1:5000/?rss=http://127.0.0.1:8081/spectrum.rss" \
+            "http://127.0.0.1:5000/shuffle?rss=http://127.0.0.1:8081/spectrum.rss" \
+            --chromedriver-path "$CHROMEDRIVER_PATH" \
+            --exit
