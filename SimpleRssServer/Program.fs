@@ -18,7 +18,7 @@ let updateCache (appCtx: AppContext) (urls: Uri list) =
     if not (List.isEmpty urls) then
         urls
         |> List.choose (getCacheAge appCtx.Logger appCtx.CacheConfig)
-        |> List.map (applyBackoff appCtx.Logger appCtx.CacheConfig)
+        |> List.map (checkIfInBackoff appCtx.Logger appCtx.CacheConfig)
         |> fetchAllRssFeeds appCtx.Client appCtx.Logger appCtx.CacheConfig CacheRefreshFetchConfig
         |> Async.RunSynchronously
         |> List.iter (
