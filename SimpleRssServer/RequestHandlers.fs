@@ -28,18 +28,18 @@ let private readFormBody (httpCtx: HttpListenerContext) =
 
 let processRssRequest (appCtx: AppContext) (query: string) =
     let readCache = tryReadFromCaches appCtx.CacheConfig appCtx.MemCache
-    let checkIfInBackoff = checkIfInBackoff appCtx.Logger appCtx.CacheConfig
+    let deferIfInBackoff = deferIfInBackoff appCtx.Logger appCtx.CacheConfig
 
     let fetchRssFeeds =
         fetchRssFeeds appCtx.Client appCtx.Logger appCtx.CacheConfig UserFetchConfig
 
     getRssUrls query
-    |> List.map (toUriProcessState >> readCache >> checkIfInBackoff) // read cache, then skip feeds still in backoff
+    |> List.map (toUriProcessState >> readCache >> deferIfInBackoff) // read cache, then skip feeds still in backoff
     |> fetchRssFeeds
     |> Async.RunSynchronously
     |> List.map (readCache >> parseFeedResult appCtx.Logger) // read from cache in case of 304 Not modified
     |> List.collect checkIfDiscoveryFeeds
-    |> List.map (readCache >> checkIfInBackoff) // read discovered feeds from cache, then apply backoff
+    |> List.map (readCache >> deferIfInBackoff) // read discovered feeds from cache, then apply backoff
     |> fetchRssFeeds
     |> Async.RunSynchronously
     |> List.map (

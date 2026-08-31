@@ -169,7 +169,7 @@ let getCacheAge (logger: ILogger) (cacheConfig: CacheConfig) (url: Uri) =
 
 /// Pipeline step: turn a PendingFetch that is still inside its backoff window into
 /// a ProcessingError so the fetch stage never contacts a feed we should leave alone.
-let checkIfInBackoff (logger: ILogger) (cacheConfig: CacheConfig) (ups: UriProcessState) : UriProcessState =
+let deferIfInBackoff (logger: ILogger) (cacheConfig: CacheConfig) (ups: UriProcessState) : UriProcessState =
     match ups with
     | PendingFetch(cacheModified, uri) ->
         let cachePath = cachePathFor cacheConfig uri

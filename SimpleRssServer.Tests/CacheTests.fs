@@ -414,7 +414,7 @@ let ``applyBackoff: PendingFetch without a failure record is left untouched`` ()
     let uri = Uri "https://example.com/feed"
     let ups = PendingFetch(None, uri)
 
-    Assert.Equal(ups, checkIfInBackoff NullLogger.Instance (cacheConfigIn tmp.Path) ups)
+    Assert.Equal(ups, deferIfInBackoff NullLogger.Instance (cacheConfigIn tmp.Path) ups)
 
 [<Fact>]
 let ``applyBackoff: PendingFetch in backoff without a cache becomes PreviousHttpRequestFailed`` () =
@@ -423,7 +423,7 @@ let ``applyBackoff: PendingFetch in backoff without a cache becomes PreviousHttp
     let cachePath = OsPath.combine tmp.Path (convertUrlToValidFilename uri)
     recordFailureOfKind NullLogger.Instance cachePath HttpError
 
-    match checkIfInBackoff NullLogger.Instance (cacheConfigIn tmp.Path) (PendingFetch(None, uri)) with
+    match deferIfInBackoff NullLogger.Instance (cacheConfigIn tmp.Path) (PendingFetch(None, uri)) with
     | ProcessingError(PreviousHttpRequestFailed(u, _)) -> Assert.Equal(uri, u)
     | other -> Assert.Fail $"expected ProcessingError PreviousHttpRequestFailed, got {other}"
 
@@ -435,7 +435,7 @@ let ``applyBackoff: PendingFetch in backoff with a stale cache becomes PreviousH
     recordFailureOfKind NullLogger.Instance cachePath HttpError
     let staleCacheModified = Some(DateTimeOffset.Now.AddHours -5.0)
 
-    match checkIfInBackoff NullLogger.Instance (cacheConfigIn tmp.Path) (PendingFetch(staleCacheModified, uri)) with
+    match deferIfInBackoff NullLogger.Instance (cacheConfigIn tmp.Path) (PendingFetch(staleCacheModified, uri)) with
     | ProcessingError(PreviousHttpRequestFailedButPageCached(u, _)) -> Assert.Equal(uri, u)
     | other -> Assert.Fail $"expected ProcessingError PreviousHttpRequestFailedButPageCached, got {other}"
 
@@ -444,7 +444,7 @@ let ``applyBackoff: states other than PendingFetch pass through`` () =
     use tmp = new TempDir()
     let ups = FeedArticles []
 
-    Assert.Equal(ups, checkIfInBackoff NullLogger.Instance (cacheConfigIn tmp.Path) ups)
+    Assert.Equal(ups, deferIfInBackoff NullLogger.Instance (cacheConfigIn tmp.Path) ups)
 
 [<Fact>]
 let ``readFromCache: ProcessingError with no associated Uri (invalid hostname) passes through unchanged`` () =
