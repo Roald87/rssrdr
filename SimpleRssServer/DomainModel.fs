@@ -16,9 +16,9 @@ type DomainError =
     | NoRssFeedsFoundInPage of Uri
 
     // Http errors
-    | PreviousHttpRequestFailed of Uri * TimeSpan
-    | PreviousHttpRequestFailedButPageCached of Uri * TimeSpan
-    | HttpRequestTimedOut of Uri * TimeSpan
+    | PreviousHttpRequestFailed of Uri * retryIn: TimeSpan
+    | PreviousHttpRequestFailedButPageCached of Uri * retryIn: TimeSpan
+    | HttpRequestTimedOut of Uri * timeout: TimeSpan
     | HttpRequestNonSuccessStatus of Uri * HttpStatusCode
     | HttpException of Uri * Exception
 
@@ -42,7 +42,7 @@ type UnparsedXml =
 
 type UriProcessState =
     | TryFetchFromCache of Uri
-    | PendingFetch of (DateTimeOffset option) * Uri
+    | PendingFetch of ifModifiedSince: DateTimeOffset option * Uri
     | UnparsedCachedContent of string * Uri
     | UnparsedHttpResponse of string * Uri
     | NotRssContent of string * Uri
