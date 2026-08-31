@@ -31,10 +31,10 @@ let private fetchUri client logger (cacheConfig: CacheConfig) (fetchConfig: Fetc
                 ProcessingError e
     }
 
-let fetchAllRssFeeds client logger (cacheConfig: CacheConfig) (fetchConfig: FetchConfig) (ups: UriProcessState list) =
+let fetchRssFeeds client logger (cacheConfig: CacheConfig) (fetchConfig: FetchConfig) (upss: UriProcessState list) =
     async {
         let! processed =
-            ups
+            upss
             |> List.map (function
                 | PendingFetch(dt, uri) -> fetchUri client logger cacheConfig fetchConfig (dt, uri)
                 | x -> async.Return x)
