@@ -19,7 +19,7 @@ let updateCache (appCtx: AppContext) (urls: Uri list) =
         urls
         |> List.choose (getCacheAge appCtx.Logger appCtx.CacheConfig)
         |> List.map (checkIfInBackoff appCtx.Logger appCtx.CacheConfig)
-        |> fetchAllRssFeeds appCtx.Client appCtx.Logger appCtx.CacheConfig CacheRefreshFetchConfig
+        |> fetchRssFeeds appCtx.Client appCtx.Logger appCtx.CacheConfig CacheRefreshFetchConfig
         |> Async.RunSynchronously
         |> List.iter (
             parseFeedResult appCtx.Logger
@@ -30,25 +30,25 @@ let updateCache (appCtx: AppContext) (urls: Uri list) =
         )
 
 [<TailCall>]
-let rec clearCachePeriodically (appCtx: AppContext) (retention: TimeSpan) (period: TimeSpan) =
+let rec clearPersistentCachePeriodically (appCtx: AppContext) (retention: TimeSpan) (period: TimeSpan) =
     async {
         appCtx.Logger.LogDebug("Clearing cache files older than {retention} days.", retention.Days)
         clearExpiredCache appCtx.Logger appCtx.CacheConfig.Dir retention
         deleteInactive appCtx.CollectionsDir CollectionRetention
 
         do! Async.Sleep period
-        return! clearCachePeriodically appCtx retention period
+        return! clearPersistentCachePeriodically appCtx retention period
     }
 
 [<TailCall>]
-let rec updateRssFeedsPeriodically (appCtx: AppContext) =
+let rec updateRssFeedsPeriodically (appCtx: AppContext) (period: TimeSpan) =
     async {
         appCtx.Logger.LogDebug "Periodically updating RSS feeds."
 
         uniqueValidRequestLogUrls appCtx.RequestLogPath |> updateCache appCtx
 
-        do! Async.Sleep appCtx.CacheConfig.Expiration
-        return! updateRssFeedsPeriodically appCtx
+        do! Async.Sleep period
+        return! updateRssFeedsPeriodically appCtx period
     }
 
 [<TailCall>]
@@ -76,8 +76,8 @@ let startServer (logger: ILogger) (cacheConfig: SimpleRssServer.Config.CacheConf
           CollectionsDir = CollectionsDir
           RequestLogPath = RequestLogPath }
 
-    Async.Start(updateRssFeedsPeriodically appCtx)
-    Async.Start(clearCachePeriodically appCtx CacheRetention CacheCleanupPeriod)
+    Async.Start(updateRssFeedsPeriodically appCtx cacheConfig.Expiration)
+    Async.Start(clearPersistentCachePeriodically appCtx CacheRetention CacheCleanupPeriod)
 
     serverLoop listener appCtx
 

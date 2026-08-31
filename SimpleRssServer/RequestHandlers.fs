@@ -31,7 +31,7 @@ let processRssRequest (appCtx: AppContext) (query: string) =
     let checkIfInBackoff = checkIfInBackoff appCtx.Logger appCtx.CacheConfig
 
     let fetchRssFeeds =
-        fetchAllRssFeeds appCtx.Client appCtx.Logger appCtx.CacheConfig UserFetchConfig
+        fetchRssFeeds appCtx.Client appCtx.Logger appCtx.CacheConfig UserFetchConfig
 
     getRssUrls query
     |> List.map (toUriProcessState >> readCache >> checkIfInBackoff) // read cache, then skip feeds still in backoff
