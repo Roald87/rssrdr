@@ -161,10 +161,7 @@ let getCacheAge (logger: ILogger) (cacheConfig: CacheConfig) (url: Uri) =
 
     match cacheAge with
     | None ->
-        logger.LogWarning(
-            "No cache file found for {Url}, which is unexpected during a periodic update. Updating cache regardless.",
-            url
-        )
+        logger.LogWarning("No cache file found for {Url}, which is unexpected. Updating cache regardless.", url)
 
         Some(PendingFetch(None, url))
     | Some modTime when isCacheExpired cacheConfig modTime -> Some(PendingFetch(cacheAge, url))
